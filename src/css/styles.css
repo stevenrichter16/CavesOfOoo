@@ -29,6 +29,39 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
 .monster-tier-2 { color: var(--ok); }  /* Veteran - green */
 .monster-tier-3 { color: var(--danger); }  /* Elite - red */
 
+/* Biome color palettes - Game Boy Color style */
+#game.biome-candy {
+  color: #ffb3d9; /* Pink tint for candy biome */
+  text-shadow: 0 0 2px rgba(255, 105, 180, 0.3);
+}
+#game.biome-candy .monster-tier-1 { color: #ffd6ea; }
+#game.biome-candy .monster-tier-2 { color: #b3ffb3; }
+#game.biome-candy .monster-tier-3 { color: #ff6b9d; }
+
+#game.biome-ice {
+  color: #b3e5ff; /* Light blue tint for ice biome */
+  text-shadow: 0 0 2px rgba(135, 206, 235, 0.3);
+}
+#game.biome-ice .monster-tier-1 { color: #e6f7ff; }
+#game.biome-ice .monster-tier-2 { color: #99ff99; }
+#game.biome-ice .monster-tier-3 { color: #ff9999; }
+
+#game.biome-fire {
+  color: #ffb3b3; /* Red/orange tint for fire biome */
+  text-shadow: 0 0 2px rgba(255, 99, 71, 0.3);
+}
+#game.biome-fire .monster-tier-1 { color: #ffd6d6; }
+#game.biome-fire .monster-tier-2 { color: #b3ffb3; }
+#game.biome-fire .monster-tier-3 { color: #ff4444; }
+
+#game.biome-slime {
+  color: #b3ffb3; /* Green tint for slime biome */
+  text-shadow: 0 0 2px rgba(144, 238, 144, 0.3);
+}
+#game.biome-slime .monster-tier-1 { color: #d6ffd6; }
+#game.biome-slime .monster-tier-2 { color: #ffffb3; }
+#game.biome-slime .monster-tier-3 { color: #ff99ff; }
+
 #legend{color:var(--dim);font-size:13px}
 
 #log{border-top:1px solid #1c1f22;padding-top:8px;max-height:30vh;overflow:auto;font-size:13px}

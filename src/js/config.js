@@ -24,10 +24,10 @@ export const TILE = {
 };
 
 export const BIOMES = [
-  { id: "candy_forest", color: "#ff69b4", monsters: ["goober", "sootling"] },
-  { id: "frost_caverns", color: "#87ceeb", monsters: ["icething", "firefly"] },
-  { id: "volcanic_marsh", color: "#ff6347", monsters: ["sootling", "goober"] },
-  { id: "glimmering_meadows", color: "#9370db", monsters: ["firefly", "icething"] },
+  { id: "candy", color: "#ff69b4", monsters: ["goober", "sootling"] },
+  { id: "ice", color: "#87ceeb", monsters: ["icething", "firefly"] },
+  { id: "fire", color: "#ff6347", monsters: ["sootling", "firefly"] },
+  { id: "slime", color: "#90ee90", monsters: ["goober", "icething"] },
 ];
 
 export const WEAPONS = [
@@ -82,21 +82,21 @@ export const POTIONS = [
 ];
 
 export const QUOTES = {
-  candy_forest: { 
+  candy: { 
     dusk: { rainy: ["Raindrops gather on sugar petals like tears we sometimes swallow silently."] },
     shrine: ["The Candy People left this shrine. It smells like birthday cake and nostalgia."]
   },
-  frost_caverns: { 
+  ice: { 
     night: { clear: ["Frosted edges catch the dying light and whisper, we still shine."] },
     shrine: ["An Ice King shrine. The inscription reads: 'Gunter was here'."]
   },
-  volcanic_marsh: { 
+  fire: { 
     noon: { clear: ["The molten river pulses like a loud heart daring you to feel alive."] },
     shrine: ["A Fire Kingdom seal marks this ancient shrine. It's warm to the touch."]
   },
-  glimmering_meadows: { 
-    evening: { clear: ["Fireflies hum a lullaby of a hundred lights, inviting you to rest."] },
-    shrine: ["Marceline carved something here long ago. The words have faded but the feeling remains."]
+  slime: { 
+    evening: { clear: ["The slime bubbles pop with a wet melody, singing of simple joys."] },
+    shrine: ["A gooey shrine pulses with life. Something deep within it remembers being whole."]
   },
 };
 

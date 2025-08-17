@@ -558,6 +558,17 @@ function render(state) {
   
   // Render with colored monsters
   const gameEl = document.getElementById("game");
+  
+  // Handle old biome names and apply class for color palette
+  let biomeClass = biome;
+  // Convert old biome names to new ones
+  if (biome === "candy_forest") biomeClass = "candy";
+  else if (biome === "frost_caverns") biomeClass = "ice";
+  else if (biome === "volcanic_marsh") biomeClass = "fire";
+  else if (biome === "glimmering_meadows") biomeClass = "slime";
+  
+  gameEl.className = `biome-${biomeClass}`;
+  
   let html = "";
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -602,7 +613,15 @@ function render(state) {
   setText("headgear", equippedHeadgear ? `^ ${equippedHeadgear.item.name}` : "^ None");
   setText("potions", `! x${p.potionCount}`);
   setText("time", `${TIMES[state.timeIndex]} / ${state.weather}`);
-  setText("biome", biome.replace("_", " "));
+  
+  // Display friendly biome name
+  let biomeName = biome;
+  if (biome === "candy_forest" || biome === "candy") biomeName = "candy";
+  else if (biome === "frost_caverns" || biome === "ice") biomeName = "ice";
+  else if (biome === "volcanic_marsh" || biome === "fire") biomeName = "fire";
+  else if (biome === "glimmering_meadows" || biome === "slime") biomeName = "slime";
+  
+  setText("biome", biomeName);
   setText("coords", `(${state.cx},${state.cy})`);
   
   // Status effects - group by type to show stacks
@@ -638,7 +657,10 @@ function render(state) {
   }
   
   // Update log
-  document.getElementById("log").innerHTML = state.logMessages.slice(-15).join("<br/>");
+  const logEl = document.getElementById("log");
+  logEl.innerHTML = state.logMessages.slice(-15).join("<br/>");
+  // Auto-scroll to bottom to show most recent messages
+  logEl.scrollTop = logEl.scrollHeight;
   
   // Show/hide restart
   document.getElementById("restart").style.display = state.over ? "inline-block" : "none";
