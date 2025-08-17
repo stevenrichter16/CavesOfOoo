@@ -1,0 +1,24 @@
+{
+  "name": "caves-of-ooo",
+  "version": "2.0.0",
+  "description": "Enhanced Adventure Roguelike - An Adventure Time themed roguelike game",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "roguelike",
+    "game",
+    "adventure-time",
+    "javascript",
+    "html5"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/caves-of-ooo.git"
+  }
+}
