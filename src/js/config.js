@@ -19,15 +19,19 @@ export const TILE = {
     icething: "i", 
     sootling: "s", 
     firefly: "f", 
-    boss: "B" 
+    boss: "B",
+    flamepup: "☼",
+    frostbite: "F",
+    toxicslime: "T",
+    sparkler: "S"
   }
 };
 
 export const BIOMES = [
-  { id: "candy", color: "#ff69b4", monsters: ["goober", "sootling"] },
-  { id: "ice", color: "#87ceeb", monsters: ["icething", "firefly"] },
-  { id: "fire", color: "#ff6347", monsters: ["sootling", "firefly"] },
-  { id: "slime", color: "#90ee90", monsters: ["goober", "icething"] },
+  { id: "candy", color: "#ff69b4", monsters: ["goober", "sootling", "sparkler"] },
+  { id: "ice", color: "#87ceeb", monsters: ["icething", "frostbite"] },
+  { id: "fire", color: "#ff6347", monsters: ["sootling", "flamepup", "sparkler"] },
+  { id: "slime", color: "#90ee90", monsters: ["goober", "toxicslime"] },
 ];
 
 export const WEAPONS = [
@@ -65,11 +69,11 @@ export const HEADGEAR = [
   { name: "Candy Helmet", def: 1, str: 1, desc: "Sweet and sturdy" },
   { name: "Wizard Hat", def: 0, magic: 3, desc: "Pointed with mysterious power" },
   { name: "Flame Crown", str: 2, def: 1, desc: "Burns with inner fire" },
-  { name: "Crystal Circlet", def: 2, magic: 1, desc: "Clarity of thought" },
+  { name: "Jake's Cap", spd: 3, desc: "Stretchy and quick" },
   { name: "Billy's Helm", def: 3, str: 1, desc: "Hero's legacy" },
-  { name: "Mushroom Cap", def: 2, desc: "Spongy and protective" },
+  { name: "Marceline's Hood", spd: 2, magic: 1, desc: "Swift as a vampire" },
   { name: "Lich's Crown", def: 1, str: 3, desc: "Whispers of dark power" },
-  { name: "Golden Tiara", def: 4, desc: "Royal protection" },
+  { name: "Feather Cap", spd: 4, desc: "Light as air" },
 ];
 
 export const POTIONS = [

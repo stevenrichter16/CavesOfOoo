@@ -22,6 +22,11 @@ export function processStatusEffects(state, entity, label = "") {
         if (label && state.log) {
           state.log(`${label} succumb${label === "You" ? "" : "s"} to poison!`, "bad");
         }
+        // Set game over if player dies
+        if (entity === state.player) {
+          state.over = true;
+          state.log("Game over - you were poisoned to death!", "bad");
+        }
       }
     } else if (eff.type === "burn") {
       entity.hp -= eff.value;
@@ -33,6 +38,11 @@ export function processStatusEffects(state, entity, label = "") {
         if (label && state.log) {
           state.log(`${label} ${label === "You" ? "are" : "is"} burned to a crisp!`, "bad");
         }
+        // Set game over if player dies
+        if (entity === state.player) {
+          state.over = true;
+          state.log("Game over - you burned to death!", "bad");
+        }
       }
     } else if (eff.type === "shock") {
       entity.hp -= eff.value;
@@ -43,6 +53,11 @@ export function processStatusEffects(state, entity, label = "") {
         entity.alive = false;
         if (label && state.log) {
           state.log(`${label} ${label === "You" ? "are" : "is"} electrocuted!`, "bad");
+        }
+        // Set game over if player dies
+        if (entity === state.player) {
+          state.over = true;
+          state.log("Game over - you were electrocuted!", "bad");
         }
       }
     }

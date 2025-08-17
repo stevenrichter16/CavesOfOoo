@@ -3,7 +3,7 @@ import { rnd, choice, esc } from './utils.js';
 import { makePlayer, levelUp } from './entities.js';
 import { genChunk, findOpenSpot } from './worldGen.js';
 import { saveChunk, loadChunk, clearWorld } from './persistence.js';
-import { attack } from './combat.js';
+import { attack, showDamageNumber } from './combat.js';
 import { processStatusEffects, getStatusModifier, applyStatusEffect, isFrozen } from './statusEffects.js';
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 
@@ -178,6 +178,15 @@ function loadOrGenChunk(state, cx, cy) {
 function tryMove(state, dx, dy) {
   if (state.over) return;
   const { player } = state;
+  
+  // Check if player is frozen
+  const frozen = isFrozen(player);
+  if (frozen) {
+    log(state, "You're frozen solid and can't move!", "magic");
+    enemiesTurn(state);
+    return;
+  }
+  
   const nx = player.x + dx, ny = player.y + dy;
   
   // Edge travel
@@ -241,7 +250,15 @@ function tryMove(state, dx, dy) {
 }
 
 function waitTurn(state) { 
-  if (state.over) return; 
+  if (state.over) return;
+  
+  // Check if player is frozen
+  if (isFrozen(state.player)) {
+    log(state, "You're frozen solid and can't act!", "magic");
+    enemiesTurn(state);
+    return;
+  }
+  
   log(state, "You wait. Time wiggles."); 
   state.player.turnsSinceRest = 0;
   // Small heal if hurt
@@ -250,6 +267,113 @@ function waitTurn(state) {
     log(state, "You catch your breath. +1 HP", "good");
   }
   enemiesTurn(state); 
+}
+
+function processMonsterAbility(state, monster) {
+  if (!monster.ability) return false;
+  
+  // Calculate distance to player
+  const dx = Math.abs(state.player.x - monster.x);
+  const dy = Math.abs(state.player.y - monster.y);
+  const distance = dx + dy;
+  
+  // Check if player is in range
+  if (distance > monster.ability.range) return false;
+  
+  // Check if ability triggers (with tier scaling already applied)
+  if (Math.random() >= monster.ability.chance) return false;
+  
+  // Execute ability
+  const ability = monster.ability;
+  const abilityNames = {
+    fireBlast: "emits a blast of fire",
+    iceBreath: "breathes freezing ice",
+    poisonSpit: "spits toxic venom",
+    electricPulse: "releases an electric pulse"
+  };
+  
+  log(state, `${monster.name} ${abilityNames[ability.type] || "uses special ability"}!`, "bad");
+  
+  // Apply damage (reduced by defense)
+  const playerDef = state.player.def + 
+    (state.player.armor ? state.player.armor.def : 0) +
+    (state.player.headgear && state.player.headgear.def ? state.player.headgear.def : 0);
+  const damage = Math.max(1, ability.damage - Math.floor(playerDef / 2));
+  
+  state.player.hp -= damage;
+  log(state, `You take ${damage} damage from the ${ability.type}!`, "bad");
+  
+  // Show damage number
+  showAbilityDamage(state, state.player, damage, ability.type);
+  
+  // Apply status effect if any
+  if (ability.effect && ability.effectTurns > 0) {
+    applyStatusEffect(state.player, ability.effect, ability.effectTurns, ability.effectValue);
+    
+    const effectMessages = {
+      burn: "You catch fire!",
+      freeze: "You are frozen solid!",
+      poison: "You are poisoned!",
+      shock: "You are electrified!"
+    };
+    log(state, effectMessages[ability.effect] || "You are afflicted!", "bad");
+  }
+  
+  // Check if player died
+  if (state.player.hp <= 0) {
+    state.player.alive = false;
+    state.over = true;
+    log(state, `You were defeated by ${monster.name}'s ${ability.type}!`, "bad");
+  }
+  
+  return true; // Ability was used
+}
+
+function showAbilityDamage(state, target, damage, abilityType) {
+  const gameEl = document.getElementById("game");
+  const charWidth = 8;
+  const lineHeight = 17;
+  
+  const x = target.x !== undefined ? target.x : 0;
+  const y = target.y !== undefined ? target.y : 0;
+  
+  // Create damage number
+  const dmgEl = document.createElement("div");
+  dmgEl.className = "damage-float ability-damage";
+  dmgEl.textContent = `-${damage}`;
+  dmgEl.style.left = `${x * charWidth}px`;
+  dmgEl.style.top = `${y * lineHeight}px`;
+  
+  // Add ability-specific styling
+  if (abilityType === "fireBlast") {
+    dmgEl.style.color = "#ff6633";
+    dmgEl.style.textShadow = "0 0 5px rgba(255,107,0,0.8)";
+  } else if (abilityType === "iceBreath") {
+    dmgEl.style.color = "#66ccff";
+    dmgEl.style.textShadow = "0 0 5px rgba(102,204,255,0.8)";
+  } else if (abilityType === "poisonSpit") {
+    dmgEl.style.color = "#66ff66";
+    dmgEl.style.textShadow = "0 0 5px rgba(102,255,102,0.8)";
+  } else if (abilityType === "electricPulse") {
+    dmgEl.style.color = "#ffff66";
+    dmgEl.style.textShadow = "0 0 5px rgba(255,255,102,0.8)";
+  }
+  
+  gameEl.parentElement.appendChild(dmgEl);
+  
+  // Create visual effect for ability
+  const effectEl = document.createElement("div");
+  effectEl.className = `ability-animation ${abilityType}`;
+  effectEl.style.left = `${x * charWidth - 20}px`;
+  effectEl.style.top = `${y * lineHeight - 20}px`;
+  
+  gameEl.parentElement.appendChild(effectEl);
+  
+  // Cleanup
+  setTimeout(() => {
+    dmgEl.remove();
+    effectEl.remove();
+  }, 1000);
 }
 
 function enemiesTurn(state) {
@@ -263,6 +387,12 @@ function enemiesTurn(state) {
       log(state, `${m.name} is frozen and can't move!`, "magic");
       processStatusEffects(state, m, m.name);
       continue;
+    }
+    
+    // Check for ability activation
+    if (processMonsterAbility(state, m)) {
+      processStatusEffects(state, m, m.name);
+      continue; // Skip normal turn if ability was used
     }
     
     // Ensure monster is within bounds
@@ -282,6 +412,8 @@ function enemiesTurn(state) {
         log(state, "You fall. The floor hums a lullaby. Game over.", "bad");
         break;
       }
+      // Process status effects after normal attack
+      processStatusEffects(state, m, m.name);
       continue;
     }
     
@@ -451,6 +583,7 @@ function renderEquipmentPanel(state) {
     const stats = [];
     if (equippedHeadgear.item.def) stats.push(`<span class="stat defense">DEF +${equippedHeadgear.item.def}</span>`);
     if (equippedHeadgear.item.str) stats.push(`<span class="stat strength">STR +${equippedHeadgear.item.str}</span>`);
+    if (equippedHeadgear.item.spd) stats.push(`<span class="stat speed">SPD +${equippedHeadgear.item.spd}</span>`);
     if (equippedHeadgear.item.magic) stats.push(`<span class="stat magic">MAG +${equippedHeadgear.item.magic}</span>`);
     
     headgearDiv.innerHTML = `
@@ -474,12 +607,15 @@ function renderEquipmentPanel(state) {
   const armorDef = p.armor ? p.armor.def : 0;
   const headgearDef = p.headgear ? (p.headgear.def || 0) : 0;
   const headgearStr = p.headgear ? (p.headgear.str || 0) : 0;
+  const headgearSpd = p.headgear ? (p.headgear.spd || 0) : 0;
   const headgearMagic = p.headgear ? (p.headgear.magic || 0) : 0;
   const statusStrBonus = getStatusModifier(p, "str");
   const statusDefBonus = getStatusModifier(p, "def");
+  const statusSpdBonus = getStatusModifier(p, "spd");
   
   const totalStr = p.str + headgearStr + statusStrBonus;
   const totalDef = p.def + armorDef + headgearDef + statusDefBonus;
+  const totalSpd = (p.spd || 0) + headgearSpd + statusSpdBonus;
   const totalDmg = weaponDmg;
   
   // Display total stats
@@ -491,6 +627,10 @@ function renderEquipmentPanel(state) {
     <div class="stat-row">
       <span class="stat-label">Base DEF:</span>
       <span class="stat-value">${p.def}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Base SPD:</span>
+      <span class="stat-value">${p.spd || 0}</span>
     </div>
     <div class="stat-row">
       <span class="stat-label">Equipment Bonuses:</span>
@@ -531,6 +671,10 @@ function renderEquipmentPanel(state) {
     <div class="stat-row">
       <span class="stat-label"><strong>Total DEF:</strong></span>
       <span class="stat-value"><strong>${totalDef}</strong></span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label"><strong>Total SPD:</strong></span>
+      <span class="stat-value"><strong>${totalSpd}</strong></span>
     </div>
   `;
 }
@@ -576,9 +720,15 @@ function render(state) {
       const monsterTier = monsterMap.get(`${x},${y}`);
       
       if (monsterTier) {
-        // Color monster based on tier
+        // Check if this is a flame pup for special styling
+        const monster = monsters.find(m => m.x === x && m.y === y && m.alive);
         const tierClass = `monster-tier-${monsterTier}`;
-        html += `<span class="${tierClass}">${char}</span>`;
+        if (monster && monster.name === "flame pup") {
+          html += `<span class="flame-pup ${tierClass}">${char}</span>`;
+        } else {
+          // Color monster based on tier
+          html += `<span class="${tierClass}">${char}</span>`;
+        }
       } else {
         html += char;
       }
@@ -600,8 +750,12 @@ function render(state) {
   const headgearDefBonus = p.headgear ? (p.headgear.def || 0) : 0;
   const headgearStrBonus = p.headgear ? (p.headgear.str || 0) : 0;
   
+  const spdBonus = getStatusModifier(p, "spd");
+  const headgearSpdBonus = p.headgear ? (p.headgear.spd || 0) : 0;
+  
   setText("str", `STR ${p.str}${strBonus ? `+${strBonus}` : ""} ${weaponBonus ? `[+${weaponBonus}]` : ""} ${headgearStrBonus ? `[+${headgearStrBonus}]` : ""}`);
   setText("def", `DEF ${p.def}${defBonus ? `+${defBonus}` : ""} ${armorBonus ? `[+${armorBonus}]` : ""} ${headgearDefBonus ? `[+${headgearDefBonus}]` : ""}`);
+  setText("spd", `SPD ${p.spd || 0}${spdBonus ? `+${spdBonus}` : ""} ${headgearSpdBonus ? `[+${headgearSpdBonus}]` : ""}`);
   
   // Find equipped items by ID
   const equippedWeapon = p.inventory.find(i => i.id === state.equippedWeaponId);
@@ -643,8 +797,23 @@ function render(state) {
   // Display grouped effects
   for (const [type, data] of Object.entries(effectGroups)) {
     const div = document.createElement("div");
-    div.className = `status-effect ${type.startsWith("buff") ? "buff" : "debuff"}`;
-    const displayName = type.replace(/_/g, " ").replace("buff ", "+").replace("debuff ", "-");
+    
+    // Determine effect class
+    let effectClass = "debuff";
+    if (type.startsWith("buff")) effectClass = "buff";
+    if (type === "freeze") effectClass = "freeze";
+    
+    div.className = `status-effect ${effectClass}`;
+    
+    // Format display name
+    let displayName = type.replace(/_/g, " ");
+    if (type.startsWith("buff_")) displayName = "+" + type.replace("buff_", "");
+    else if (type.startsWith("debuff_")) displayName = "-" + type.replace("debuff_", "");
+    else if (type === "freeze") displayName = "FROZEN";
+    else if (type === "burn") displayName = "burning";
+    else if (type === "poison") displayName = "poisoned";
+    else if (type === "shock") displayName = "shocked";
+    else if (type === "weaken") displayName = "weakened";
     
     // Show stack count if more than 1
     const stackText = data.count > 1 ? ` x${data.count}` : "";
@@ -652,7 +821,10 @@ function render(state) {
       `${data.minTurns}` : 
       `${data.minTurns}-${data.maxTurns}`;
     
-    div.textContent = `${displayName}${stackText} +${data.totalValue} (${turnsText}t)`;
+    // Don't show value for freeze (it's always 0)
+    const valueText = (type === "freeze" || data.totalValue === 0) ? "" : ` +${data.totalValue}`;
+    
+    div.textContent = `${displayName}${stackText}${valueText} (${turnsText}t)`;
     statusBar.appendChild(div);
   }
   
@@ -752,6 +924,27 @@ export function initGame() {
       log(STATE, "R: New Game | Walk off edges to explore", "note");
       log(STATE, "Find weapons, armor, and potions to survive!", "note");
       log(STATE, "Defeat monsters to gain XP and level up!", "note");
+      e.preventDefault();
+    }
+    else if (k.toLowerCase() === "m") {
+      // Debug: Show current monsters
+      log(STATE, "=== MONSTERS IN AREA ===", "magic");
+      const monsters = STATE.chunk.monsters.filter(m => m.alive);
+      monsters.forEach(m => {
+        const ability = m.ability ? ` [${m.ability.type}]` : "";
+        log(STATE, `${m.name} (${m.glyph}) HP:${m.hp}${ability}`, "note");
+      });
+      if (monsters.length === 0) log(STATE, "No monsters in this area", "dim");
+      e.preventDefault();
+    }
+    else if (k.toLowerCase() === "f") {
+      // Debug: Test freeze
+      log(STATE, "=== DEBUG: Testing Freeze ===", "magic");
+      applyStatusEffect(STATE.player, "freeze", 2, 0);
+      log(STATE, "Applied freeze effect for 2 turns", "magic");
+      log(STATE, `Status effects: ${JSON.stringify(STATE.player.statusEffects)}`, "note");
+      log(STATE, `isFrozen result: ${isFrozen(STATE.player)}`, "note");
+      render(STATE);
       e.preventDefault();
     }
   });

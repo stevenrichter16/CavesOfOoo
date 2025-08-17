@@ -24,10 +24,22 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
   position:relative;
 }
 
+
 /* Monster tier colors */
 .monster-tier-1 { color: var(--fg); }  /* Normal - white */
 .monster-tier-2 { color: var(--ok); }  /* Veteran - green */
 .monster-tier-3 { color: var(--danger); }  /* Elite - red */
+
+/* Flame pup special styling - just size, no color */
+.flame-pup,
+#game.biome-candy .flame-pup,
+#game.biome-ice .flame-pup,
+#game.biome-fire .flame-pup,
+#game.biome-slime .flame-pup {
+  font-size: 1.2em !important;
+  line-height: 0.875 !important;
+  vertical-align: middle !important;
+}
 
 /* Biome color palettes - Game Boy Color style */
 #game.biome-candy {
@@ -159,6 +171,17 @@ a.button, button.button{
 
 .status-effect.buff { border-color:var(--ok); color:var(--ok); }
 .status-effect.debuff { border-color:var(--danger); color:var(--danger); }
+.status-effect.freeze { 
+  border-color:#66ccff; 
+  color:#66ccff; 
+  background: rgba(102,204,255,0.1);
+  animation: freeze-pulse 1s ease-in-out infinite;
+}
+
+@keyframes freeze-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 
 /* Equipment Panel */
 #gameContainer {
@@ -229,6 +252,7 @@ a.button, button.button{
 .equipment-slot .stat.damage { color: var(--danger); border: 1px solid #3a2525; }
 .equipment-slot .stat.defense { color: var(--ok); border: 1px solid #253a25; }
 .equipment-slot .stat.strength { color: var(--accent); border: 1px solid #3a3525; }
+.equipment-slot .stat.speed { color: #b3b3ff; border: 1px solid #2525a; }
 .equipment-slot .stat.magic { color: var(--magic); border: 1px solid #253a3a; }
 
 .total-stats {
@@ -251,3 +275,136 @@ a.button, button.button{
   color: var(--fg);
   font-weight: 600;
 }
+
+/* Monster ability animations */
+.ability-animation {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 90;
+  border-radius: 50%;
+}
+
+.ability-animation.fireBlast {
+  background: radial-gradient(circle, 
+    rgba(255,107,0,0.9) 0%, 
+    rgba(255,51,0,0.6) 30%,
+    rgba(255,0,0,0.4) 60%, 
+    transparent 80%);
+  box-shadow: 
+    0 0 30px rgba(255,107,0,0.8),
+    0 0 60px rgba(255,51,0,0.6),
+    0 0 90px rgba(255,0,0,0.4);
+  animation: fire-blast-anim 0.8s ease-out forwards;
+}
+
+.ability-animation.iceBreath {
+  background: radial-gradient(circle, 
+    rgba(102,204,255,0.9) 0%, 
+    rgba(51,153,255,0.6) 30%,
+    rgba(0,102,204,0.4) 60%, 
+    transparent 80%);
+  box-shadow: 
+    0 0 30px rgba(102,204,255,0.8),
+    0 0 60px rgba(51,153,255,0.6);
+  animation: ice-breath-anim 0.8s ease-out forwards;
+}
+
+.ability-animation.poisonSpit {
+  background: radial-gradient(circle, 
+    rgba(102,255,102,0.9) 0%, 
+    rgba(51,204,51,0.6) 30%,
+    rgba(0,153,0,0.4) 60%, 
+    transparent 80%);
+  box-shadow: 
+    0 0 30px rgba(102,255,102,0.8),
+    0 0 60px rgba(51,204,51,0.6);
+  animation: poison-spit-anim 0.8s ease-out forwards;
+}
+
+.ability-animation.electricPulse {
+  background: radial-gradient(circle, 
+    rgba(255,255,102,0.9) 0%, 
+    rgba(255,255,51,0.6) 30%,
+    rgba(204,204,0,0.4) 60%, 
+    transparent 80%);
+  box-shadow: 
+    0 0 30px rgba(255,255,102,0.8),
+    0 0 60px rgba(255,255,51,0.6);
+  animation: electric-pulse-anim 0.8s ease-out forwards;
+}
+
+@keyframes fire-blast-anim {
+  0% {
+    transform: scale(0.3) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.5) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes ice-breath-anim {
+  0% {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.8) skewX(10deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.5) skewX(-10deg);
+    opacity: 0;
+  }
+}
+
+@keyframes poison-spit-anim {
+  0% {
+    transform: scale(0.3) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) translateY(-10px);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2) translateY(5px);
+    opacity: 0;
+  }
+}
+
+@keyframes electric-pulse-anim {
+  0% {
+    transform: scale(0.3);
+    opacity: 1;
+    filter: brightness(2);
+  }
+  25% {
+    transform: scale(1.2);
+    opacity: 0.9;
+    filter: brightness(1.5);
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.7;
+    filter: brightness(2);
+  }
+  75% {
+    transform: scale(2.2);
+    opacity: 0.4;
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+    filter: brightness(1);
+  }
+}
+

@@ -7,6 +7,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   
   const aStr = attacker.str + getStatusModifier(attacker, "str");
   const dDef = defender.def + getStatusModifier(defender, "def");
+  const dSpd = defender.spd || 0; // Speed for dodge calculation
   
   // Add weapon damage if player attacking
   let weaponDmg = 0;
@@ -19,15 +20,22 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   // Add armor and headgear defense if player defending
   let armorDef = 0;
   let headgearDef = 0;
+  let headgearSpd = 0;
   if (defender === state.player) {
     if (state.player.armor) armorDef = state.player.armor.def;
-    if (state.player.headgear && state.player.headgear.def) headgearDef = state.player.headgear.def;
+    if (state.player.headgear) {
+      if (state.player.headgear.def) headgearDef = state.player.headgear.def;
+      if (state.player.headgear.spd) headgearSpd = state.player.headgear.spd;
+    }
   }
   
   const totalDef = dDef + armorDef + headgearDef;
   const totalStr = aStr + headgearStr;
+  const totalSpd = dSpd + headgearSpd + getStatusModifier(defender, "spd");
+  
+  // NEW FORMULA: Hit chance based on STR vs SPD
   const hitRoll = roll(1, 100);
-  const hitChance = clamp(70 + (totalStr - totalDef) * 5, 30, 95);
+  const hitChance = clamp(75 + (totalStr * 2) - (totalSpd * 3), 35, 85);
   
   if (hitRoll > hitChance) { 
     state.log(`${labelA} miss ${labelD}.`); 
@@ -37,8 +45,10 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   }
   
   const crit = Math.random() < 0.15;
-  const base = roll(1, totalStr) + weaponDmg - Math.floor(totalDef / 2);
-  const dmg = Math.max(1, base) * (crit ? 2 : 1);
+  // NEW DAMAGE FORMULA: DEF reduces damage directly (0.5 per point)
+  const base = roll(1, totalStr) + weaponDmg;
+  const reduced = Math.max(1, base - Math.floor(totalDef * 0.5));
+  const dmg = reduced * (crit ? 2 : 1);
   
   defender.hp -= dmg;
   
