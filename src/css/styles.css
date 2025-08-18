@@ -2,6 +2,7 @@
   --bg:#0b0b0f; --fg:#c9ffd6; --dim:#86b99a; --accent:#ffd27f; 
   --danger:#ff6b6b; --ok:#7effa0; --overlay:#0b0b0fcc;
   --xp:#b19cd9; --magic:#87ceeb; --rare:#ff69b4;
+  --gold:#ffd700;
 }
 
 html,body{height:100%}
@@ -80,6 +81,7 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
 
 .good{color:var(--ok)} .bad{color:var(--danger)} .note{color:var(--accent)}
 .xp{color:var(--xp)} .magic{color:var(--magic)} .rare{color:var(--rare)}
+.gold{color:var(--gold);font-weight:bold}
 
 a.button, button.button{
   color:var(--bg);background:var(--accent);padding:6px 10px;
@@ -114,6 +116,28 @@ a.button, button.button{
 #overlay .hint { margin-top:12px; padding-top:8px; border-top:1px solid #2c2f33; color:var(--dim); font-size:12px; }
 
 .equipped { color:var(--ok); }
+
+/* Shop styles */
+.shop-header {
+  text-align: center;
+}
+
+.shop-items {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.shop-items .item {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--dim);
+  border-radius: 4px;
+}
+
+.shop-items .item.selected {
+  background: #1a1d22;
+  border-color: var(--accent);
+}
 
 /* Combat animation */
 @keyframes shake {

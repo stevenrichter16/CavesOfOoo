@@ -100,6 +100,13 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
     if (attacker === state.player && defender.xp) {
       state.player.xp += defender.xp;
       state.log(`+${defender.xp} XP`, "xp");
+      
+      // Gold drop from monsters
+      const tier = defender.tier || 1;
+      const goldAmount = Math.floor(Math.random() * (tier * 5 + 10)) + 5;
+      state.player.gold += goldAmount;
+      state.log(`+${goldAmount} gold!`, "gold");
+      
       if (state.player.xp >= state.player.xpNext) {
         levelUp(state);
       }

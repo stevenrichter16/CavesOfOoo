@@ -14,6 +14,7 @@ export const TILE = {
   chest: "$", 
   shrine: "▲", 
   door: "+",
+  vendor: "V",
   monsters: { 
     goober: "g", 
     icething: "i", 

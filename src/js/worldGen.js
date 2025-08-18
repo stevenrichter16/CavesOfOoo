@@ -75,7 +75,65 @@ export function ensureEdgeExits(map, sr) {
   }
 }
 
-export function findFloorTile(map, sr) {
+export function generateVendorInventory(sr, biome) {
+  const inventory = [];
+  
+  // Create price map for consistent pricing per item type
+  const potionPrices = {};
+  POTIONS.forEach(p => {
+    // Base price on potion power/rarity
+    let basePrice = 25;
+    if (p.effect === "max_heal") basePrice = 80;  // Blue potion - full heal
+    else if (p.effect === "heal") basePrice = 25;  // Red potion - basic heal
+    else if (p.effect === "buff_both") basePrice = 60;  // Yellow - buffs both
+    else if (p.effect === "berserk") basePrice = 50;  // Black - risky buff
+    else basePrice = 40;  // Green/Purple - single stat buffs
+    
+    // Add small random variance (±20%)
+    potionPrices[p.name] = basePrice + sr.int(Math.floor(basePrice * 0.4)) - Math.floor(basePrice * 0.2);
+  });
+  
+  // Always have at least 1-2 potions
+  for (let i = 0; i < sr.between(1, 3); i++) {
+    const potion = sr.pick(POTIONS);
+    inventory.push({
+      type: "potion",
+      item: potion,
+      price: potionPrices[potion.name]
+    });
+  }
+  
+  // Sometimes have weapons (60% chance)
+  if (sr.next() < 0.6) {
+    inventory.push({
+      type: "weapon",
+      item: sr.pick(WEAPONS),
+      price: 50 + sr.int(100)
+    });
+  }
+  
+  // Sometimes have armor (60% chance)
+  if (sr.next() < 0.6) {
+    inventory.push({
+      type: "armor", 
+      item: sr.pick(ARMORS),
+      price: 40 + sr.int(80)
+    });
+  }
+  
+  // Sometimes have headgear (40% chance)
+  if (sr.next() < 0.4) {
+    inventory.push({
+      type: "headgear",
+      item: sr.pick(HEADGEAR),
+      price: 30 + sr.int(60)
+    });
+  }
+  
+  return inventory;
+}
+
+function findFloorTile(map, sr) {
   for (let tries = 0; tries < 1000; tries++) {
     const x = sr.int(W), y = sr.int(H);
     if (map[y][x] === ".") return { x, y };
@@ -101,6 +159,20 @@ export function placeItems(map, sr, biome) {
     if (pos) {
       map[pos.y][pos.x] = "▲";
       items.push({ type: "shrine", x: pos.x, y: pos.y, used: false });
+    }
+  }
+  
+  // Place vendor (70% chance per chunk)
+  if (sr.next() < 0.7) {
+    const pos = findFloorTile(map, sr);
+    if (pos) {
+      map[pos.y][pos.x] = "V";
+      items.push({
+        type: "vendor",
+        x: pos.x,
+        y: pos.y,
+        inventory: generateVendorInventory(sr, biome)
+      });
     }
   }
   
