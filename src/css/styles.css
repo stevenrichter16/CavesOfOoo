@@ -42,38 +42,94 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
   vertical-align: middle !important;
 }
 
-/* Biome color palettes - Game Boy Color style */
-#game.biome-candy {
-  color: #ffb3d9; /* Pink tint for candy biome */
-  text-shadow: 0 0 2px rgba(255, 105, 180, 0.3);
+/* Special styling for high-tier monsters */
+.demon { 
+  color: #FF0000 !important; 
+  text-shadow: 0 0 5px rgba(255, 0, 0, 0.6);
+  animation: pulse 2s infinite;
 }
-#game.biome-candy .monster-tier-1 { color: #ffd6ea; }
-#game.biome-candy .monster-tier-2 { color: #b3ffb3; }
-#game.biome-candy .monster-tier-3 { color: #ff6b9d; }
 
-#game.biome-ice {
-  color: #b3e5ff; /* Light blue tint for ice biome */
-  text-shadow: 0 0 2px rgba(135, 206, 235, 0.3);
+.bone-knight {
+  color: #F5F5DC !important;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.4);
 }
-#game.biome-ice .monster-tier-1 { color: #e6f7ff; }
-#game.biome-ice .monster-tier-2 { color: #99ff99; }
-#game.biome-ice .monster-tier-3 { color: #ff9999; }
 
-#game.biome-fire {
-  color: #ffb3b3; /* Red/orange tint for fire biome */
-  text-shadow: 0 0 2px rgba(255, 99, 71, 0.3);
+.wraith {
+  color: #9370DB !important;
+  text-shadow: 0 0 4px rgba(147, 112, 219, 0.6);
+  opacity: 0.9;
+  animation: float 3s ease-in-out infinite;
 }
-#game.biome-fire .monster-tier-1 { color: #ffd6d6; }
-#game.biome-fire .monster-tier-2 { color: #b3ffb3; }
-#game.biome-fire .monster-tier-3 { color: #ff4444; }
 
-#game.biome-slime {
-  color: #b3ffb3; /* Green tint for slime biome */
+.shadow-beast {
+  color: #4B0082 !important;
+  text-shadow: 0 0 6px rgba(75, 0, 130, 0.8);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Biome color palettes */
+#game.biome-candy_forest {
+  color: #FFB6C1;
+  text-shadow: 0 0 2px rgba(255, 192, 203, 0.3);
+}
+#game.biome-candy_forest .monster-tier-1 { color: #ffd6ea; }
+#game.biome-candy_forest .monster-tier-2 { color: #b3ffb3; }
+#game.biome-candy_forest .monster-tier-3 { color: #ff6b9d; }
+
+#game.biome-slime_kingdom {
+  color: #90EE90;
   text-shadow: 0 0 2px rgba(144, 238, 144, 0.3);
 }
-#game.biome-slime .monster-tier-1 { color: #d6ffd6; }
-#game.biome-slime .monster-tier-2 { color: #ffffb3; }
-#game.biome-slime .monster-tier-3 { color: #ff99ff; }
+#game.biome-slime_kingdom .monster-tier-1 { color: #c5ffc5; }
+#game.biome-slime_kingdom .monster-tier-2 { color: #ffff99; }
+#game.biome-slime_kingdom .monster-tier-3 { color: #ff66ff; }
+
+#game.biome-frost_caverns {
+  color: #B0E0E6;
+  text-shadow: 0 0 2px rgba(135, 206, 235, 0.3);
+}
+#game.biome-frost_caverns .monster-tier-1 { color: #e6f7ff; }
+#game.biome-frost_caverns .monster-tier-2 { color: #99ff99; }
+#game.biome-frost_caverns .monster-tier-3 { color: #ff9999; }
+
+#game.biome-volcanic_marsh {
+  color: #FF6347;
+  text-shadow: 0 0 2px rgba(255, 99, 71, 0.3);
+}
+#game.biome-volcanic_marsh .monster-tier-1 { color: #ffd6d6; }
+#game.biome-volcanic_marsh .monster-tier-2 { color: #ffff66; }
+#game.biome-volcanic_marsh .monster-tier-3 { color: #ff4444; }
+
+#game.biome-corrupted_dungeon {
+  color: #9370DB;
+  text-shadow: 0 0 3px rgba(75, 0, 130, 0.4);
+}
+#game.biome-corrupted_dungeon .monster-tier-1 { color: #DDA0DD; }
+#game.biome-corrupted_dungeon .monster-tier-2 { color: #BA55D3; }
+#game.biome-corrupted_dungeon .monster-tier-3 { color: #8B008B; }
+
+#game.biome-lich_domain {
+  color: #708090;
+  text-shadow: 0 0 4px rgba(25, 25, 112, 0.5);
+}
+#game.biome-lich_domain .monster-tier-1 { color: #B0C4DE; }
+#game.biome-lich_domain .monster-tier-2 { color: #778899; }
+#game.biome-lich_domain .monster-tier-3 { color: #FF0000; }
+
+/* Legacy biome support */
+#game.biome-candy { color: #ffb3d9; text-shadow: 0 0 2px rgba(255, 105, 180, 0.3); }
+#game.biome-ice { color: #b3e5ff; text-shadow: 0 0 2px rgba(135, 206, 235, 0.3); }
+#game.biome-fire { color: #ffb3b3; text-shadow: 0 0 2px rgba(255, 99, 71, 0.3); }
+#game.biome-slime { color: #b3ffb3; text-shadow: 0 0 2px rgba(144, 238, 144, 0.3); }
 
 #legend{color:var(--dim);font-size:13px}
 

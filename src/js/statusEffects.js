@@ -77,6 +77,10 @@ export function getStatusModifier(entity, stat) {
     if (eff.type === `debuff_${stat}`) mod -= eff.value;
     // Weaken effect reduces strength
     if (stat === "str" && eff.type === "weaken") mod -= eff.value;
+    // Armor buff increases defense
+    if (stat === "def" && eff.type === "armor") mod += eff.value;
+    // Blind effect reduces accuracy (affects SPD for dodge)
+    if (stat === "spd" && eff.type === "blind") mod -= 3;
   }
   return mod;
 }

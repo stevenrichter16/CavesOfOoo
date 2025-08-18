@@ -289,7 +289,7 @@ function buyFromVendor(state) {
       renderShop(state);
     }
   } else {
-    log(state, "Not enough gold!", "danger");
+    log(state, "Not enough gold!", "bad");
   }
 }
 
@@ -697,13 +697,30 @@ function waitTurn(state) {
 function processMonsterAbility(state, monster) {
   if (!monster.ability) return false;
   
-  // Calculate distance to player
+  // Handle self-buff abilities
+  if (monster.ability.selfBuff) {
+    // Check if ability triggers
+    if (Math.random() >= monster.ability.chance) return false;
+    
+    // Execute self-buff ability
+    const ability = monster.ability;
+    
+    if (ability.type === "boneShield") {
+      log(state, `${monster.name} raises a bone shield!`, "bad");
+      applyStatusEffect(monster, ability.effect, ability.turns, ability.value);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Calculate distance to player for ranged abilities
   const dx = Math.abs(state.player.x - monster.x);
   const dy = Math.abs(state.player.y - monster.y);
   const distance = dx + dy;
   
   // Check if player is in range
-  if (distance > monster.ability.range) return false;
+  if (monster.ability.range && distance > monster.ability.range) return false;
   
   // Check if ability triggers (with tier scaling already applied)
   if (Math.random() >= monster.ability.chance) return false;
@@ -714,7 +731,10 @@ function processMonsterAbility(state, monster) {
     fireBlast: "emits a blast of fire",
     iceBreath: "breathes freezing ice",
     poisonSpit: "spits toxic venom",
-    electricPulse: "releases an electric pulse"
+    electricPulse: "releases an electric pulse",
+    lifeDrain: "drains your life force",
+    shadowStrike: "strikes from the shadows",
+    hellfire: "unleashes hellfire"
   };
   
   log(state, `${monster.name} ${abilityNames[ability.type] || "uses special ability"}!`, "bad");
@@ -731,7 +751,22 @@ function processMonsterAbility(state, monster) {
   // Show damage number
   showAbilityDamage(state, state.player, damage, ability.type);
   
-  // Apply status effect if any
+  // Handle special ability effects
+  if (ability.type === "lifeDrain" && ability.heal) {
+    // Heal the monster
+    monster.hp = Math.min(monster.hp + ability.heal, monster.hpMax || monster.hp + ability.heal);
+    log(state, `${monster.name} heals ${ability.heal} HP!`, "good");
+  } else if (ability.type === "shadowStrike" && ability.blindTurns) {
+    // Apply blind status
+    applyStatusEffect(state.player, "blind", ability.blindTurns, 0);
+    log(state, "You are blinded by the shadows!", "bad");
+  } else if (ability.type === "hellfire") {
+    // Always apply burn with hellfire
+    applyStatusEffect(state.player, "burn", 5, 3);
+    log(state, "The hellfire burns you!", "bad");
+  }
+  
+  // Apply status effect if any (for original abilities)
   if (ability.effect && ability.effectTurns > 0) {
     applyStatusEffect(state.player, ability.effect, ability.effectTurns, ability.effectValue);
     
@@ -739,7 +774,8 @@ function processMonsterAbility(state, monster) {
       burn: "You catch fire!",
       freeze: "You are frozen solid!",
       poison: "You are poisoned!",
-      shock: "You are electrified!"
+      shock: "You are electrified!",
+      weakness: "You feel weakened!"
     };
     log(state, effectMessages[ability.effect] || "You are afflicted!", "bad");
   }
@@ -1130,11 +1166,12 @@ function render(state) {
   
   // Handle old biome names and apply class for color palette
   let biomeClass = biome;
-  // Convert old biome names to new ones
-  if (biome === "candy_forest") biomeClass = "candy";
-  else if (biome === "frost_caverns") biomeClass = "ice";
-  else if (biome === "volcanic_marsh") biomeClass = "fire";
-  else if (biome === "glimmering_meadows") biomeClass = "slime";
+  // Convert old biome names to new ones (for backwards compatibility)
+  if (biome === "candy") biomeClass = "candy_forest";
+  else if (biome === "ice") biomeClass = "frost_caverns";
+  else if (biome === "fire") biomeClass = "volcanic_marsh";
+  else if (biome === "slime" || biome === "glimmering_meadows") biomeClass = "slime_kingdom";
+  // New biomes already have correct names
   
   gameEl.className = `biome-${biomeClass}`;
   
@@ -1145,13 +1182,27 @@ function render(state) {
       const monsterTier = monsterMap.get(`${x},${y}`);
       
       if (monsterTier) {
-        // Check if this is a flame pup for special styling
+        // Check for special monster styling
         const monster = monsters.find(m => m.x === x && m.y === y && m.alive);
         const tierClass = `monster-tier-${monsterTier}`;
-        if (monster && monster.name === "flame pup") {
-          html += `<span class="flame-pup ${tierClass}">${char}</span>`;
+        
+        if (monster) {
+          // Apply special styling for specific monsters
+          if (monster.name === "flame pup") {
+            html += `<span class="flame-pup ${tierClass}">${char}</span>`;
+          } else if (monster.name === "demon") {
+            html += `<span class="demon">${char}</span>`;
+          } else if (monster.name === "bone knight") {
+            html += `<span class="bone-knight">${char}</span>`;
+          } else if (monster.name === "wraith") {
+            html += `<span class="wraith">${char}</span>`;
+          } else if (monster.name === "shadow beast") {
+            html += `<span class="shadow-beast">${char}</span>`;
+          } else {
+            // Color monster based on tier
+            html += `<span class="${tierClass}">${char}</span>`;
+          }
         } else {
-          // Color monster based on tier
           html += `<span class="${tierClass}">${char}</span>`;
         }
       } else {
@@ -1196,13 +1247,33 @@ function render(state) {
   
   // Display friendly biome name
   let biomeName = biome;
-  if (biome === "candy_forest" || biome === "candy") biomeName = "candy";
-  else if (biome === "frost_caverns" || biome === "ice") biomeName = "ice";
-  else if (biome === "volcanic_marsh" || biome === "fire") biomeName = "fire";
-  else if (biome === "glimmering_meadows" || biome === "slime") biomeName = "slime";
+  if (biome === "candy_forest" || biome === "candy") biomeName = "Candy Forest";
+  else if (biome === "slime_kingdom" || biome === "slime") biomeName = "Slime Kingdom";
+  else if (biome === "frost_caverns" || biome === "ice") biomeName = "Frost Caverns";
+  else if (biome === "volcanic_marsh" || biome === "fire") biomeName = "Volcanic Marsh";
+  else if (biome === "corrupted_dungeon") biomeName = "Corrupted Dungeon";
+  else if (biome === "lich_domain") biomeName = "Lich Domain";
+  else if (biome === "glimmering_meadows") biomeName = "Slime Kingdom"; // Old name conversion
   
   setText("biome", biomeName);
   setText("coords", `(${state.cx},${state.cy})`);
+  
+  // Display danger level
+  const dangerLevel = state.chunk.danger || 0;
+  const dangerDisplay = dangerLevel > 0 ? "☠".repeat(Math.min(dangerLevel, 5)) : "Safe";
+  const dangerColor = dangerLevel === 0 ? "var(--ok)" : 
+                      dangerLevel <= 2 ? "var(--accent)" : 
+                      dangerLevel <= 4 ? "var(--rare)" : "var(--danger)";
+  
+  setText("danger", `Danger: ${dangerDisplay}`);
+  const dangerEl = document.getElementById("danger");
+  if (dangerEl) dangerEl.style.color = dangerColor;
+  
+  // Optional: Add warning when entering dangerous zones
+  if (state.lastDanger !== undefined && dangerLevel > state.lastDanger) {
+    log(state, `⚠ You enter a more dangerous area! (Danger Level ${dangerLevel})`, "bad");
+  }
+  state.lastDanger = dangerLevel;
   
   // Status effects - group by type to show stacks
   const statusBar = document.getElementById("statusBar");

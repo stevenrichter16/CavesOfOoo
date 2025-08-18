@@ -1,4 +1,4 @@
-import { W, H, BIOMES, WEAPONS, ARMORS, HEADGEAR, POTIONS } from './config.js';
+import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, POTIONS } from './config.js';
 import { clamp, seededRand, hashStr } from './utils.js';
 import { makeMonster } from './entities.js';
 
@@ -34,7 +34,7 @@ export function carveCorridor(map, x1, y1, x2, y2) {
 }
 
 export function ensureEdgeExits(map, sr) {
-  const gatesPerSide = () => 1 + sr.int(2);
+  const gatesPerSide = () => 2 + sr.int(2); // Increased from 1-2 to 2-3 exits per side
   // Create exits on each edge
   for (let side = 0; side < 4; side++) {
     for (let g = 0; g < gatesPerSide(); g++) {
@@ -229,6 +229,12 @@ export function placeItems(map, sr, biome) {
 
 export function genChunk(seed, cx, cy) {
   const sr = seededRand(hashStr(`${seed}|${cx}|${cy}`));
+  
+  // Calculate distance from spawn for difficulty scaling
+  const distance = Math.abs(cx) + Math.abs(cy);
+  const zoneDanger = Math.floor(distance / 4); // Every 4 chunks = new danger zone
+  
+  // Generate base map structure
   const map = Array.from({ length: H }, () => Array.from({ length: W }, () => "#"));
   
   // Generate rooms and corridors
@@ -260,39 +266,81 @@ export function genChunk(seed, cx, cy) {
   
   ensureEdgeExits(map, sr);
   
-  const biome = sr.pick(BIOMES);
+  // SELECT BIOME BASED ON DISTANCE
+  const maxTier = Math.min(Math.max(1, 1 + Math.floor(distance / 4)), 6);
+  const minTier = Math.max(1, maxTier - 1); // Can spawn current or previous tier
+  
+  // Filter biomes by appropriate tier
+  const availableBiomes = Object.values(BIOME_TIERS)
+    .filter(biome => biome.tier >= minTier && biome.tier <= maxTier);
+  
+  // If no biomes available (shouldn't happen), fallback to tier 1
+  const biome = availableBiomes.length > 0 
+    ? sr.pick(availableBiomes) 
+    : BIOME_TIERS.candy_forest;
+  
   const items = placeItems(map, sr, biome);
   
-  // Spawn monsters
+  // SPAWN MONSTERS WITH SCALED DIFFICULTY
   const monsters = [];
-  const monsterCount = sr.between(8, 15);
-  const possibleMonsters = biome.monsters.concat(["goober", "firefly"]);
+  const baseMonsterCount = sr.between(8, 15);
+  const monsterCount = baseMonsterCount + Math.floor(zoneDanger / 2); // More monsters in danger zones
+  
+  // Get possible monsters for this biome
+  const possibleMonsters = biome.monsters.concat(["goober", "firefly"]); // Common everywhere
   
   for (let i = 0; i < monsterCount; i++) {
     const pos = findFloorTile(map, sr);
     if (!pos) break;
     const kind = sr.pick(possibleMonsters);
     
-    // Determine tier based on rarity
-    // 70% tier 1 (normal), 25% tier 2 (veteran), 5% tier 3 (elite)
+    // ENHANCED TIER CALCULATION based on distance
     let tier = 1;
     const tierRoll = sr.next();
-    if (tierRoll < 0.05) {
-      tier = 3; // Elite (5% chance)
-    } else if (tierRoll < 0.30) {
-      tier = 2; // Veteran (25% chance)
+    
+    // Increase elite/veteran chances with distance
+    const eliteChance = 0.05 + (zoneDanger * 0.03); // 5% -> 8% -> 11%...
+    const veteranChance = 0.25 + (zoneDanger * 0.05); // 25% -> 30% -> 35%...
+    
+    if (tierRoll < Math.min(eliteChance, 0.30)) { // Cap at 30%
+      tier = 3; // Elite
+    } else if (tierRoll < Math.min(veteranChance, 0.60)) { // Cap at 60%
+      tier = 2; // Veteran
     }
     
-    monsters.push(makeMonster(kind, pos.x, pos.y, tier));
+    const monster = makeMonster(kind, pos.x, pos.y, tier);
+    
+    // ADDITIONAL SCALING based on zone danger
+    if (zoneDanger > 0) {
+      monster.hp += zoneDanger * 2;
+      monster.str += Math.floor(zoneDanger * 0.5);
+      monster.xp = Math.floor(monster.xp * (1 + zoneDanger * 0.1));
+    }
+    
+    monsters.push(monster);
   }
   
-  // Chance for a boss in some chunks (bosses are always tier 3)
-  if (sr.next() < 0.1) {
+  // BOSS SPAWN CHANCE increases with distance
+  const bossChance = 0.1 + (zoneDanger * 0.02); // 10% -> 12% -> 14%...
+  if (sr.next() < Math.min(bossChance, 0.25)) { // Cap at 25%
     const pos = findFloorTile(map, sr);
-    if (pos) monsters.push(makeMonster("boss", pos.x, pos.y, 3));
+    if (pos) {
+      const boss = makeMonster("boss", pos.x, pos.y, 3);
+      // Scale boss too
+      boss.hp += zoneDanger * 5;
+      boss.str += zoneDanger;
+      boss.xp = Math.floor(boss.xp * (1 + zoneDanger * 0.2));
+      monsters.push(boss);
+    }
   }
   
-  return { map, monsters, biome: biome.id, items };
+  return { 
+    map, 
+    monsters, 
+    biome: biome.id, 
+    items,
+    danger: zoneDanger // Store danger level for display
+  };
 }
 
 export function findOpenSpot(map) {

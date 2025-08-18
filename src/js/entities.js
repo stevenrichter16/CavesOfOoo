@@ -95,6 +95,86 @@ export function makeMonster(kind, x, y, tier = 1) {
         effectTurns: 2,
         effectValue: 1
       }
+    },
+    
+    // Tier 5 monsters - Corrupted Dungeon
+    wraith: { 
+      glyph: "W", 
+      name: "wraith", 
+      hp: 15, 
+      str: 7, 
+      def: 2,
+      spd: 4,
+      xp: 8, 
+      ai: "smart",
+      ability: { 
+        type: "lifeDrain",
+        chance: 0.08,
+        range: 2,
+        damage: 4,
+        heal: 2, // Heals the wraith
+        effect: "weakness",
+        effectTurns: 2,
+        effectValue: -2 // Reduces player STR
+      }
+    },
+    shadow_beast: { 
+      glyph: "◆", 
+      name: "shadow beast", 
+      hp: 18, 
+      str: 8, 
+      def: 3,
+      spd: 3,
+      xp: 10, 
+      ai: "chase",
+      ability: { 
+        type: "shadowStrike",
+        chance: 0.06,
+        range: 3,
+        damage: 6,
+        effect: "blind",
+        effectTurns: 1,
+        effectValue: 0 // Reduces accuracy
+      }
+    },
+    
+    // Tier 6 monsters - Lich Domain
+    bone_knight: { 
+      glyph: "K", 
+      name: "bone knight", 
+      hp: 22, 
+      str: 9, 
+      def: 5,
+      spd: 2,
+      xp: 12, 
+      ai: "smart",
+      ability: { 
+        type: "boneShield",
+        chance: 0.1,
+        selfBuff: true,
+        effect: "armor",
+        effectTurns: 3,
+        effectValue: 3 // Temporary DEF boost
+      }
+    },
+    demon: { 
+      glyph: "D", 
+      name: "demon", 
+      hp: 25, 
+      str: 10, 
+      def: 4,
+      spd: 4,
+      xp: 15, 
+      ai: "smart",
+      ability: { 
+        type: "hellfire",
+        chance: 0.07,
+        range: 4,
+        damage: 8,
+        effect: "burn",
+        effectTurns: 3,
+        effectValue: 3
+      }
     }
   };
   

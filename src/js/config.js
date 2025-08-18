@@ -24,16 +24,66 @@ export const TILE = {
     flamepup: "☼",
     frostbite: "F",
     toxicslime: "T",
-    sparkler: "S"
+    sparkler: "S",
+    wraith: "W",
+    shadow_beast: "◆",
+    bone_knight: "K",
+    demon: "D"
   }
 };
 
-export const BIOMES = [
-  { id: "candy", color: "#ff69b4", monsters: ["goober", "sootling", "sparkler"] },
-  { id: "ice", color: "#87ceeb", monsters: ["icething", "frostbite"] },
-  { id: "fire", color: "#ff6347", monsters: ["sootling", "flamepup", "sparkler"] },
-  { id: "slime", color: "#90ee90", monsters: ["goober", "toxicslime"] },
-];
+export const BIOME_TIERS = {
+  // Tier 1 - Starting area (distance 0-3)
+  candy_forest: { 
+    tier: 1, 
+    id: "candy_forest",
+    monsters: ["goober", "firefly"],
+    colors: { primary: "#FFB6C1", secondary: "#FFC0CB" }
+  },
+  
+  // Tier 2 - Early exploration (distance 4-7)
+  slime_kingdom: { 
+    tier: 2, 
+    id: "slime_kingdom",
+    monsters: ["toxicslime", "goober", "sparkler"],
+    colors: { primary: "#90EE90", secondary: "#98FB98" }
+  },
+  
+  // Tier 3 - Mid game (distance 8-11)
+  frost_caverns: { 
+    tier: 3, 
+    id: "frost_caverns",
+    monsters: ["icething", "frostbite"],
+    colors: { primary: "#B0E0E6", secondary: "#87CEEB" }
+  },
+  
+  // Tier 4 - Challenging (distance 12-15)
+  volcanic_marsh: { 
+    tier: 4, 
+    id: "volcanic_marsh",
+    monsters: ["flamepup", "sootling"],
+    colors: { primary: "#FF6347", secondary: "#FF4500" }
+  },
+  
+  // Tier 5 - Dangerous (distance 16-19)
+  corrupted_dungeon: { 
+    tier: 5, 
+    id: "corrupted_dungeon",
+    monsters: ["wraith", "shadow_beast"],
+    colors: { primary: "#4B0082", secondary: "#6A0DAD" }
+  },
+  
+  // Tier 6 - Endgame (distance 20+)
+  lich_domain: { 
+    tier: 6, 
+    id: "lich_domain",
+    monsters: ["bone_knight", "demon"],
+    colors: { primary: "#2F4F4F", secondary: "#191970" }
+  }
+};
+
+// For backwards compatibility, create BIOMES array
+export const BIOMES = Object.values(BIOME_TIERS);
 
 export const WEAPONS = [
   { name: "Grass Sword", dmg: 3, desc: "A blade of living grass" },
