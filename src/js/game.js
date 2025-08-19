@@ -6,6 +6,7 @@ import { saveChunk, loadChunk, clearWorld } from './persistence.js';
 import { attack, showDamageNumber } from './combat.js';
 import { processStatusEffects, getStatusModifier, applyStatusEffect, isFrozen } from './statusEffects.js';
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
+import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 
 // Game state
 let STATE = null;
@@ -72,6 +73,27 @@ function closeShop(state) {
   state.ui.shopOpen = false;
   state.ui.shopVendor = null;
   render(state);
+}
+
+function openMap(state) {
+  state.ui.mapOpen = true;
+  initMapCursor(state);
+  renderMap(state);
+}
+
+function closeMap(state) {
+  state.ui.mapOpen = false;
+  const mapOverlay = document.getElementById("mapOverlay");
+  mapOverlay.classList.remove("active");
+  render(state);
+}
+
+function renderMap(state) {
+  const mapOverlay = document.getElementById("mapOverlay");
+  const mapContent = document.getElementById("mapContent");
+  
+  mapContent.innerHTML = renderWorldMap(state);
+  mapOverlay.classList.add("active");
 }
 
 function renderShop(state) {
@@ -1353,7 +1375,7 @@ function newWorld() {
     weather: choice(WEATHERS),
     logMessages: [],
     over: false,
-    ui: { inventoryOpen: false, selectedIndex: 0 },
+    ui: { inventoryOpen: false, selectedIndex: 0, mapOpen: false },
     equippedWeaponId: null,  // Track by ID instead of reference
     equippedArmorId: null,   // Track by ID instead of reference
     equippedHeadgearId: null, // Track by ID instead of reference
@@ -1380,6 +1402,22 @@ export function initGame() {
   
   // Keyboard controls
   window.addEventListener("keydown", e => {
+    // Map controls
+    if (STATE.ui.mapOpen) {
+      const result = handleMapNavigation(STATE, e.key);
+      if (result === 'close') {
+        closeMap(STATE);
+      } else if (result === 'travel') {
+        closeMap(STATE);
+        render(STATE);
+        log(STATE, `Fast traveled to (${STATE.cx}, ${STATE.cy})`, "note");
+      } else if (result) {
+        renderMap(STATE);
+      }
+      e.preventDefault();
+      return;
+    }
+    
     // Shop controls
     if (STATE.ui.shopOpen) {
       // Handle confirmation dialog
@@ -1470,6 +1508,7 @@ export function initGame() {
     else if (k === "ArrowRight" || k === "d") { tryMove(STATE, 1, 0); e.preventDefault(); }
     else if (k === ".") { waitTurn(STATE); e.preventDefault(); }
     else if (k.toLowerCase() === "i") { openInventory(STATE); e.preventDefault(); }
+    else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
     else if (k.toLowerCase() === "v") {
       // Check if standing next to vendor
       const positions = [
