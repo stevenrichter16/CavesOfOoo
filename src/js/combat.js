@@ -1,6 +1,7 @@
 import { clamp, roll } from './utils.js';
 import { getStatusModifier, applyStatusEffect } from './statusEffects.js';
 import { levelUp } from './entities.js';
+import { updateQuestProgress } from './quests.js';
 
 export function attack(state, attacker, defender, labelA = "you", labelD = null) {
   labelD = labelD || defender.name || "enemy";
@@ -100,6 +101,9 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
     if (attacker === state.player && defender.xp) {
       state.player.xp += defender.xp;
       state.log(`+${defender.xp} XP`, "xp");
+      
+      // Update quest progress when player kills a monster
+      updateQuestProgress(state, defender.kind);
       
       // Gold drop from monsters
       const tier = defender.tier || 1;

@@ -84,6 +84,17 @@ export function generateWorldMap(state) {
   // Always add current chunk as explored
   exploredChunks.add(`${playerCx},${playerCy}`);
   
+  // Check for active fetch quests with vendor locations
+  const questVendorLocations = new Set();
+  if (state.player.quests.active && state.player.quests.fetchQuests) {
+    state.player.quests.active.forEach(questId => {
+      const fetchQuest = state.player.quests.fetchQuests[questId];
+      if (fetchQuest && fetchQuest.vendorChunk) {
+        questVendorLocations.add(`${fetchQuest.vendorChunk.x},${fetchQuest.vendorChunk.y}`);
+      }
+    });
+  }
+  
   // Generate map display
   for (let y = startY; y < endY; y++) {
     const row = [];
@@ -91,6 +102,7 @@ export function generateWorldMap(state) {
       const isExplored = exploredChunks.has(`${x},${y}`);
       const isCurrentChunk = (x === playerCx && y === playerCy);
       const isCursorPosition = (x === state.mapCursor.x && y === state.mapCursor.y);
+      const hasQuestVendor = questVendorLocations.has(`${x},${y}`);
       
       let cellData = {
         x: x,
@@ -100,6 +112,7 @@ export function generateWorldMap(state) {
         isPlayer: isCurrentChunk,
         isCursor: isCursorPosition,
         isExplored: isExplored,
+        hasQuestVendor: hasQuestVendor,
         biome: null
       };
       
@@ -205,6 +218,9 @@ export function renderWorldMap(state) {
       } else if (cell.isCursor) {
         // Show cursor with brackets
         mapHtml += `<span class="cursor-highlight ${cell.cssClass}">[${cell.char}]</span>`;
+      } else if (cell.hasQuestVendor) {
+        // Show quest vendor location with a special marker
+        mapHtml += `<span class="${cell.cssClass}" style="color: #FFD700; font-weight: bold;">[V]</span>`;
       } else {
         // Show all biomes, explored or not
         mapHtml += `<span class="${cell.cssClass}">${cell.char}${cell.char}</span>`;
@@ -256,6 +272,9 @@ export function renderWorldMap(state) {
         </div>
         <div class="legend-item">
           <span class="unexplored">··</span> Unexplored
+        </div>
+        <div class="legend-item">
+          <span style="color: #FFD700; font-weight: bold;">[V]</span> Quest Vendor
         </div>
       </div>
 

@@ -7,7 +7,15 @@ export function makePlayer() {
     gold: 0,  // Starting gold
     inventory: [], potionCount: 0,
     statusEffects: [],
-    turnsSinceRest: 0
+    turnsSinceRest: 0,
+    // Quest tracking with automatic starter quest
+    quests: {
+      active: ["kill_any"],  // Start with kill_any quest active!
+      completed: [],         // Array of completed quest IDs
+      progress: {
+        kill_any: 0          // Initialize progress for starter quest
+      }
+    }
   }; 
 }
 

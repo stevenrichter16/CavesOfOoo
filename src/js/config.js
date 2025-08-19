@@ -159,3 +159,99 @@ export const TIMES = ["dawn", "morning", "noon", "afternoon", "evening", "dusk",
 export const WEATHERS = ["clear", "rainy", "windy", "snowy", "stormy"];
 
 export const STORE_PREFIX = "ooo_enhanced_v1";
+
+// Quest templates
+export const QUEST_TEMPLATES = {
+  kill_any: {
+    id: "kill_any",
+    name: "Monster Hunter",
+    description: "The land needs heroes. Defeat any monster!",
+    objective: "Defeat any 1 monster",
+    targetMonster: "any",
+    targetCount: 1,
+    rewards: {
+      gold: 25,
+      xp: 15,
+      item: null
+    },
+    completionText: "Good work! The land is a bit safer now.",
+    isRepeatable: true,
+    isStarter: true
+  },
+  
+  kill_goober: {
+    id: "kill_goober",
+    name: "Goober Trouble",
+    description: "Those goobers are causing mischief again!",
+    objective: "Defeat 2 goobers",
+    targetMonster: "goober",
+    targetCount: 2,
+    rewards: {
+      gold: 50,
+      xp: 25,
+      item: null
+    },
+    completionText: "Well done! Those goobers won't bother anyone for a while.",
+    isRepeatable: true
+  },
+  
+  kill_three: {
+    id: "kill_three",
+    name: "Pest Control",
+    description: "Clear out some of the monster population.",
+    objective: "Defeat 3 monsters",
+    targetMonster: "any",
+    targetCount: 3,
+    rewards: {
+      gold: 100,
+      xp: 50,
+      item: { type: "potion", item: POTIONS[0] }
+    },
+    completionText: "Excellent! Here's a potion for your troubles.",
+    isRepeatable: true
+  },
+  
+  kill_icething: {
+    id: "kill_icething",
+    name: "Frozen Menace",
+    description: "An ice-thing has been freezing our water supply. Help us!",
+    objective: "Defeat 1 ice-thing",
+    targetMonster: "icething",
+    targetCount: 1,
+    rewards: {
+      gold: 75,
+      xp: 30,
+      item: { type: "potion", item: POTIONS[1] }
+    },
+    completionText: "Excellent work! Our water flows freely again!",
+    isRepeatable: false
+  },
+  
+  kill_boss: {
+    id: "kill_boss",
+    name: "Hero's Challenge",
+    description: "A terrible boss monster threatens our land. Only a true hero can stop it!",
+    objective: "Defeat a boss monster",
+    targetMonster: "boss",
+    targetCount: 1,
+    rewards: {
+      gold: 500,
+      xp: 100,
+      item: { type: "weapon", item: WEAPONS[4] }
+    },
+    completionText: "You are a true hero! The land is saved!",
+    isRepeatable: false
+  }
+};
+
+// Fetch quest items that vendors can request
+export const FETCH_ITEMS = [
+  { type: "potion", name: "a healing potion", itemCheck: (item) => item.type === "potion" && item.item.effect === "heal" },
+  { type: "potion", name: "any potion", itemCheck: (item) => item.type === "potion" },
+  { type: "weapon", name: "any weapon", itemCheck: (item) => item.type === "weapon" },
+  { type: "armor", name: "any armor", itemCheck: (item) => item.type === "armor" },
+  { type: "headgear", name: "any headgear", itemCheck: (item) => item.type === "headgear" },
+  { type: "weapon", name: "a magical weapon", itemCheck: (item) => item.type === "weapon" && item.item.magical },
+  { type: "armor", name: "armor with 2+ defense", itemCheck: (item) => item.type === "armor" && item.item.def >= 2 },
+  { type: "headgear", name: "headgear with stats", itemCheck: (item) => item.type === "headgear" && (item.item.str || item.item.spd || item.item.magic) }
+];

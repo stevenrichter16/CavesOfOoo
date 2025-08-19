@@ -1,4 +1,4 @@
-import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, POTIONS } from './config.js';
+import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, POTIONS, FETCH_ITEMS } from './config.js';
 import { clamp, seededRand, hashStr } from './utils.js';
 import { makeMonster } from './entities.js';
 
@@ -167,11 +167,35 @@ export function placeItems(map, sr, biome) {
     const pos = findFloorTile(map, sr);
     if (pos) {
       map[pos.y][pos.x] = "V";
+      
+      // Generate a unique vendor ID based on chunk coordinates
+      const vendorId = `vendor_${sr.seed}_${pos.x}_${pos.y}`;
+      
+      // Pick a random fetch quest item for this vendor
+      const fetchItem = sr.pick(FETCH_ITEMS);
+      
       items.push({
         type: "vendor",
         x: pos.x,
         y: pos.y,
-        inventory: generateVendorInventory(sr, biome)
+        id: vendorId,
+        inventory: generateVendorInventory(sr, biome),
+        fetchQuest: {
+          id: `fetch_${vendorId}`,
+          name: "Vendor's Request",
+          description: `I need ${fetchItem.name}. Can you help me?`,
+          objective: `Bring ${fetchItem.name} to this vendor`,
+          targetItem: fetchItem,
+          vendorId: vendorId,
+          vendorChunk: null, // Will be set when quest is accepted
+          rewards: {
+            gold: 40 + sr.int(60),
+            xp: 20 + sr.int(30),
+            item: sr.next() < 0.5 ? { type: "potion", item: sr.pick(POTIONS) } : null
+          },
+          completionText: "Perfect! This is exactly what I needed. Thank you!",
+          isRepeatable: false
+        }
       });
     }
   }
