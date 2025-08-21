@@ -1,10 +1,12 @@
+import { emit } from "./events.js";
+
 export function applyStatusEffect(entity, type, turns, value = 0) {
   if (!entity.statusEffects) entity.statusEffects = [];
   // Allow stacking - each potion adds a new effect
   entity.statusEffects.push({ type, turns, value });
 }
 
-export function processStatusEffects(state, entity, label = "") {
+export function processStatusEffects(state, entity, label = "") { 
   if (!entity.statusEffects) entity.statusEffects = [];
   const effects = entity.statusEffects;
   
@@ -12,6 +14,10 @@ export function processStatusEffects(state, entity, label = "") {
     const eff = effects[i];
     
     // Damage over time effects
+    if (eff.type == "lifesteal") {
+      entity.hp += eff.value;
+      emit('lifesteal', {healAmount:10});
+    }
     if (eff.type === "poison") {
       entity.hp -= eff.value;
       if (label && state.log) {

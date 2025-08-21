@@ -8,9 +8,13 @@ import { processStatusEffects, getStatusModifier, applyStatusEffect, isFrozen } 
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
+import { mountLog, push } from './log.js';
+import { emit } from './events.js'
 
 // Game state
 let STATE = null;
+mountLog(document.getElementById('logger'));
+push('CavesOfOoo booting…', 'note');
 
 function log(state, text, cls = null) { 
   const span = cls ? `<span class="${cls}">${esc(text)}</span>` : esc(text);
@@ -2173,18 +2177,49 @@ export function initGame() {
       if (monsters.length === 0) log(STATE, "No monsters in this area", "dim");
       e.preventDefault();
     }
+    else if (k.toLowerCase() === "l") {
+      log(STATE, "=== DEBUG: Testing Lifesteal ===", "magic");
+      console.log("in L key");
+      applyStatusEffect(STATE.player, "lifesteal", 1, 10);
+      render(STATE);
+      e.preventDefault();
+    }
     else if (k.toLowerCase() === "f") {
       // Debug: Test freeze
       log(STATE, "=== DEBUG: Testing Freeze ===", "magic");
       applyStatusEffect(STATE.player, "freeze", 2, 0);
+      emit('statusEffectRegister', { type:"freeze", vs: "You" })
       log(STATE, "Applied freeze effect for 2 turns", "magic");
       log(STATE, `Status effects: ${JSON.stringify(STATE.player.statusEffects)}`, "note");
       log(STATE, `isFrozen result: ${isFrozen(STATE.player)}`, "note");
       render(STATE);
       e.preventDefault();
     }
+    else if (k.toLowerCase() === "b") {
+      applyStatusEffect(STATE.player, "burn", 2, 1);
+      emit("statusEffectRegister", { type:"burn", vs:"You" });
+      render(STATE);
+      e.preventDefault();
+    }
+    else if (k.toLowerCase() === "p") {
+      applyStatusEffect(STATE.player, "poison", 2, 1)
+      emit("statusEffectRegister", { type:"poison", vs:"You" });
+      render(STATE);
+      e.preventDefault();
+    }
+    else if (k.toLowerCase() === "e") {
+      applyStatusEffect(STATE.player, "shock", 2, 1)
+      emit("statusEffectRegister", { type:"shock", vs:"You" });
+      render(STATE);
+      e.preventDefault();
+    }
   });
-  
+
+  emit('entityDied', { name:"You", by:"falling boulder", cause:"big rock" });
+  emit('entityDied', { name:"Goober", by:"falling boulder", cause:"big rock" });
+  emit('equipped', { item:'Big Sword' });
+  emit('unequipped', { item:'Big Sword' });
+
   // Button handlers
   document.getElementById("restart").addEventListener("click", () => {
     STATE = newWorld();

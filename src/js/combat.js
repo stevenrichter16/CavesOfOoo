@@ -2,10 +2,10 @@ import { clamp, roll } from './utils.js';
 import { getStatusModifier, applyStatusEffect } from './statusEffects.js';
 import { levelUp } from './entities.js';
 import { updateQuestProgress } from './quests.js';
+import { emit } from './events.js';
 
 export function attack(state, attacker, defender, labelA = "you", labelD = null) {
   labelD = labelD || defender.name || "enemy";
-  
   const aStr = attacker.str + getStatusModifier(attacker, "str");
   const dDef = defender.def + getStatusModifier(defender, "def");
   const dSpd = defender.spd || 0; // Speed for dodge calculation
@@ -40,6 +40,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   
   if (hitRoll > hitChance) { 
     state.log(`${labelA} miss ${labelD}.`); 
+    emit('miss', {by:labelA, vs:labelD});
     const isPlayerTarget = defender === state.player;
     showDamageNumber(state, defender, "MISS", isPlayerTarget ? "player" : "enemy", true);
     return false; 
@@ -53,8 +54,14 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   
   defender.hp -= dmg;
   
-  if (crit) state.log(`${labelA} crit ${labelD} for ${dmg}!`, "good");
-  else state.log(`${labelA} hit ${labelD} for ${dmg}.`);
+  if (crit) {
+    state.log(`${labelA} crit ${labelD} for ${dmg}!`, "good");
+    emit('crit', {by:labelA, vs:labelD, dmg:dmg})
+  }
+  else {
+    emit('hit', {by:labelA, vs:labelD, dmg:dmg});
+    state.log(`${labelA} hit ${labelD} for ${dmg}.`);
+  }
   
   const isPlayerTarget = defender === state.player;
   const damageText = crit ? `${dmg}!` : dmg.toString();
@@ -72,23 +79,30 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
         const healAmount = Math.floor(dmg * weapon.effectValue);
         attacker.hp = Math.min(attacker.hpMax, attacker.hp + healAmount);
         state.log(`You drain ${healAmount} life!`, "good");
+        emit('lifesteal', {healAmount:healAmount});
+        // TODO: Use applyStatusEffect for lifesteal weapon
         showDamageNumber(state, attacker, healAmount.toString(), "heal");
       } else if (weapon.effect === "freeze") {
         // Freeze skips enemy turns
         applyStatusEffect(defender, "freeze", weapon.effectTurns, 0);
         state.log(`${labelD} is frozen solid!`, "magic");
+        emit('statusEffectRegister', { type:"freeze", vs:labelD });
       } else if (weapon.effect === "burn") {
         applyStatusEffect(defender, "burn", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} catches fire!`, "bad");
+        emit('statusEffectRegister', { type:"burn", vs:labelD });
       } else if (weapon.effect === "poison") {
         applyStatusEffect(defender, "poison", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is poisoned!`, "bad");
+        emit('statusEffectRegister', { type:'poison', vs:labelD});
       } else if (weapon.effect === "shock") {
         applyStatusEffect(defender, "shock", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is electrified!`, "magic");
+        emit('statusEffectRegister', { type:'shock', vs:labelD })
       } else if (weapon.effect === "weaken") {
         applyStatusEffect(defender, "weaken", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is weakened!`, "note");
+        //TODO: Emit weakended log
       }
     }
   }

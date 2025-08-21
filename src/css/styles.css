@@ -135,6 +135,14 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
 
 #log{border-top:1px solid #1c1f22;padding-top:8px;max-height:30vh;overflow:auto;font-size:13px}
 
+/* example */
+.log .note  { color:#8ef; }
+.log .hit   { color:#ff9; }
+.log .crit  { color:#ff6; font-weight:bold; }
+.log .miss  { color:#aaa; font-style:italic; }
+.log .good  { color:#9f9; }
+.log .flavor{ color:#0a0; opacity:.85; }
+
 .good{color:var(--ok)} .bad{color:var(--danger)} .note{color:var(--accent)}
 .xp{color:var(--xp)} .magic{color:var(--magic)} .rare{color:var(--rare)}
 .gold{color:var(--gold);font-weight:bold}
