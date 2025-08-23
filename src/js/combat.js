@@ -5,6 +5,7 @@ import { clamp, roll } from './utils.js';
 import { getStatusModifier, applyStatusEffect } from './statusEffects.js';
 import { levelUp } from './entities.js';
 import { updateQuestProgress } from './quests.js';
+import { getGearMods, runOnAttackHooks, runOnHitTakenHooks } from './gear/effects.js';
 
 // Helper to humanize names in logs
 const label = (e) => {
@@ -33,10 +34,15 @@ export function attack(state, attacker, defender, method = 'melee') {
 }
 
 export function resolveAttack(state, attacker, defender, method = 'melee') {
-  // Calculate stats with equipment and status modifiers
-  const aStr = (attacker.str || 0) + getStatusModifier(attacker, "str");
-  const dDef = (defender.def || 0) + getStatusModifier(defender, "def");
-  const dSpd = (defender.spd || 0) + getStatusModifier(defender, "spd");
+  // Get gear mods for both combatants
+  const aMods = getGearMods(attacker);
+  const dMods = getGearMods(defender);
+  
+  // Calculate stats with equipment, gear mods, and status modifiers
+  const aStr = (attacker.str || 0) + aMods.str + getStatusModifier(attacker, "str");
+  const dDef = (defender.def || 0) + dMods.def + getStatusModifier(defender, "def");
+  const dSpd = (defender.spd || 0) + dMods.spd + getStatusModifier(defender, "spd");
+  const aMag = (attacker.mag || 0) + aMods.mag;
   
   // Add weapon damage if player attacking
   let weaponDmg = 0;
@@ -79,11 +85,11 @@ export function resolveAttack(state, attacker, defender, method = 'melee') {
   const reduced = Math.max(1, base - Math.floor(totalDef * 0.5));
   const dmg = reduced * (crit ? 2 : 1);
   
-  // Check for weapon effects
+  // Check for weapon effects (enhanced by magic stat)
   let weaponEffect = null;
   if (attacker === state.player && state.player.weapon && state.player.weapon.effect) {
     const weapon = state.player.weapon;
-    const magicBonus = state.player.headgear && state.player.headgear.magic ? state.player.headgear.magic * 0.05 : 0;
+    const magicBonus = aMag * 0.01; // 1% per magic point
     const effectChance = weapon.effectChance + magicBonus;
     
     if (Math.random() < effectChance) {
@@ -141,6 +147,11 @@ export function applyAttack(state, attacker, defender, result) {
     text: result.crit ? `${result.dmg}!` : `${result.dmg}`, 
     kind: result.crit ? 'crit' : 'damage'
   });
+  
+  // Run gear hooks after damage is applied
+  const ctx = { dmg: result.dmg, crit: result.crit, method: result.method };
+  runOnAttackHooks(state, attacker, defender, ctx);
+  runOnHitTakenHooks(state, defender, attacker, ctx);
   
   // Apply weapon effects if any
   if (result.weaponEffect) {

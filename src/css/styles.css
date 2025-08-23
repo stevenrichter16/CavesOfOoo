@@ -216,6 +216,69 @@ a.button, button.button{
 
 .equipped { color:var(--ok); }
 
+/* Tabbed inventory styles */
+.inventory-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #2c2f33;
+  padding-bottom: 8px;
+}
+
+.tab-button {
+  padding: 6px 12px;
+  background: #1a1d22;
+  border: 1px solid #2c2f33;
+  border-radius: 4px;
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+
+.tab-button:hover {
+  background: #2a2d32;
+  border-color: var(--accent);
+}
+
+.tab-button.active {
+  background: #2a2d32;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.inventory-items {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.inventory-items::-webkit-scrollbar {
+  width: 8px;
+}
+
+.inventory-items::-webkit-scrollbar-track {
+  background: #1a1d22;
+  border-radius: 4px;
+}
+
+.inventory-items::-webkit-scrollbar-thumb {
+  background: #2c2f33;
+  border-radius: 4px;
+}
+
+.inventory-items::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Resistance stat colors */
+.stat.res-fire { color: #ff6347; }
+.stat.res-ice { color: #87ceeb; }
+.stat.res-poison { color: #90ee90; }
+.stat.res-shock { color: #ffff66; }
+.stat.res-bleed { color: #ff4444; }
+.stat.resistance { color: #999; }
+
 /* Shop styles */
 .shop-header {
   text-align: center;

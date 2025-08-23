@@ -4,6 +4,7 @@ export function makePlayer() {
     level: 1, xp: 0, xpNext: 10,
     alive: true,
     weapon: null, armor: null, headgear: null,
+    rings: [null, null],  // Two ring slots
     gold: 0,  // Starting gold
     inventory: [], potionCount: 0,
     statusEffects: [],

@@ -1,4 +1,4 @@
-import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, POTIONS, FETCH_ITEMS } from './config.js';
+import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, FETCH_ITEMS } from './config.js';
 import { clamp, seededRand, hashStr } from './utils.js';
 import { makeMonster } from './entities.js';
 

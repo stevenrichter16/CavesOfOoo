@@ -42,4 +42,9 @@ export const EventType = {
   FloatingText: 'floatingText',   // for damage/heal numbers
   PlaySound: 'playSound',          // optional for SFX
   Shake: 'shake',                  // optional for screen shake
+  
+  // Gear events
+  GearEffectTriggered: 'gearEffectTriggered',
+  Equipped: 'equipped',
+  Unequipped: 'unequipped',
 };

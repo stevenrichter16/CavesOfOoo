@@ -1,8 +1,15 @@
 import { applyStatusEffect } from './statusEffects.js';
+import { runOnEquipHooks, runOnUnequipHooks } from './gear/effects.js';
+import { emit } from './events.js';
+import { EventType } from './eventTypes.js';
 
 export function openInventory(state) {
   state.ui.inventoryOpen = true;
   state.ui.selectedIndex = 0;
+  // Initialize inventory tab if not set
+  if (!state.ui.inventoryTab) {
+    state.ui.inventoryTab = 'all';
+  }
   renderInventory(state);
 }
 
@@ -14,20 +21,98 @@ export function closeInventory(state) {
 export function renderInventory(state) {
   const overlay = document.getElementById("overlay");
   const content = document.getElementById("overlayContent");
+  const titleEl = document.getElementById("overlayTitle");
+  const hintEl = document.getElementById("overlayHint");
   
   overlay.style.display = "flex";
   content.innerHTML = "";
   
-  const items = state.player.inventory;
+  // Create tab navigation
+  const tabsContainer = document.createElement("div");
+  tabsContainer.className = "inventory-tabs";
+  tabsContainer.style.cssText = "display:flex; gap:8px; margin-bottom:12px; border-bottom:1px solid #2c2f33; padding-bottom:8px;";
+  
+  const tabs = [
+    { id: 'all', label: 'All', icon: '📦' },
+    { id: 'weapon', label: 'Weapons', icon: '⚔️' },
+    { id: 'armor', label: 'Armor', icon: '🛡️' },
+    { id: 'headgear', label: 'Headgear', icon: '👑' },
+    { id: 'ring', label: 'Rings', icon: '💍' },
+    { id: 'potion', label: 'Potions', icon: '🧪' }
+  ];
+  
+  tabs.forEach(tab => {
+    const tabBtn = document.createElement("button");
+    tabBtn.className = "tab-button";
+    tabBtn.style.cssText = `
+      padding: 6px 12px;
+      background: ${state.ui.inventoryTab === tab.id ? '#2a2d32' : '#1a1d22'};
+      border: 1px solid ${state.ui.inventoryTab === tab.id ? 'var(--accent)' : '#2c2f33'};
+      border-radius: 4px;
+      color: ${state.ui.inventoryTab === tab.id ? 'var(--accent)' : 'var(--dim)'};
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+    `;
+    tabBtn.innerHTML = `${tab.icon} ${tab.label}`;
+    tabBtn.onclick = () => {
+      state.ui.inventoryTab = tab.id;
+      state.ui.selectedIndex = 0;
+      renderInventory(state);
+    };
+    tabsContainer.appendChild(tabBtn);
+  });
+  
+  content.appendChild(tabsContainer);
+  
+  // Filter items based on selected tab
+  let items = state.player.inventory;
+  if (state.ui.inventoryTab !== 'all') {
+    items = items.filter(item => item.type === state.ui.inventoryTab);
+  }
+  
+  // Update title with count
+  const currentTab = tabs.find(t => t.id === state.ui.inventoryTab);
+  titleEl.innerHTML = `${currentTab.icon} ${currentTab.label} (${items.length} items)`;
+  
+  // Update hint based on tab
+  let hintText = "Tab/Shift+Tab to switch tabs • ";
+  if (state.ui.inventoryTab === 'potion') {
+    hintText += "Enter to use • ";
+  } else if (state.ui.inventoryTab !== 'all') {
+    hintText += "Enter to equip/unequip • ";
+  } else {
+    hintText += "Enter to use/equip • ";
+  }
+  hintText += "D to drop • I/Esc to close";
+  hintEl.textContent = hintText;
+  
   if (items.length === 0) {
-    content.innerHTML = "<div style='color:var(--dim)'>Your inventory is empty.</div>";
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.cssText = "color:var(--dim); text-align:center; padding:20px;";
+    emptyMsg.textContent = `No ${currentTab.label.toLowerCase()} in inventory`;
+    content.appendChild(emptyMsg);
     return;
   }
   
-  items.forEach((item, idx) => {
+  // Create items container
+  const itemsContainer = document.createElement("div");
+  itemsContainer.className = "inventory-items";
+  itemsContainer.style.cssText = "max-height:400px; overflow-y:auto;";
+  
+  // Track actual index in filtered list
+  const filteredIndices = [];
+  state.player.inventory.forEach((item, originalIdx) => {
+    if (state.ui.inventoryTab === 'all' || item.type === state.ui.inventoryTab) {
+      filteredIndices.push(originalIdx);
+    }
+  });
+  
+  items.forEach((item, displayIdx) => {
+    const originalIdx = filteredIndices[displayIdx];
     const div = document.createElement("div");
     div.className = "item";
-    if (idx === state.ui.selectedIndex) div.className += " selected";
+    if (displayIdx === state.ui.selectedIndex) div.className += " selected";
     
     let statusText = "";
     if (item.type === "weapon") {
@@ -66,6 +151,37 @@ export function renderInventory(state) {
           <div class="desc">${item.item.desc} (${stats.join(", ")})</div>
         </div>
       `;
+    } else if (item.type === "ring") {
+      // Check if equipped in either slot
+      let statusText = "";
+      if (state.equippedRingIds) {
+        if (state.equippedRingIds[0] === item.id) statusText = " [RING 1]";
+        else if (state.equippedRingIds[1] === item.id) statusText = " [RING 2]";
+      }
+      
+      let stats = [];
+      if (item.item.mods) {
+        const m = item.item.mods;
+        if (m.str) stats.push(`STR +${m.str}`);
+        if (m.def) stats.push(`DEF +${m.def}`);
+        if (m.spd) stats.push(`SPD +${m.spd}`);
+        if (m.mag) stats.push(`MAG +${m.mag}`);
+        if (m.hp) stats.push(`HP +${m.hp}`);
+        if (m.res) {
+          for (const [k, v] of Object.entries(m.res)) {
+            if (v > 0) stats.push(`${k} res ${Math.floor(v*100)}%`);
+          }
+        }
+      }
+      const statsText = stats.length > 0 ? ` (${stats.join(", ")})` : "";
+      const special = item.item.hooks ? " ✦" : "";
+      
+      div.innerHTML = `
+        <div>
+          <div class="name">○ ${item.item.name}${statusText}${special}</div>
+          <div class="desc">${item.item.desc}${statsText}</div>
+        </div>
+      `;
     } else if (item.type === "potion") {
       let effectText = "";
       const p = item.item;
@@ -86,12 +202,22 @@ export function renderInventory(state) {
       `;
     }
     
-    content.appendChild(div);
+    itemsContainer.appendChild(div);
   });
+  
+  content.appendChild(itemsContainer);
+  
+  // Store the filtered indices for use/drop operations
+  state.ui.filteredIndices = filteredIndices;
 }
 
 export function useInventoryItem(state) {
-  const item = state.player.inventory[state.ui.selectedIndex];
+  // Get the actual inventory index from filtered indices
+  const actualIndex = state.ui.filteredIndices ? 
+    state.ui.filteredIndices[state.ui.selectedIndex] : 
+    state.ui.selectedIndex;
+  
+  const item = state.player.inventory[actualIndex];
   if (!item) return;
   
   if (item.type === "weapon") {
@@ -126,6 +252,46 @@ export function useInventoryItem(state) {
       state.equippedHeadgearId = item.id;
       state.player.headgear = item.item;
       state.log(`Equipped ${item.item.name}!`, "note");
+    }
+  } else if (item.type === "ring") {
+    // Initialize ring tracking if needed
+    if (!state.equippedRingIds) state.equippedRingIds = [null, null];
+    
+    // Check if already equipped
+    const slot1Equipped = state.equippedRingIds[0] === item.id;
+    const slot2Equipped = state.equippedRingIds[1] === item.id;
+    
+    if (slot1Equipped || slot2Equipped) {
+      // Unequip
+      const slot = slot1Equipped ? 0 : 1;
+      state.equippedRingIds[slot] = null;
+      const oldRing = state.player.rings[slot];
+      state.player.rings[slot] = null;
+      if (oldRing) {
+        runOnUnequipHooks(state, state.player, oldRing);
+      }
+      emit(EventType.Unequipped, { item: item.item, slot: `ring${slot+1}` });
+      state.log(`Unequipped ${item.item.name} from ring slot ${slot+1}.`, "note");
+    } else {
+      // Find empty slot or ask which to replace
+      let slot = -1;
+      if (!state.equippedRingIds[0]) slot = 0;
+      else if (!state.equippedRingIds[1]) slot = 1;
+      else {
+        // Both slots full - replace slot 1 for now
+        slot = 0;
+        const oldRing = state.player.rings[0];
+        if (oldRing) {
+          runOnUnequipHooks(state, state.player, oldRing);
+          state.log(`Replaced ${oldRing.name} with ${item.item.name}.`, "note");
+        }
+      }
+      
+      state.equippedRingIds[slot] = item.id;
+      state.player.rings[slot] = item.item;
+      runOnEquipHooks(state, state.player, item.item);
+      emit(EventType.Equipped, { item: item.item, slot: `ring${slot+1}` });
+      state.log(`Equipped ${item.item.name} to ring slot ${slot+1}!`, "note");
     }
   } else if (item.type === "potion") {
     // Use potion
@@ -168,9 +334,13 @@ export function useInventoryItem(state) {
       
       if (item.count <= 0) {
         // Remove empty stack from inventory
-        state.player.inventory.splice(state.ui.selectedIndex, 1);
-        if (state.ui.selectedIndex >= state.player.inventory.length) {
-          state.ui.selectedIndex = Math.max(0, state.player.inventory.length - 1);
+        state.player.inventory.splice(actualIndex, 1);
+        // Adjust selected index for filtered view
+        const newFilteredItems = state.player.inventory.filter(i => 
+          state.ui.inventoryTab === 'all' || i.type === state.ui.inventoryTab
+        );
+        if (state.ui.selectedIndex >= newFilteredItems.length) {
+          state.ui.selectedIndex = Math.max(0, newFilteredItems.length - 1);
         }
       }
     }
@@ -180,7 +350,12 @@ export function useInventoryItem(state) {
 }
 
 export function dropInventoryItem(state) {
-  const item = state.player.inventory[state.ui.selectedIndex];
+  // Get the actual inventory index from filtered indices
+  const actualIndex = state.ui.filteredIndices ? 
+    state.ui.filteredIndices[state.ui.selectedIndex] : 
+    state.ui.selectedIndex;
+  
+  const item = state.player.inventory[actualIndex];
   if (!item) return;
   
   // Ensure items array exists
@@ -196,6 +371,19 @@ export function dropInventoryItem(state) {
   } else if (item.type === "headgear" && state.equippedHeadgearId === item.id) {
     state.equippedHeadgearId = null;
     state.player.headgear = null;
+  } else if (item.type === "ring" && state.equippedRingIds) {
+    // Check both ring slots
+    if (state.equippedRingIds[0] === item.id) {
+      state.equippedRingIds[0] = null;
+      const oldRing = state.player.rings[0];
+      state.player.rings[0] = null;
+      if (oldRing) runOnUnequipHooks(state, state.player, oldRing);
+    } else if (state.equippedRingIds[1] === item.id) {
+      state.equippedRingIds[1] = null;
+      const oldRing = state.player.rings[1];
+      state.player.rings[1] = null;
+      if (oldRing) runOnUnequipHooks(state, state.player, oldRing);
+    }
   }
   
   // Handle potion stacks
@@ -221,7 +409,8 @@ export function dropInventoryItem(state) {
     // Drop entire item/last potion in stack
     const tile = item.type === "weapon" ? "/" : 
                   item.type === "armor" ? "]" : 
-                  item.type === "headgear" ? "^" : "!";
+                  item.type === "headgear" ? "^" : 
+                  item.type === "ring" ? "○" : "!";
     if (state.chunk.map[state.player.y][state.player.x] === ".") {
       state.chunk.map[state.player.y][state.player.x] = tile;
       state.chunk.items.push({
@@ -235,12 +424,16 @@ export function dropInventoryItem(state) {
     state.log(`Dropped ${item.item.name}.`, "note");
     
     // Remove from inventory
-    state.player.inventory.splice(state.ui.selectedIndex, 1);
+    state.player.inventory.splice(actualIndex, 1);
     if (item.type === "potion") state.player.potionCount--;
   }
   
-  if (state.ui.selectedIndex >= state.player.inventory.length) {
-    state.ui.selectedIndex = Math.max(0, state.player.inventory.length - 1);
+  // Adjust selected index for filtered view
+  const newFilteredItems = state.player.inventory.filter(i => 
+    state.ui.inventoryTab === 'all' || i.type === state.ui.inventoryTab
+  );
+  if (state.ui.selectedIndex >= newFilteredItems.length) {
+    state.ui.selectedIndex = Math.max(0, newFilteredItems.length - 1);
   }
   
   renderInventory(state);

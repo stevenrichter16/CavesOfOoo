@@ -1,4 +1,4 @@
-import { W, H, TILE, QUOTES, WEAPONS, ARMORS, HEADGEAR, POTIONS, TIMES, WEATHERS, QUEST_TEMPLATES, FETCH_ITEMS } from './config.js';
+import { W, H, TILE, QUOTES, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, TIMES, WEATHERS, QUEST_TEMPLATES, FETCH_ITEMS } from './config.js';
 import { rnd, choice, esc } from './utils.js';
 import { makePlayer, levelUp } from './entities.js';
 import { genChunk, findOpenSpot } from './worldGen.js';
@@ -8,7 +8,7 @@ import { processStatusEffects, getStatusModifier, applyStatusEffect, isFrozen } 
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
-import { mountLog, push } from './log.js';
+import { mountLog } from './log.js';
 import { emit } from './events.js'
 import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
@@ -18,11 +18,12 @@ import { initShopUI, ShopEvents, isShopOpen } from './ui/shop.js';
 import { initMapUI, MapEvents, isMapOpen, renderMap } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
+import { runOnTurnEndHooks, getGearMods } from './gear/effects.js';
 
 // Game state
 let STATE = null;
 mountLog(document.getElementById('logger'));
-push('CavesOfOoo booting…', 'note');
+emit(EventType.Log, { text: 'CavesOfOoo booting…', cls: 'note' });
 
 function log(state, text, cls = null) { 
   const span = cls ? `<span class="${cls}">${esc(text)}</span>` : esc(text);
@@ -990,7 +991,7 @@ function interactTile(state, x, y) {
       }
       
       const loot = Math.random();
-      if (loot < 0.3) {
+      if (loot < 0.25) {
         const weapon = choice(WEAPONS);
         const newItem = { 
           type: "weapon", 
@@ -1000,7 +1001,7 @@ function interactTile(state, x, y) {
         state.player.inventory.push(newItem);
         log(state, `Chest contains: ${weapon.name}!`, "good");
         log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
-      } else if (loot < 0.6) {
+      } else if (loot < 0.45) {
         const armor = choice(ARMORS);
         const newItem = { 
           type: "armor", 
@@ -1010,7 +1011,7 @@ function interactTile(state, x, y) {
         state.player.inventory.push(newItem);
         log(state, `Chest contains: ${armor.name}!`, "good");
         log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
-      } else if (loot < 0.8) {
+      } else if (loot < 0.65) {
         const headgear = choice(HEADGEAR);
         state.player.inventory.push({ 
           type: "headgear", 
@@ -1018,6 +1019,14 @@ function interactTile(state, x, y) {
           id: generateItemId() 
         });
         log(state, `Chest contains: ${headgear.name}!`, "good");
+      } else if (loot < 0.85) {
+        const ring = choice(RINGS);
+        state.player.inventory.push({ 
+          type: "ring", 
+          item: { ...ring }, // Clone to avoid shared references
+          id: generateItemId() 
+        });
+        log(state, `Chest contains: ${ring.name}!`, "good");
       } else {
         const potion = choice(POTIONS);
         addPotionToInventory(state, potion);
@@ -1491,6 +1500,11 @@ function turnEnd(state) {
   // This will eventually replace processStatusEffects above
   processNewStatusSystem(state);
   
+  // Run gear turn-end hooks
+  if (state.player.alive) {
+    runOnTurnEndHooks(state, state.player);
+  }
+  
   // Time progression
   if (Math.random() < 0.1) {
     state.timeIndex = (state.timeIndex + 1) % TIMES.length;
@@ -1522,6 +1536,8 @@ function renderEquipmentPanel(state) {
   const equippedWeapon = state.player.inventory.find(i => i.id === state.equippedWeaponId);
   const equippedArmor = state.player.inventory.find(i => i.id === state.equippedArmorId);
   const equippedHeadgear = state.player.inventory.find(i => i.id === state.equippedHeadgearId);
+  const equippedRing1 = state.equippedRingIds ? state.player.inventory.find(i => i.id === state.equippedRingIds[0]) : null;
+  const equippedRing2 = state.equippedRingIds ? state.player.inventory.find(i => i.id === state.equippedRingIds[1]) : null;
   
   // Weapon slot
   const weaponDiv = document.createElement("div");
@@ -1604,6 +1620,90 @@ function renderEquipmentPanel(state) {
   }
   slotsEl.appendChild(headgearDiv);
   
+  // Ring 1 slot
+  const ring1Div = document.createElement("div");
+  ring1Div.className = equippedRing1 ? "equipment-slot" : "equipment-slot empty";
+  if (equippedRing1) {
+    const stats = [];
+    if (equippedRing1.item.mods) {
+      const m = equippedRing1.item.mods;
+      if (m.str) stats.push(`<span class="stat strength">STR +${m.str}</span>`);
+      if (m.def) stats.push(`<span class="stat defense">DEF +${m.def}</span>`);
+      if (m.spd) stats.push(`<span class="stat speed">SPD +${m.spd}</span>`);
+      if (m.mag) stats.push(`<span class="stat magic">MAG +${m.mag}</span>`);
+      if (m.hp) stats.push(`<span class="stat health">HP +${m.hp}</span>`);
+      // Add resistances
+      if (m.res) {
+        for (const [type, value] of Object.entries(m.res)) {
+          if (value > 0) {
+            const percent = Math.floor(value * 100);
+            let resClass = "resistance";
+            if (type === "fire") resClass = "res-fire";
+            else if (type === "ice") resClass = "res-ice";
+            else if (type === "poison") resClass = "res-poison";
+            else if (type === "shock") resClass = "res-shock";
+            stats.push(`<span class="stat ${resClass}">${type} ${percent}%</span>`);
+          }
+        }
+      }
+    }
+    ring1Div.innerHTML = `
+      <div class="slot-label">Ring 1</div>
+      <div class="item-name">○ ${equippedRing1.item.name}</div>
+      <div class="item-stats">
+        ${stats.join("")}
+      </div>
+    `;
+  } else {
+    ring1Div.innerHTML = `
+      <div class="slot-label">Ring 1</div>
+      <div class="item-name">Empty</div>
+    `;
+  }
+  slotsEl.appendChild(ring1Div);
+  
+  // Ring 2 slot
+  const ring2Div = document.createElement("div");
+  ring2Div.className = equippedRing2 ? "equipment-slot" : "equipment-slot empty";
+  if (equippedRing2) {
+    const stats = [];
+    if (equippedRing2.item.mods) {
+      const m = equippedRing2.item.mods;
+      if (m.str) stats.push(`<span class="stat strength">STR +${m.str}</span>`);
+      if (m.def) stats.push(`<span class="stat defense">DEF +${m.def}</span>`);
+      if (m.spd) stats.push(`<span class="stat speed">SPD +${m.spd}</span>`);
+      if (m.mag) stats.push(`<span class="stat magic">MAG +${m.mag}</span>`);
+      if (m.hp) stats.push(`<span class="stat health">HP +${m.hp}</span>`);
+      // Add resistances
+      if (m.res) {
+        for (const [type, value] of Object.entries(m.res)) {
+          if (value > 0) {
+            const percent = Math.floor(value * 100);
+            let resClass = "resistance";
+            if (type === "fire") resClass = "res-fire";
+            else if (type === "ice") resClass = "res-ice";
+            else if (type === "poison") resClass = "res-poison";
+            else if (type === "shock") resClass = "res-shock";
+            stats.push(`<span class="stat ${resClass}">${type} ${percent}%</span>`);
+          }
+        }
+      }
+    }
+    ring2Div.innerHTML = `
+      <div class="slot-label">Ring 2</div>
+      <div class="item-name">○ ${equippedRing2.item.name}</div>
+      <div class="item-stats">
+        ${stats.join("")}
+      </div>
+    `;
+  } else {
+    ring2Div.innerHTML = `
+      <div class="slot-label">Ring 2</div>
+      <div class="item-name">Empty</div>
+    `;
+  }
+  slotsEl.appendChild(ring2Div);
+  
   // Calculate total stats
   const p = state.player;
   const weaponDmg = p.weapon ? p.weapon.dmg : 0;
@@ -1612,13 +1712,18 @@ function renderEquipmentPanel(state) {
   const headgearStr = p.headgear ? (p.headgear.str || 0) : 0;
   const headgearSpd = p.headgear ? (p.headgear.spd || 0) : 0;
   const headgearMagic = p.headgear ? (p.headgear.magic || 0) : 0;
+  
+  // Get gear mods including rings
+  const gearMods = getGearMods(p);
+  
   const statusStrBonus = getStatusModifier(p, "str");
   const statusDefBonus = getStatusModifier(p, "def");
   const statusSpdBonus = getStatusModifier(p, "spd");
   
-  const totalStr = p.str + headgearStr + statusStrBonus;
-  const totalDef = p.def + armorDef + headgearDef + statusDefBonus;
-  const totalSpd = (p.spd || 0) + headgearSpd + statusSpdBonus;
+  const totalStr = p.str + gearMods.str + statusStrBonus;
+  const totalDef = p.def + armorDef + headgearDef + gearMods.def + statusDefBonus;
+  const totalSpd = (p.spd || 0) + headgearSpd + gearMods.spd + statusSpdBonus;
+  const totalMag = (p.mag || 0) + headgearMagic + gearMods.mag;
   const totalDmg = weaponDmg;
   
   // Display total stats
@@ -1645,15 +1750,19 @@ function renderEquipmentPanel(state) {
     </div>
     <div class="stat-row">
       <span class="stat-label">  + Total DEF:</span>
-      <span class="stat-value" style="color:var(--ok)">+${armorDef + headgearDef}</span>
+      <span class="stat-value" style="color:var(--ok)">+${armorDef + headgearDef + gearMods.def}</span>
     </div>
-    ${headgearStr > 0 ? `<div class="stat-row">
+    ${(gearMods.str > 0) ? `<div class="stat-row">
       <span class="stat-label">  + Gear STR:</span>
-      <span class="stat-value" style="color:var(--accent)">+${headgearStr}</span>
+      <span class="stat-value" style="color:var(--accent)">+${gearMods.str}</span>
     </div>` : ""}
-    ${headgearMagic > 0 ? `<div class="stat-row">
+    ${(gearMods.spd > 0) ? `<div class="stat-row">
+      <span class="stat-label">  + Gear SPD:</span>
+      <span class="stat-value" style="color:var(--speed)">+${gearMods.spd}</span>
+    </div>` : ""}
+    ${(totalMag > 0) ? `<div class="stat-row">
       <span class="stat-label">  + Magic:</span>
-      <span class="stat-value" style="color:var(--magic)">+${headgearMagic} (+${headgearMagic * 5}% proc)</span>
+      <span class="stat-value" style="color:var(--magic)">+${totalMag} (+${totalMag * 5}% proc)</span>
     </div>` : ""}
     ${(statusStrBonus || statusDefBonus) ? `<div class="stat-row">
       <span class="stat-label">Status Effects:</span>
@@ -1679,6 +1788,39 @@ function renderEquipmentPanel(state) {
       <span class="stat-label"><strong>Total SPD:</strong></span>
       <span class="stat-value"><strong>${totalSpd}</strong></span>
     </div>
+    ${totalMag > 0 ? `<div class="stat-row">
+      <span class="stat-label"><strong>Total MAG:</strong></span>
+      <span class="stat-value"><strong>${totalMag}</strong></span>
+    </div>` : ""}
+    ${(() => {
+      // Display total resistances if any
+      const hasResistances = gearMods.res && Object.values(gearMods.res).some(v => v > 0);
+      if (!hasResistances) return "";
+      
+      let resHtml = `<div class="stat-row" style="border-top:1px solid #2c2f33;margin-top:8px;padding-top:8px;">
+        <span class="stat-label"><strong>Resistances:</strong></span>
+        <span class="stat-value"></span>
+      </div>`;
+      
+      for (const [type, value] of Object.entries(gearMods.res)) {
+        if (value > 0) {
+          const percent = Math.floor(value * 100);
+          let color = "#999";
+          if (type === "fire") color = "#ff6347";
+          else if (type === "ice") color = "#87ceeb";
+          else if (type === "poison") color = "#90ee90";
+          else if (type === "shock") color = "#ffff66";
+          else if (type === "bleed") color = "#ff4444";
+          
+          resHtml += `<div class="stat-row">
+            <span class="stat-label">  ${type}:</span>
+            <span class="stat-value" style="color:${color}">${percent}%</span>
+          </div>`;
+        }
+      }
+      
+      return resHtml;
+    })()}
   `;
 }
 
@@ -2220,11 +2362,29 @@ export function initGame() {
     
     // Inventory controls
     if (STATE.ui.inventoryOpen) {
+      // Get filtered items count
+      const filteredItems = STATE.player.inventory.filter(item => 
+        STATE.ui.inventoryTab === 'all' || item.type === STATE.ui.inventoryTab
+      );
+      
       if (e.key === "ArrowUp") {
         STATE.ui.selectedIndex = Math.max(0, STATE.ui.selectedIndex - 1);
         renderInventory(STATE);
       } else if (e.key === "ArrowDown") {
-        STATE.ui.selectedIndex = Math.min(STATE.player.inventory.length - 1, STATE.ui.selectedIndex + 1);
+        STATE.ui.selectedIndex = Math.min(filteredItems.length - 1, STATE.ui.selectedIndex + 1);
+        renderInventory(STATE);
+      } else if (e.key === "Tab") {
+        // Tab navigation
+        const tabs = ['all', 'weapon', 'armor', 'headgear', 'ring', 'potion'];
+        const currentIdx = tabs.indexOf(STATE.ui.inventoryTab);
+        if (e.shiftKey) {
+          // Previous tab
+          STATE.ui.inventoryTab = tabs[(currentIdx - 1 + tabs.length) % tabs.length];
+        } else {
+          // Next tab
+          STATE.ui.inventoryTab = tabs[(currentIdx + 1) % tabs.length];
+        }
+        STATE.ui.selectedIndex = 0;
         renderInventory(STATE);
       } else if (e.key === "Enter") {
         useInventoryItem(STATE);

@@ -11,6 +11,7 @@ export const TILE = {
   weapon: "/", 
   armor: "]", 
   headgear: "^",
+  ring: "○",
   chest: "$", 
   shrine: "▲", 
   door: "+",
@@ -125,6 +126,111 @@ export const HEADGEAR = [
   { name: "Marceline's Hood", spd: 2, magic: 1, desc: "Swift as a vampire" },
   { name: "Lich's Crown", def: 1, str: 3, desc: "Whispers of dark power" },
   { name: "Feather Cap", spd: 4, desc: "Light as air" },
+];
+
+export const RINGS = [
+  // Basic stat rings
+  { 
+    name: "Ring of Strength", 
+    desc: "Glows with inner power", 
+    mods: { str: 3 } 
+  },
+  { 
+    name: "Ring of Defense", 
+    desc: "Solid and unbreaking", 
+    mods: { def: 2 } 
+  },
+  { 
+    name: "Ring of Speed", 
+    desc: "Light as a feather", 
+    mods: { spd: 3 } 
+  },
+  { 
+    name: "Magic Ring", 
+    desc: "Pulses with arcane energy", 
+    mods: { mag: 4 } 
+  },
+  
+  // Resistance rings
+  { 
+    name: "Ring of Frost", 
+    desc: "Cold to the touch", 
+    mods: { res: { ice: 0.3 } } 
+  },
+  { 
+    name: "Ring of Flames", 
+    desc: "Warm and protective", 
+    mods: { res: { fire: 0.3 } } 
+  },
+  { 
+    name: "Ring of Venom Guard", 
+    desc: "Neutralizes toxins", 
+    mods: { res: { poison: 0.4 } } 
+  },
+  
+  // Reactive rings with hooks
+  { 
+    name: "Thorns Ring", 
+    desc: "Covered in tiny spikes", 
+    mods: { def: 1 },
+    hooks: {
+      onHitTaken: function(state, wearer, attacker, ctx) {
+        const dmg = Math.floor(ctx.dmg * 0.15);
+        if (dmg > 0) {
+          attacker.hp = Math.max(0, attacker.hp - dmg);
+          state.log(`Thorns reflect ${dmg} damage!`, "magic");
+        }
+      }
+    }
+  },
+  { 
+    name: "Vampire Ring", 
+    desc: "Thirsts for life essence", 
+    mods: { str: 1 },
+    hooks: {
+      onAttack: function(state, wearer, target, ctx) {
+        if (ctx.crit) {
+          const heal = Math.floor(ctx.dmg * 0.25);
+          wearer.hp = Math.min(wearer.hpMax, wearer.hp + heal);
+          state.log(`Life steal! +${heal} HP`, "good");
+        }
+      }
+    }
+  },
+  { 
+    name: "Ring of Regeneration", 
+    desc: "Slowly mends wounds", 
+    mods: { hp: 5 },
+    hooks: {
+      onTurnEnd: function(state, wearer) {
+        if (wearer.hp < wearer.hpMax && Math.random() < 0.2) {
+          wearer.hp = Math.min(wearer.hpMax, wearer.hp + 1);
+          state.log("Ring regenerates 1 HP", "good");
+        }
+      }
+    }
+  },
+  
+  // Legendary rings
+  { 
+    name: "Hero's Band", 
+    desc: "Once worn by Billy", 
+    mods: { str: 2, def: 2, spd: 1 } 
+  },
+  { 
+    name: "Ice King's Crown Ring", 
+    desc: "A miniature crown on a ring", 
+    mods: { mag: 3, res: { ice: 0.5 } },
+    hooks: {
+      onAttack: function(state, wearer, target, ctx) {
+        if (Math.random() < 0.1) {
+          target.statusEffects = target.statusEffects || [];
+          target.statusEffects.push({ type: "freeze", turns: 1, value: 0 });
+          state.log("Ring freezes the enemy!", "magic");
+        }
+      }
+    }
+  }
 ];
 
 export const POTIONS = [
