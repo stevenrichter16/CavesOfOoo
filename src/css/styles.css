@@ -279,6 +279,134 @@ a.button, button.button{
 .stat.res-bleed { color: #ff4444; }
 .stat.resistance { color: #999; }
 
+/* Status effect particles */
+.status-particle {
+  position: absolute;
+  font-size: 16px;
+  pointer-events: none;
+  font-weight: normal;
+  z-index: 100;
+  line-height: 1;
+}
+
+/* Particle animations */
+@keyframes particle-float-up {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift-x), -40px);
+  }
+}
+
+@keyframes particle-zigzag {
+  0% { 
+    opacity: 1; 
+    transform: translate(0, 0); 
+  }
+  25% { 
+    transform: translate(-5px, -10px); 
+  }
+  50% { 
+    transform: translate(5px, -20px); 
+  }
+  75% { 
+    transform: translate(-3px, -30px); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translate(0, -40px); 
+  }
+}
+
+@keyframes particle-fall-down {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift-x), 20px);
+  }
+}
+
+/* Burn particles - orange/red */
+.particle-burn {
+  animation: particle-float-up 1s linear forwards;
+}
+.particle-burn:nth-child(odd) { color: #ff6600; }
+.particle-burn:nth-child(even) { color: #ffaa00; }
+.particle-burn:nth-child(3n) { color: #ff0000; }
+
+/* Freeze particles - white/cyan */
+.particle-freeze {
+  animation: particle-float-up 1.5s linear forwards;
+}
+.particle-freeze:nth-child(odd) { color: #ffffff; }
+.particle-freeze:nth-child(even) { color: #00ffff; }
+.particle-freeze:nth-child(3n) { color: #aaaaff; }
+
+/* Shock particles - yellow/white */
+.particle-shock {
+  animation: particle-zigzag 0.8s linear forwards;
+}
+.particle-shock { color: #ffff00; }
+.particle-shock:nth-child(even) { color: #ffffff; }
+
+/* Poison particles - green */
+.particle-poison {
+  animation: particle-float-up 1.2s linear forwards;
+}
+.particle-poison:nth-child(odd) { color: #00ff00; }
+.particle-poison:nth-child(even) { color: #aaff00; }
+.particle-poison:nth-child(3n) { color: #00aa00; }
+
+/* Weaken particles - purple */
+.particle-weaken {
+  animation: particle-fall-down 1s linear forwards;
+}
+.particle-weaken { color: #ff00ff; }
+.particle-weaken:nth-child(even) { color: #aa00aa; }
+
+/* Strength particles - red */
+.particle-strength {
+  animation: particle-float-up 0.8s linear forwards;
+}
+.particle-strength { color: #ff0000; }
+.particle-strength:nth-child(even) { color: #ff6666; }
+
+/* Defense particles - blue */
+.particle-defense {
+  animation: particle-float-up 1s linear forwards;
+}
+.particle-defense { color: #0088ff; }
+.particle-defense:nth-child(even) { color: #00bbff; }
+
+/* Bleed particles - dark red */
+.particle-bleed {
+  animation: particle-fall-down 1s linear forwards;
+}
+.particle-bleed { color: #aa0000; }
+.particle-bleed:nth-child(even) { color: #ff0000; }
+
+/* Status effect indicators on entities */
+.status-burn { color: #ff6600; animation: pulse 0.5s infinite; }
+.status-freeze { color: #00ffff; }
+.status-shock { color: #ffff00; animation: pulse 0.3s infinite; }
+.status-poison { color: #00ff00; }
+.status-weaken { color: #ff00ff; }
+.status-strength { color: #ff6666; }
+.status-defense { color: #0088ff; }
+.status-bleed { color: #aa0000; animation: pulse 1s infinite; }
+.status-unknown { color: #999999; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Shop styles */
 .shop-header {
   text-align: center;

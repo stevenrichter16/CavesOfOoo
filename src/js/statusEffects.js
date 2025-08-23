@@ -72,7 +72,21 @@ export function processStatusEffects(state, entity, label = "") {
     // Weaken effect is handled in getStatusModifier (reduces STR)
     
     eff.turns--;
-    if (eff.turns <= 0) effects.splice(i, 1);
+    if (eff.turns <= 0) {
+      // Emit expiration event before removing
+      const entityId = entity === state.player ? 'player' : `monster_${entity.x}_${entity.y}`;
+      emit(EventType.StatusEffectExpired, { 
+        toId: entityId, 
+        effect: eff.type,
+        reason: 'duration'
+      });
+      effects.splice(i, 1);
+      
+      // Log expiration
+      if (label && state.log) {
+        state.log(`${label}'s ${eff.type} effect has worn off.`, "note");
+      }
+    }
   }
 }
 

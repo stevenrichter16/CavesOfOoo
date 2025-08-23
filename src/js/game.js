@@ -9,7 +9,7 @@ import { openInventory, closeInventory, renderInventory, useInventoryItem, dropI
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
 import { mountLog } from './log.js';
-import { emit } from './events.js'
+import { on, emit } from './events.js'
 import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
@@ -1824,18 +1824,58 @@ function renderEquipmentPanel(state) {
   `;
 }
 
+// Helper function to get status effect display character
+function getStatusChar(statusType) {
+  const chars = {
+    burn: '!', fire: '!',
+    freeze: '*', ice: '*',
+    shock: '!',
+    poison: 'x',
+    weaken: '-', weakness: '-',
+    buff_str: '+',
+    buff_def: '#',
+    bleed: '.'
+  };
+  return chars[statusType] || '?';
+}
+
+// Helper function to get status effect CSS class
+function getStatusClass(statusType) {
+  const classes = {
+    burn: 'status-burn', fire: 'status-burn',
+    freeze: 'status-freeze', ice: 'status-freeze',
+    shock: 'status-shock',
+    poison: 'status-poison',
+    weaken: 'status-weaken', weakness: 'status-weaken',
+    buff_str: 'status-strength',
+    buff_def: 'status-defense',
+    bleed: 'status-bleed'
+  };
+  return classes[statusType] || 'status-unknown';
+}
+
 function render(state) {
+  console.log("in RENDER");
   const { map, monsters, biome } = state.chunk;
   const buf = map.map(r => r.slice());
   
   // Track monster positions and tiers for coloring
   const monsterMap = new Map();
   
+  // Track entities with status effects
+  const statusMap = new Map();
+  
   // Draw monsters
   for (const m of monsters) {
     if (m.alive && m.y >= 0 && m.y < H && m.x >= 0 && m.x < W) {
       buf[m.y][m.x] = m.glyph;
       monsterMap.set(`${m.x},${m.y}`, m.tier || 1);
+      
+      // Check for status effects
+      if (m.statusEffects && m.statusEffects.length > 0) {
+        const effect = m.statusEffects[0]; // Show first effect
+        statusMap.set(`${m.x},${m.y}`, effect.type);
+      }
     }
   }
   
@@ -1843,6 +1883,14 @@ function render(state) {
   if (state.player.alive && state.player.y >= 0 && state.player.y < H && 
       state.player.x >= 0 && state.player.x < W) {
     buf[state.player.y][state.player.x] = TILE.player;
+    
+    // Check for player status effects
+    if (state.player.statusEffects && state.player.statusEffects.length > 0) {
+      console.log("in Render Check Player Status Effects");
+      const effect = state.player.statusEffects[0];
+      console.log("Effect:", effect);
+      statusMap.set(`${state.player.x},${state.player.y}`, effect.type);
+    }
   }
   
   // Render with colored monsters
@@ -1864,6 +1912,7 @@ function render(state) {
     for (let x = 0; x < W; x++) {
       const char = buf[y][x];
       const monsterTier = monsterMap.get(`${x},${y}`);
+      const statusEffect = statusMap.get(`${x},${y}`);
       
       if (monsterTier) {
         // Check for special monster styling
@@ -2045,6 +2094,7 @@ function render(state) {
 }
 
 function newWorld() {
+  console.log("in newWorld")
   const worldSeed = Math.floor(Math.random() * 2**31) >>> 0;
   const player = makePlayer();
   const state = {
@@ -2083,7 +2133,7 @@ function newWorld() {
     log: (text, cls) => log(state, text, cls),
     render: () => render(state)
   };
-  
+  console.log("Right before loadOrGenChunk");
   loadOrGenChunk(state, 0, 0);
   const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
   player.x = spot.x;
@@ -2111,7 +2161,7 @@ function newWorld() {
   log(state, "Visit any vendor (V) for your reward.", "dim");
   log(state, "Press 'Q' to view active quests.", "dim");
   log(state, "════════════════════════════", "xp");
-  
+  console.log("still in newWorld before RETURN STATE");
   return state;
 }
 
@@ -2122,9 +2172,20 @@ export function initGame() {
   initMapUI();
   initQuestUI();
   
+  // Initialize particle effects
+  import('./ui/particles.js').then(module => {
+    module.initParticles();
+  });
+  
   STATE = newWorld();
+  window.STATE = STATE; // Make available for particle system
   render(STATE);
   
+  // Initialize keyboard controls
+  initKeyboardControls(STATE);
+}
+
+function initKeyboardControls(STATE) {
   // Keyboard controls
   window.addEventListener("keydown", e => {
     
@@ -2431,6 +2492,7 @@ export function initGame() {
     else if (k.toLowerCase() === "r") {
       if (STATE.chunk) saveChunk(STATE.worldSeed, STATE.cx, STATE.cy, STATE.chunk);
       STATE = newWorld();
+      window.STATE = STATE; // Update global reference
       document.getElementById("log").innerHTML = "";
       render(STATE);
       e.preventDefault();
@@ -2464,43 +2526,67 @@ export function initGame() {
       // Debug: Test freeze
       log(STATE, "=== DEBUG: Testing Freeze ===", "magic");
       applyStatusEffect(STATE.player, "freeze", 2, 0);
-      emit(EventType.StatusEffectRegister, { type:"freeze", vs: "You" })
-      log(STATE, "Applied freeze effect for 2 turns", "magic");
+      emit(EventType.StatusEffectRegister, { 
+        type: "freeze", 
+        vs: "You",
+        toId: "player",
+        turns: 2,
+        value: 0
+      });
+      log(STATE, "Applied freeze effect for 2 turns (press F for testing)", "magic");
       log(STATE, `Status effects: ${JSON.stringify(STATE.player.statusEffects)}`, "note");
       log(STATE, `isFrozen result: ${isFrozen(STATE.player)}`, "note");
       render(STATE);
       e.preventDefault();
     }
     else if (k.toLowerCase() === "b") {
-      applyStatusEffect(STATE.player, "burn", 2, 1);
-      emit(EventType.StatusEffectRegister, { type:"burn", vs:"You" });
+      applyStatusEffect(STATE.player, "burn", 3, 2);
+      emit(EventType.StatusEffectRegister, { 
+        type: "burn", 
+        vs: "You",
+        toId: "player",
+        turns: 3,
+        value: 2
+      });
+      log(STATE, "Applied burn effect (press B for testing)", "magic");
       render(STATE);
       e.preventDefault();
     }
     else if (k.toLowerCase() === "p") {
-      applyStatusEffect(STATE.player, "poison", 2, 1)
-      emit(EventType.StatusEffectRegister, { type:"poison", vs:"You" });
+      applyStatusEffect(STATE.player, "poison", 3, 2);
+      emit(EventType.StatusEffectRegister, { 
+        type: "poison", 
+        vs: "You",
+        toId: "player",
+        turns: 3,
+        value: 2
+      });
+      log(STATE, "Applied poison effect (press P for testing)", "magic");
       render(STATE);
       e.preventDefault();
     }
     else if (k.toLowerCase() === "e") {
-      applyStatusEffect(STATE.player, "shock", 2, 1)
-      emit(EventType.StatusEffectRegister, { type:"shock", vs:"You" });
+      applyStatusEffect(STATE.player, "shock", 2, 3);
+      emit(EventType.StatusEffectRegister, { 
+        type: "shock", 
+        vs: "You",
+        toId: "player",
+        turns: 2,
+        value: 3
+      });
+      log(STATE, "Applied shock effect (press E for testing)", "magic");
       render(STATE);
       e.preventDefault();
     }
   });
+}
 
-  /// Test Emits
-  emit(EventType.EntityDied, { name:"You", by:"falling boulder", cause:"big rock" });
-  emit(EventType.EntityDied, { name:"Goober", by:"falling boulder", cause:"big rock" });
-  emit(EventType.InventoryEquipped, { item:'Big Sword' });
-  emit(EventType.InventoryUnequipped, { item:'Big Sword' });
-  /// Test Emits
-
+// Initialization code when DOM is loaded
+window.addEventListener("DOMContentLoaded", () => {
   // Button handlers
   document.getElementById("restart").addEventListener("click", () => {
     STATE = newWorld();
+    window.STATE = STATE; // Update global reference
     document.getElementById("log").innerHTML = "";
     render(STATE);
   });
@@ -2519,4 +2605,4 @@ export function initGame() {
     log(STATE, "Defeat monsters to gain XP and level up!", "note");
     render(STATE);
   });
-}
+});
