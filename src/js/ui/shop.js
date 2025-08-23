@@ -56,20 +56,24 @@ export function initShopUI() {
 export function openShop(vendor, state) {
   console.log('🛍️ Opening vendor shop', { vendor });
   
-  // Check for completed quests
-  const completedQuests = getCompletedQuests(state, vendor);
+  // Normal shop (quest checking is now done in game.js)
+  shopState.isOpen = true;
+  shopState.vendor = vendor;
+  shopState.selectedIndex = 0;
+  shopState.mode = 'buy';
+  shopState.confirmSell = false;
+  shopState.confirmChoice = 'no';
   
-  if (completedQuests.length > 0) {
-    // Show quest turn-in option first
-    openQuestTurnIn(state, vendor, completedQuests);
-  } else {
-    // Normal shop
-    shopState.isOpen = true;
-    shopState.vendor = vendor;
-    shopState.selectedIndex = 0;
-    shopState.mode = 'buy';
-    shopState.confirmSell = false;
-    shopState.confirmChoice = 'no';
+  // Set the state flags
+  state.ui.shopOpen = true;
+  state.ui.shopVendor = vendor;
+  state.ui.shopSelectedIndex = 0;
+  state.ui.shopMode = 'buy';
+  state.ui.confirmSell = false;
+  state.ui.confirmChoice = 'no';
+  
+  // Call the game's renderShop
+  if (typeof renderShop === 'function') {
     renderShop(state);
   }
 }
@@ -105,17 +109,7 @@ function getCompletedQuests(state, vendor) {
   return [...completedFetchQuests, ...completedRegularQuests];
 }
 
-/**
- * Open quest turn-in UI
- */
-function openQuestTurnIn(state, vendor, completedQuests) {
-  shopState.isOpen = true;
-  shopState.vendor = vendor;
-  shopState.selectedIndex = 0;
-  shopState.mode = 'quest';
-  shopState.questsToTurnIn = completedQuests;
-  renderShop(state);
-}
+// Quest turn-in is handled in game.js, not in the shop module
 
 /**
  * Navigate shop menu

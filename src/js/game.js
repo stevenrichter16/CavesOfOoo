@@ -66,8 +66,30 @@ function addPotionToInventory(state, potion) {
 
 // Vendor shop functions
 function openVendorShop(state, vendor) {
-  // Delegate to new shop UI module
-  emit(ShopEvents.OpenShop, { vendor, state });
+  // Check for completed quests first
+  const completedFetchQuests = state.player.quests.active.filter(qId => {
+    const fetchQuest = state.player.quests.fetchQuests?.[qId];
+    if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+      return checkFetchQuestItem(state.player, fetchQuest);
+    }
+    return false;
+  });
+
+  const completedRegularQuests = state.player.quests.active.filter(qId => {
+    const progress = state.player.quests.progress[qId] || 0;
+    const quest = QUEST_TEMPLATES[qId];
+    return quest && progress >= quest.targetCount;
+  });
+  
+  const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+  
+  if (allCompletedQuests.length > 0) {
+    // Show quest turn-in option first
+    openQuestTurnIn(state, vendor, allCompletedQuests);
+  } else {
+    // Delegate to shop UI module for normal shopping
+    emit(ShopEvents.OpenShop, { vendor, state });
+  }
 }
 
 function closeShop(state) {
