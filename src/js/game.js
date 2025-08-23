@@ -10,6 +10,9 @@ import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.j
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
 import { mountLog, push } from './log.js';
 import { emit } from './events.js'
+import { EventType } from './eventTypes.js';
+import { Move } from './actions.js';
+import { runPlayerMove } from './movePipeline.js';
 
 // Game state
 let STATE = null;
@@ -65,6 +68,7 @@ function addPotionToInventory(state, potion) {
 
 // Vendor shop functions
 function openVendorShop(state, vendor) {
+  console.log('🛍️ Opening vendor shop', { vendor });
   // Check for completed fetch quests for this vendor
   const completedFetchQuests = state.player.quests.active.filter(qId => {
     const fetchQuest = state.player.quests.fetchQuests?.[qId];
@@ -82,6 +86,7 @@ function openVendorShop(state, vendor) {
   });
   
   const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+  console.log('📄 Completed quests check', { completedFetchQuests, completedRegularQuests, allCompletedQuests });
   
   if (allCompletedQuests.length > 0) {
     // Show quest turn-in option first
@@ -106,8 +111,10 @@ function closeShop(state) {
 
 // Quest turn-in functions
 function openQuestTurnIn(state, vendor, completedQuests) {
+  console.log('📜 Opening quest turn-in UI', { completedQuests });
   // Prevent opening if already open or if shop is open
   if (state.ui.questTurnInOpen || state.ui.shopOpen) {
+    console.log('⚠️ Quest turn-in already open or shop is open, canceling');
     return;
   }
   
@@ -121,6 +128,12 @@ function openQuestTurnIn(state, vendor, completedQuests) {
 }
 
 function renderQuestTurnIn(state) {
+  console.log('🎨 Rendering quest turn-in', {
+    selectingQuest: state.ui.selectingQuest,
+    selectingFetchItem: state.ui.selectingFetchItem,
+    confirmGiveEquipped: state.ui.confirmGiveEquipped,
+    completedQuests: state.ui.completedQuests
+  });
   const overlay = document.getElementById("overlay");
   const content = document.getElementById("overlayContent");
   const title = document.getElementById("overlayTitle");
@@ -130,6 +143,7 @@ function renderQuestTurnIn(state) {
   
   // Check if we need to select an item for a fetch quest
   if (state.ui.selectingFetchItem) {
+    console.log('📦 Rendering item selection for fetch quest', { questId: state.ui.selectingFetchItem });
     title.textContent = "SELECT ITEM TO GIVE";
     
     const fetchQuest = state.player.quests.fetchQuests[state.ui.selectingFetchItem];
@@ -190,6 +204,7 @@ function renderQuestTurnIn(state) {
   
   // Quest selection menu
   if (state.ui.selectingQuest) {
+    console.log('📃 Rendering quest selection menu');
     title.textContent = "SELECT QUEST TO TURN IN";
     
     const quests = state.ui.completedQuests.map((qId, idx) => {
@@ -309,6 +324,7 @@ function renderQuestTurnInConfirm(state) {
 }
 
 function claimQuestRewards(state, questsToTurnIn = null) {
+  console.log('💰 Claiming quest rewards', { questsToTurnIn, completedQuests: state.ui.completedQuests });
   // Use provided quests or all completed quests
   const quests = questsToTurnIn || state.ui.completedQuests;
   
@@ -340,6 +356,7 @@ function claimQuestRewards(state, questsToTurnIn = null) {
   
   // If we need to select an item and haven't yet
   if (fetchQuestsNeedingSelection.length > 0 && !state.ui.selectingFetchItem) {
+    console.log('🎯 Need to select item for fetch quest', { fetchQuestsNeedingSelection });
     // Start item selection for the first fetch quest
     state.ui.selectingFetchItem = fetchQuestsNeedingSelection[0];
     state.ui.fetchItemSelectedIndex = 0;
@@ -349,19 +366,24 @@ function claimQuestRewards(state, questsToTurnIn = null) {
   }
   
   // Process all quests
+  console.log('🔄 Processing quests for turn-in', { quests });
   quests.forEach(qId => {
     // Check if it's a fetch quest
     const fetchQuest = state.player.quests.fetchQuests?.[qId];
     if (fetchQuest) {
+      console.log('🎁 Turning in fetch quest', { qId, fetchQuest });
       // If we had item selection, use the selected item
       if (state.ui.selectedFetchItemIndex !== undefined) {
+        console.log('🎯 Using selected item index:', state.ui.selectedFetchItemIndex);
         turnInFetchQuestWithItem(state, qId, state.ui.shopVendor, state.ui.selectedFetchItemIndex);
         state.ui.selectedFetchItemIndex = undefined;
       } else {
         // Otherwise use the first matching item
+        console.log('🤔 Using first matching item');
         turnInFetchQuest(state, qId, state.ui.shopVendor);
       }
     } else {
+      console.log('⚔️ Turning in regular quest', { qId });
       turnInQuest(state, qId);
     }
   });
@@ -397,6 +419,7 @@ function claimQuestRewards(state, questsToTurnIn = null) {
     }) : [];
   
   if (remainingQuests.length > 0) {
+    console.log('🔁 Still have remaining quests', { remainingQuests });
     // Still have quests to turn in, go back to selection
     state.ui.completedQuests = remainingQuests;
     state.ui.allCompletedQuests = remainingQuests; // Update the list
@@ -406,6 +429,7 @@ function claimQuestRewards(state, questsToTurnIn = null) {
     state.ui.fetchItemSelectedIndex = 0;
     renderQuestTurnIn(state);
   } else {
+    console.log('✅ All quests turned in, closing UI');
     // Close quest turn-in UI
     state.ui.questTurnInOpen = false;
     state.ui.completedQuests = [];
@@ -849,6 +873,7 @@ function sellToVendor(state, forceConfirm = false) {
 
 function interactTile(state, x, y) {
   const tile = state.chunk.map[y][x];
+  console.log('👋 Interacting with tile', { x, y, tile });
   if (!state.chunk.items) state.chunk.items = [];
   const items = state.chunk.items;
   
@@ -856,9 +881,11 @@ function interactTile(state, x, y) {
   if (tile === "V") {
     const vendor = items.find(i => i.type === "vendor" && i.x === x && i.y === y);
     if (vendor) {
+      console.log('💬 Found vendor at position', { vendor });
       log(state, "\"Hello, adventurer! Take a look at my wares!\"", "note");
       // Delay vendor shop opening to next tick to avoid UI conflicts
       setTimeout(() => {
+        console.log('⏰ Opening vendor shop on next tick');
         openVendorShop(state, vendor);
       }, 0);
     }
@@ -1062,6 +1089,48 @@ function loadOrGenChunk(state, cx, cy) {
   if (!state.chunk.items) state.chunk.items = [];
 }
 
+function handlePlayerMove(state, dx, dy) {
+  if (state.over) return;
+  
+  // Check if player is frozen
+  const frozen = isFrozen(state.player);
+  if (frozen) {
+    log(state, "You're frozen solid and can't move!", "magic");
+    enemiesTurn(state);
+    return;
+  }
+  
+  // Add dimensions to state for movePipeline
+  state.W = W;
+  state.H = H;
+  
+  // Add edge travel handler
+  state.handleEdgeTravel = (nx, ny) => {
+    const tcx = state.cx + (nx < 0 ? -1 : nx >= W ? 1 : 0);
+    const tcy = state.cy + (ny < 0 ? -1 : ny >= H ? 1 : 0);
+    loadOrGenChunk(state, tcx, tcy);
+    state.player.x = (nx + W) % W;
+    state.player.y = (ny + H) % H;
+    if (state.chunk.map[state.player.y][state.player.x] === "#") {
+      const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
+      state.player.x = spot.x; 
+      state.player.y = spot.y;
+    }
+    log(state, `You step into a new area.`, "note");
+    emit(EventType.DidChangeChunk, { cx: tcx, cy: tcy });
+  };
+  
+  // Create move action and run through pipeline
+  const action = Move(dx, dy);
+  const consumed = runPlayerMove(state, action);
+  
+  // If action was consumed (move attempted), run enemy turn
+  if (consumed) {
+    enemiesTurn(state);
+  }
+}
+
+// Keep old tryMove for now as fallback for edge travel
 function tryMove(state, dx, dy) {
   if (state.over) return;
   const { player } = state;
@@ -1107,6 +1176,7 @@ function tryMove(state, dx, dy) {
   if (tile === "#") { 
     log(state, "You bonk the wall. It forgives you."); 
     turnEnd(state); 
+    enemiesTurn(state);
     return; 
   }
   
@@ -1133,6 +1203,7 @@ function tryMove(state, dx, dy) {
     log(state, "The shrine's aura heals you slightly.", "good");
   }
   
+  console.log("About to call enemiesTurn()");
   enemiesTurn(state);
 }
 
@@ -1613,6 +1684,7 @@ function render(state) {
   for (const m of monsters) {
     if (m.alive && m.y >= 0 && m.y < H && m.x >= 0 && m.x < W) {
       buf[m.y][m.x] = m.glyph;
+      console.log(`Monster at position: ${m.x}, ${m.y}`);
       monsterMap.set(`${m.x},${m.y}`, m.tier || 1);
     }
   }
@@ -1838,7 +1910,21 @@ function newWorld() {
       selectedIndex: 0, 
       mapOpen: false,
       questTurnInOpen: false,
-      completedQuests: []
+      completedQuests: [],
+      shopOpen: false,
+      shopMode: null,
+      shopVendor: null,
+      shopSelectedIndex: 0,
+      confirmSell: false,
+      confirmChoice: "no",
+      selectingQuest: false,
+      selectedQuestIndex: 0,
+      selectingFetchItem: null,
+      fetchItemSelectedIndex: 0,
+      selectedFetchItemIndex: undefined,
+      confirmGiveEquipped: false,
+      tempSelectedItem: null,
+      allCompletedQuests: null
     },
     equippedWeaponId: null,  // Track by ID instead of reference
     equippedArmorId: null,   // Track by ID instead of reference
@@ -1874,15 +1960,25 @@ export function initGame() {
   
   // Keyboard controls
   window.addEventListener("keydown", e => {
+    console.log('⌨️ Key pressed:', e.key, {
+      questTurnInOpen: STATE.ui.questTurnInOpen,
+      shopOpen: STATE.ui.shopOpen,
+      mapOpen: STATE.ui.mapOpen,
+      inventoryOpen: STATE.ui.inventoryOpen
+    });
+    
     // Quest turn-in controls
     if (STATE.ui.questTurnInOpen) {
+      console.log('📜 In quest turn-in mode');
       // Confirmation dialog for giving equipped item (check this FIRST)
       if (STATE.ui.confirmGiveEquipped) {
+        console.log('⚠️ In equipped item confirmation dialog');
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
           STATE.ui.confirmChoice = STATE.ui.confirmChoice === "yes" ? "no" : "yes";
           renderQuestTurnInConfirm(STATE);
         } else if (e.key === "Enter") {
           if (STATE.ui.confirmChoice === "yes") {
+            console.log('✅ User confirmed giving equipped item');
             // Proceed with giving equipped item using the stored selected item
             const selectedItem = STATE.ui.tempSelectedItem;
             const actualIndex = selectedItem.inventoryIndex;
@@ -1892,6 +1988,7 @@ export function initGame() {
             STATE.ui.tempSelectedItem = null;
             claimQuestRewards(STATE);
           } else {
+            console.log('❌ User declined giving equipped item');
             // Cancel - go back to item selection
             STATE.ui.confirmGiveEquipped = false;
             STATE.ui.tempSelectedItem = null;
@@ -1908,6 +2005,7 @@ export function initGame() {
       }
       // Quest selection menu
       else if (STATE.ui.selectingQuest) {
+        console.log('📃 In quest selection mode');
         if (e.key === "ArrowUp") {
           STATE.ui.selectedQuestIndex = Math.max(0, STATE.ui.selectedQuestIndex - 1);
           renderQuestTurnIn(STATE);
@@ -1917,11 +2015,13 @@ export function initGame() {
         } else if (e.key === "Enter") {
           // Turn in selected quest
           const selectedQuestId = STATE.ui.completedQuests[STATE.ui.selectedQuestIndex];
+          console.log('🎯 Selected quest to turn in:', selectedQuestId);
           STATE.ui.selectingQuest = false;
           STATE.ui.completedQuests = [selectedQuestId]; // Only turn in the selected quest
           claimQuestRewards(STATE);
         } else if (e.key.toLowerCase() === "a") {
           // Turn in all quests
+          console.log('📦 Turning in ALL quests');
           STATE.ui.selectingQuest = false;
           claimQuestRewards(STATE);
         } else if (e.key === "Escape") {
@@ -1937,6 +2037,7 @@ export function initGame() {
       }
       // Item selection for fetch quest
       else if (STATE.ui.selectingFetchItem) {
+        console.log('📦 In fetch item selection mode');
         const fetchQuest = STATE.player.quests.fetchQuests[STATE.ui.selectingFetchItem];
         const matchingItems = [];
         STATE.player.inventory.forEach((item, idx) => {
@@ -1960,12 +2061,14 @@ export function initGame() {
             (selectedItem.type === "headgear" && selectedItem.id === STATE.equippedHeadgearId);
           
           if (isEquipped && !STATE.ui.confirmGiveEquipped) {
+            console.log('⚠️ Item is equipped, showing confirmation dialog');
             // Show confirmation for equipped item
             STATE.ui.confirmGiveEquipped = true;
             STATE.ui.confirmChoice = "no";
             STATE.ui.tempSelectedItem = selectedItem; // Store the selected item
             renderQuestTurnInConfirm(STATE);
           } else {
+            console.log('✅ Proceeding to give item', { selectedItem, actualIndex: selectedItem.inventoryIndex });
             // Proceed with giving the item
             const actualIndex = selectedItem.inventoryIndex;
             STATE.ui.selectedFetchItemIndex = actualIndex;
@@ -1985,8 +2088,10 @@ export function initGame() {
       }
       // Normal quest turn-in (not selecting quest, not selecting item, not confirming)
       else {
+        console.log('🎯 In normal quest turn-in mode');
         // Normal quest turn-in
         if (e.key === "Enter") {
+          console.log('💰 Claiming rewards for all quests');
           claimQuestRewards(STATE);
         } else if (e.key === "Escape") {
           STATE.ui.questTurnInOpen = false;
@@ -2001,6 +2106,7 @@ export function initGame() {
     
     // Map controls
     if (STATE.ui.mapOpen) {
+      console.log('🗺️ In map mode');
       const result = handleMapNavigation(STATE, e.key);
       if (result === 'close') {
         closeMap(STATE);
@@ -2017,6 +2123,7 @@ export function initGame() {
     
     // Shop controls
     if (STATE.ui.shopOpen) {
+      console.log('🛍️ In shop mode', { shopMode: STATE.ui.shopMode });
       // Handle confirmation dialog
       if (STATE.ui.confirmSell) {
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -2103,6 +2210,7 @@ export function initGame() {
     
     // Inventory controls
     if (STATE.ui.inventoryOpen) {
+      console.log('🎪 In inventory mode');
       if (e.key === "ArrowUp") {
         STATE.ui.selectedIndex = Math.max(0, STATE.ui.selectedIndex - 1);
         renderInventory(STATE);
@@ -2124,10 +2232,10 @@ export function initGame() {
     if (STATE.over && e.key.toLowerCase() !== "r") return;
     
     const k = e.key;
-    if (k === "ArrowUp" || k === "w") { tryMove(STATE, 0, -1); e.preventDefault(); }
-    else if (k === "ArrowDown" || k === "s") { tryMove(STATE, 0, 1); e.preventDefault(); }
-    else if (k === "ArrowLeft" || k === "a") { tryMove(STATE, -1, 0); e.preventDefault(); }
-    else if (k === "ArrowRight" || k === "d") { tryMove(STATE, 1, 0); e.preventDefault(); }
+    if (k === "ArrowUp" || k === "w") { handlePlayerMove(STATE, 0, -1); e.preventDefault(); }
+    else if (k === "ArrowDown" || k === "s") { handlePlayerMove(STATE, 0, 1); e.preventDefault(); }
+    else if (k === "ArrowLeft" || k === "a") { handlePlayerMove(STATE, -1, 0); e.preventDefault(); }
+    else if (k === "ArrowRight" || k === "d") { handlePlayerMove(STATE, 1, 0); e.preventDefault(); }
     else if (k === ".") { waitTurn(STATE); e.preventDefault(); }
     else if (k.toLowerCase() === "i") { openInventory(STATE); e.preventDefault(); }
     else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
@@ -2188,7 +2296,7 @@ export function initGame() {
       // Debug: Test freeze
       log(STATE, "=== DEBUG: Testing Freeze ===", "magic");
       applyStatusEffect(STATE.player, "freeze", 2, 0);
-      emit('statusEffectRegister', { type:"freeze", vs: "You" })
+      emit(EventType.StatusEffectRegister, { type:"freeze", vs: "You" })
       log(STATE, "Applied freeze effect for 2 turns", "magic");
       log(STATE, `Status effects: ${JSON.stringify(STATE.player.statusEffects)}`, "note");
       log(STATE, `isFrozen result: ${isFrozen(STATE.player)}`, "note");
@@ -2215,10 +2323,12 @@ export function initGame() {
     }
   });
 
+  /// Test Emits
   emit('entityDied', { name:"You", by:"falling boulder", cause:"big rock" });
   emit('entityDied', { name:"Goober", by:"falling boulder", cause:"big rock" });
   emit('equipped', { item:'Big Sword' });
   emit('unequipped', { item:'Big Sword' });
+  /// Test Emits
 
   // Button handlers
   document.getElementById("restart").addEventListener("click", () => {

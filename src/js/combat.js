@@ -3,8 +3,10 @@ import { getStatusModifier, applyStatusEffect } from './statusEffects.js';
 import { levelUp } from './entities.js';
 import { updateQuestProgress } from './quests.js';
 import { emit } from './events.js';
+import { EventType } from './eventTypes.js';
 
 export function attack(state, attacker, defender, labelA = "you", labelD = null) {
+  console.log("Attacking Monster");
   labelD = labelD || defender.name || "enemy";
   const aStr = attacker.str + getStatusModifier(attacker, "str");
   const dDef = defender.def + getStatusModifier(defender, "def");
@@ -37,6 +39,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   // NEW FORMULA: Hit chance based on STR vs SPD
   const hitRoll = roll(1, 100);
   const hitChance = clamp(75 + (totalStr * 2) - (totalSpd * 3), 35, 85);
+  console.log("Calculated Hit Chance");
   
   if (hitRoll > hitChance) { 
     state.log(`${labelA} miss ${labelD}.`); 
@@ -53,7 +56,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   const dmg = reduced * (crit ? 2 : 1);
   
   defender.hp -= dmg;
-  
+  console.log("Subtracted defender HP. Damage Done:", dmg);
   if (crit) {
     state.log(`${labelA} crit ${labelD} for ${dmg}!`, "good");
     emit('crit', {by:labelA, vs:labelD, dmg:dmg})
@@ -86,19 +89,19 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
         // Freeze skips enemy turns
         applyStatusEffect(defender, "freeze", weapon.effectTurns, 0);
         state.log(`${labelD} is frozen solid!`, "magic");
-        emit('statusEffectRegister', { type:"freeze", vs:labelD });
+        emit(EventType.StatusEffectRegister, { type:"freeze", vs:labelD });
       } else if (weapon.effect === "burn") {
         applyStatusEffect(defender, "burn", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} catches fire!`, "bad");
-        emit('statusEffectRegister', { type:"burn", vs:labelD });
+        emit(EventType.StatusEffectRegister, { type:"burn", vs:labelD });
       } else if (weapon.effect === "poison") {
         applyStatusEffect(defender, "poison", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is poisoned!`, "bad");
-        emit('statusEffectRegister', { type:'poison', vs:labelD});
+        emit(EventType.StatusEffectRegister, { type:'poison', vs:labelD});
       } else if (weapon.effect === "shock") {
         applyStatusEffect(defender, "shock", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is electrified!`, "magic");
-        emit('statusEffectRegister', { type:'shock', vs:labelD })
+        emit(EventType.StatusEffectRegister, { type:'shock', vs:labelD })
       } else if (weapon.effect === "weaken") {
         applyStatusEffect(defender, "weaken", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is weakened!`, "note");

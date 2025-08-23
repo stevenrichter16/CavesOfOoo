@@ -39,12 +39,11 @@ export function off(type, handler) {
  * @param {any} payload
  */
 export function emit(type, payload) {
-    console.log("in emit", payload)
+    //console.log("in emit", payload)
     const arr = bus.get(type);
     if (!arr || arr.length === 0) return;
     // copy to allow off() within a handler without skipping others
     for (const fn of [...arr]) {
-        console.log("in for loop")
         try { fn(payload); }
         catch (e) { console.error(`[events] "${type}" handler error:`, e); }
     }

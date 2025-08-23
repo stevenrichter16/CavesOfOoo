@@ -3,6 +3,7 @@
 // No game rule code should manipulate the DOM; emit events instead.
 
 import { on, emit } from './events.js';
+import { EventType } from './eventTypes.js';
 
 const MAX = 80;
 const lines = []; // [{text, cls}]
@@ -27,7 +28,7 @@ export function mountLog(element) {
   on('miss',       ({ by, vs })            => pushLine(`${by} miss${by==='You'?'':'es'} ${vs}.`, 'miss'));
   on('entityDied', ({ name, by, cause })   => pushLine(`${name} ${name==='You'?'are':'is'} defeated${by?` by ${by}`:''}${cause?` (${cause})`:''}.`, 'good'));
   on('lifesteal',  ({ healAmount })        => pushLine(`You drain ${healAmount} life!`, "good"));
-  on('statusEffectRegister', ({ type, vs }) => {
+  on(EventType.StatusEffectRegister, ({ type, vs }) => {
     if (type == "freeze") {
         pushLine(`${vs} ${vs==='You'?'are':'is'} frozen solid!`, "magic")
     }
@@ -72,7 +73,7 @@ function pushLine(text, cls) {
 
 function render() {
   if (!mountEl) return;
-  console.log("in RENDER");
+  //console.log("in RENDER");
   mountEl.innerHTML = lines
     .map(({ text, cls }) => `<span class="${cls||''}">${escapeHtml(text)}</span>`)
     .join('<br/>');
