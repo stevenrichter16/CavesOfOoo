@@ -37,13 +37,7 @@ export function initShopUI() {
     closeShop();
   });
   
-  on(ShopEvents.BuyItem, ({ state }) => {
-    buyFromVendor(state);
-  });
-  
-  on(ShopEvents.SellItem, ({ state, forceConfirm }) => {
-    sellToVendor(state, forceConfirm);
-  });
+  // Buy/Sell are handled in game.js, not here
   
   on(ShopEvents.NavigateShop, ({ direction, state }) => {
     navigateShop(direction, state);
@@ -113,8 +107,11 @@ function getCompletedQuests(state, vendor) {
 
 // Quest turn-in is handled in game.js, not in the shop module
 
+// The functions below are not currently used - shop logic is still in game.js
+// They're kept here for future migration
+
 /**
- * Navigate shop menu
+ * Navigate shop menu (UNUSED)
  */
 function navigateShop(direction, state) {
   if (!shopState.isOpen) return;

@@ -66,6 +66,11 @@ function addPotionToInventory(state, potion) {
 
 // Vendor shop functions
 function openVendorShop(state, vendor) {
+  // Ensure vendor has an ID
+  if (!vendor.id) {
+    vendor.id = `vendor_${state.worldSeed}_${vendor.x}_${vendor.y}`;
+  }
+  
   // Check for completed quests first
   const completedFetchQuests = state.player.quests.active.filter(qId => {
     const fetchQuest = state.player.quests.fetchQuests?.[qId];
@@ -1717,7 +1722,6 @@ function render(state) {
   for (const m of monsters) {
     if (m.alive && m.y >= 0 && m.y < H && m.x >= 0 && m.x < W) {
       buf[m.y][m.x] = m.glyph;
-      console.log(`Monster at position: ${m.x}, ${m.y}`);
       monsterMap.set(`${m.x},${m.y}`, m.tier || 1);
     }
   }
