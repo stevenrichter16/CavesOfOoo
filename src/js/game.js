@@ -35,8 +35,6 @@ function setText(id, text) {
   if (el) el.textContent = text; 
 }
 
-// isBlocked moved to queries.js
-
 // Helper to generate unique IDs
 let nextItemId = 1;
 function generateItemId() {
@@ -2225,10 +2223,14 @@ function initKeyboardControls() {
 function handleGameControls(STATE, e) {
   console.log("in handleGameControls");
   const k = e.key;
+
+  // Movement
   if (k === "ArrowUp" || k === "w") { handlePlayerMove(STATE, 0, -1); e.preventDefault(); }
   else if (k === "ArrowDown" || k === "s") { handlePlayerMove(STATE, 0, 1); e.preventDefault(); }
   else if (k === "ArrowLeft" || k === "a") { handlePlayerMove(STATE, -1, 0); e.preventDefault(); }
   else if (k === "ArrowRight" || k === "d") { handlePlayerMove(STATE, 1, 0); e.preventDefault(); }
+
+  // World Interaction
   else if (k === ".") { waitTurn(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "i") { openInventory(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
