@@ -14,7 +14,7 @@ import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
-import { initShopUI, ShopEvents, isShopOpen, renderShop } from './ui/shop.js';
+import { initShopUI, ShopEvents, isShopOpen } from './ui/shop.js';
 import { initMapUI, MapEvents, isMapOpen } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
