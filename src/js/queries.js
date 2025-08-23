@@ -32,6 +32,15 @@ export function isPassable(state, x, y) {
   return true;
 }
 
+// Alias for isBlocked (inverse of isPassable)
+export function isBlocked(state, x, y) {
+  // Allow edge travel
+  if (x < 0 || x >= W || y < 0 || y >= H) return false;
+  
+  // Within bounds - check if NOT passable
+  return !isPassable(state, x, y);
+}
+
 export function tryEdgeTravel(state, player, nx, ny) {
   // Check if we're trying to move off the map edge
   if (nx >= 0 && nx < W && ny >= 0 && ny < H) return false;

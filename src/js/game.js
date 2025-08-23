@@ -13,6 +13,7 @@ import { emit } from './events.js'
 import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
+import { isBlocked } from './queries.js';
 
 // Game state
 let STATE = null;
@@ -29,14 +30,7 @@ function setText(id, text) {
   if (el) el.textContent = text; 
 }
 
-function isBlocked(state, x, y) {
-  if (x < 0 || x >= W || y < 0 || y >= H) return false; // Allow edge travel
-  const tile = state.chunk.map[y][x];
-  if (tile === "#" || tile === "+") return true; // Walls and doors block
-  if (state.player.x === x && state.player.y === y) return true;
-  if (state.chunk.monsters.some(m => m.alive && m.x === x && m.y === y)) return true;
-  return false;
-}
+// isBlocked moved to queries.js
 
 // Helper to generate unique IDs
 let nextItemId = 1;
