@@ -1,319 +1,136 @@
-// ui/shop.js - Shop UI module
-import { on, emit } from '../events.js';
-import { EventType } from '../eventTypes.js';
-import { esc } from '../utils.js';
-import { WEAPONS, ARMORS, HEADGEAR, POTIONS, FETCH_ITEMS, QUEST_TEMPLATES } from '../config.js';
-import { checkFetchQuestItem } from '../quests.js';
+// ui/shop.js - Shop UI module (Pure UI - no business logic)
+// This module ONLY handles rendering and DOM manipulation
+// All state changes go through the systems/shop.js module
 
-// Shop state
-let shopState = {
-  isOpen: false,
-  vendor: null,
-  selectedIndex: 0,
-  mode: 'buy', // 'buy', 'sell', 'quest'
-  confirmSell: false,
-  confirmChoice: 'no'
+import { on } from '../events.js';
+import { esc } from '../utils.js';
+import { ShopTransactionEvents } from '../systems/shop.js';
+import { getQuestDisplay } from '../systems/vendorQuests.js';
+
+// UI state (for rendering only, not game state)
+let shopUIState = {
+  isRendering: false
 };
 
-// Event types for shop
-export const ShopEvents = {
-  OpenShop: 'openShop',
-  CloseShop: 'closeShop',
-  BuyItem: 'buyItem',
-  SellItem: 'sellItem',
-  NavigateShop: 'navigateShop'
+// Event types for shop UI
+export const ShopUIEvents = {
+  RefreshUI: 'shopUI:refresh',
+  ShowMessage: 'shopUI:showMessage'
 };
 
 /**
- * Initialize shop UI and event listeners
+ * Initialize shop UI event listeners
  */
 export function initShopUI() {
-  // Listen for shop events
-  on(ShopEvents.OpenShop, ({ vendor, state }) => {
-    openShop(vendor, state);
+  // Listen for transaction events from the system
+  on(ShopTransactionEvents.PurchaseSuccess, ({ item, price, goldRemaining }) => {
+    // UI can show a success animation or update gold display
+    console.log(`Purchase successful: ${item.name} for ${price}g`);
   });
   
-  on(ShopEvents.CloseShop, () => {
-    closeShop();
+  on(ShopTransactionEvents.SellSuccess, ({ item, price, goldRemaining }) => {
+    // UI can show a success animation or update gold display
+    console.log(`Sale successful: ${item.name} for ${price}g`);
   });
   
-  // Buy/Sell are handled in game.js, not here
+  on(ShopTransactionEvents.ShopClosed, () => {
+    closeShopUI();
+  });
   
-  on(ShopEvents.NavigateShop, ({ direction, state }) => {
-    navigateShop(direction, state);
+  on(ShopUIEvents.RefreshUI, ({ state }) => {
+    renderShop(state);
   });
 }
 
 /**
- * Open the shop UI
+ * Open the shop UI overlay
  */
-export function openShop(vendor, state) {
-  
-  // Normal shop (quest checking is now done in game.js)
-  shopState.isOpen = true;
-  shopState.vendor = vendor;
-  shopState.selectedIndex = 0;
-  shopState.mode = 'buy';
-  shopState.confirmSell = false;
-  shopState.confirmChoice = 'no';
-  
-  // Set the state flags
-  state.ui.shopOpen = true;
-  state.ui.shopVendor = vendor;
-  state.ui.shopSelectedIndex = 0;
-  state.ui.shopMode = 'buy';
-  state.ui.confirmSell = false;
-  state.ui.confirmChoice = 'no';
-  
-  // Render shop overlay
+export function openShopUI() {
   const overlay = document.getElementById('overlay');
   if (overlay) {
     overlay.style.display = 'flex';
-    // The actual rendering will be done by game.js renderShop when called
   }
 }
 
 /**
- * Close the shop UI
+ * Close the shop UI overlay
  */
-export function closeShop() {
-  shopState.isOpen = false;
-  shopState.vendor = null;
+export function closeShopUI() {
   const overlay = document.getElementById('overlay');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
 }
 
 /**
- * Check for completed quests for this vendor
- */
-function getCompletedQuests(state, vendor) {
-  const completedFetchQuests = state.player.quests.active.filter(qId => {
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (fetchQuest && fetchQuest.vendorId === vendor.id) {
-      return checkFetchQuestItem(state.player, fetchQuest);
-    }
-    return false;
-  });
-
-  const completedRegularQuests = state.player.quests.active.filter(qId => {
-    const progress = state.player.quests.progress[qId] || 0;
-    const quest = QUEST_TEMPLATES[qId];
-    return quest && progress >= quest.targetCount;
-  });
-  
-  return [...completedFetchQuests, ...completedRegularQuests];
-}
-
-// Quest turn-in is handled in game.js, not in the shop module
-
-// The functions below are not currently used - shop logic is still in game.js
-// They're kept here for future migration
-
-/**
- * Navigate shop menu (UNUSED)
- */
-function navigateShop(direction, state) {
-  if (!shopState.isOpen) return;
-  
-  if (shopState.confirmSell) {
-    // Navigate confirmation dialog
-    if (direction === 'left' || direction === 'right') {
-      shopState.confirmChoice = shopState.confirmChoice === 'yes' ? 'no' : 'yes';
-      renderShop(state);
-    }
-    return;
-  }
-  
-  // Normal navigation
-  const items = getShopItems(state);
-  if (direction === 'up') {
-    shopState.selectedIndex = Math.max(0, shopState.selectedIndex - 1);
-  } else if (direction === 'down') {
-    shopState.selectedIndex = Math.min(items.length - 1, shopState.selectedIndex + 1);
-  } else if (direction === 'tab') {
-    // Switch between buy/sell modes
-    shopState.mode = shopState.mode === 'buy' ? 'sell' : 'buy';
-    shopState.selectedIndex = 0;
-  }
-  
-  renderShop(state);
-}
-
-/**
- * Get items for current shop mode
- */
-function getShopItems(state) {
-  if (shopState.mode === 'buy') {
-    return shopState.vendor?.inventory || [];
-  } else if (shopState.mode === 'sell') {
-    return state.player.inventory || [];
-  } else if (shopState.mode === 'quest') {
-    return shopState.questsToTurnIn || [];
-  }
-  return [];
-}
-
-/**
- * Buy item from vendor
- */
-function buyFromVendor(state) {
-  if (!shopState.isOpen || shopState.mode !== 'buy') return;
-  
-  const vendor = shopState.vendor;
-  const selectedItem = vendor.inventory[shopState.selectedIndex];
-  
-  if (!selectedItem) return;
-  
-  const price = selectedItem.price || 10;
-  if (state.player.gold < price) {
-    emit(EventType.Log, { text: "Not enough gold!", cls: 'bad' });
-    return;
-  }
-  
-  // Deduct gold and add item
-  state.player.gold -= price;
-  
-  // Add to inventory
-  if (selectedItem.type === 'potion') {
-    addPotionToInventory(state, selectedItem.item);
-  } else {
-    state.player.inventory.push({
-      id: generateItemId(),
-      type: selectedItem.type,
-      item: { ...selectedItem.item }
-    });
-  }
-  
-  emit(EventType.Log, { text: `Bought ${selectedItem.item.name} for ${price} gold!`, cls: 'good' });
-  
-  // Remove from vendor inventory if not infinite
-  if (!vendor.infiniteStock) {
-    vendor.inventory.splice(shopState.selectedIndex, 1);
-    shopState.selectedIndex = Math.min(shopState.selectedIndex, vendor.inventory.length - 1);
-  }
-  
-  renderShop(state);
-}
-
-/**
- * Sell item to vendor
- */
-function sellToVendor(state, forceConfirm = false) {
-  if (!shopState.isOpen || shopState.mode !== 'sell') return;
-  
-  const item = state.player.inventory[shopState.selectedIndex];
-  if (!item) return;
-  
-  // Check if item is equipped and show confirmation
-  const isEquipped = (
-    (item.type === 'weapon' && state.player.weapon === item.item) ||
-    (item.type === 'armor' && state.player.armor === item.item) ||
-    (item.type === 'headgear' && state.player.headgear === item.item)
-  );
-  
-  if (isEquipped && !forceConfirm && !shopState.confirmSell) {
-    shopState.confirmSell = true;
-    shopState.confirmChoice = 'no';
-    renderShop(state);
-    return;
-  }
-  
-  // Handle confirmation response
-  if (shopState.confirmSell) {
-    if (shopState.confirmChoice === 'no') {
-      shopState.confirmSell = false;
-      renderShop(state);
-      return;
-    }
-    shopState.confirmSell = false;
-  }
-  
-  // Calculate sell price
-  const basePrice = item.item.price || 10;
-  const sellPrice = Math.floor(basePrice * 0.5);
-  
-  // Unequip if necessary
-  if (isEquipped) {
-    if (item.type === 'weapon') state.player.weapon = null;
-    if (item.type === 'armor') state.player.armor = null;
-    if (item.type === 'headgear') state.player.headgear = null;
-  }
-  
-  // Remove from inventory and add gold
-  state.player.inventory.splice(shopState.selectedIndex, 1);
-  state.player.gold += sellPrice;
-  
-  emit(EventType.Log, { text: `Sold ${item.item.name} for ${sellPrice} gold!`, cls: 'good' });
-  
-  shopState.selectedIndex = Math.min(shopState.selectedIndex, state.player.inventory.length - 1);
-  renderShop(state);
-}
-
-/**
- * Render the shop UI
+ * Render the shop UI (Pure rendering - no state mutations)
  */
 export function renderShop(state) {
-  console.log("in renderShop shop.js");
   const overlay = document.getElementById('overlay');
   const content = document.getElementById('overlayContent');
   const title = document.getElementById('overlayTitle');
   const hint = document.getElementById('overlayHint');
   
-  if (!overlay || !content) return;
-  
-  // Sync shopState with state.ui
-  if (state.ui.shopOpen) {
-    shopState.isOpen = state.ui.shopOpen;
-    shopState.mode = state.ui.shopMode || 'buy';
-    shopState.selectedIndex = state.ui.shopSelectedIndex || 0;
-    shopState.vendor = state.ui.shopVendor;
-    shopState.confirmSell = state.ui.confirmSell || false;
-    shopState.confirmChoice = state.ui.confirmChoice || 'no';
-  }
+  if (!overlay || !content || !state.ui.shopOpen) return;
   
   overlay.style.display = 'flex';
   
   // Handle confirmation dialog
-  if (shopState.confirmSell) {
-    renderConfirmDialog(content);
+  if (state.ui.confirmSell) {
+    renderConfirmDialog(content, state);
+    hint.textContent = '←→ Select • Enter to confirm • Esc to cancel';
     return;
   }
   
-  const vendor = shopState.vendor;
+  const vendor = state.ui.shopVendor;
+  if (!vendor) return;
   
-  // Set title based on mode
-  if (shopState.mode === 'quest') {
-    title.textContent = '📜 Quest Turn-In';
-  } else {
-    title.textContent = `🛍️ ${vendor.name || 'Shop'} - ${shopState.mode === 'buy' ? 'Buying' : 'Selling'}`;
+  // Set title and header based on mode
+  let modeText = 'BUYING';
+  let actionText = 'Buy';
+  let tabHint = 'Switch to Sell';
+  
+  if (state.ui.shopMode === 'sell') {
+    modeText = 'SELLING';
+    actionText = 'Sell';
+    tabHint = 'Switch to Buy';
+  } else if (state.ui.shopMode === 'quest') {
+    modeText = 'QUEST';
+    actionText = 'Accept Quest';
+    tabHint = 'Buy/Sell';
   }
   
-  // Render items
-  const items = getShopItems(state);
-  let html = '';
+  title.textContent = `VENDOR - ${modeText}`;
   
-  if (shopState.mode === 'quest') {
-    html = renderQuestList(state, items);
-  } else if (shopState.mode === 'buy') {
-    html = renderBuyList(state, vendor, items);
-  } else {
-    html = renderSellList(state, items);
-  }
+  // Add header with gold display
+  content.innerHTML = `
+    <div class="shop-header" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--dim);">
+      <h3 style="margin: 0 0 10px 0; color: var(--accent);">VENDOR - ${modeText}</h3>
+      ${state.ui.shopMode !== 'quest' ? `<div style="color: var(--gold);">Your Gold: ${state.player.gold}</div>` : ''}
+    </div>
+    <div class="shop-items"></div>
+    <div class="shop-controls" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
+      ${state.ui.shopMode !== 'quest' ? '[↑↓] Navigate | ' : ''}[Enter] ${actionText} | [Tab] ${tabHint} | [Esc/V] Exit
+    </div>
+  `;
   
-  content.innerHTML = html;
+  const itemsDiv = content.querySelector('.shop-items');
   
-  // Update hint
-  if (shopState.mode === 'quest') {
-    hint.textContent = '↑↓ Navigate • Enter to turn in • Esc to cancel';
-  } else {
-    hint.textContent = '↑↓ Navigate • Tab to switch Buy/Sell • Enter to confirm • Esc to close';
+  // Render items based on mode
+  if (state.ui.shopMode === 'buy') {
+    itemsDiv.innerHTML = renderBuyList(state, vendor);
+  } else if (state.ui.shopMode === 'sell') {
+    itemsDiv.innerHTML = renderSellList(state);
+  } else if (state.ui.shopMode === 'quest') {
+    itemsDiv.innerHTML = renderQuestOffer(state, vendor);
   }
 }
 
 /**
- * Render confirmation dialog
+ * Render confirmation dialog for selling equipped items
  */
-function renderConfirmDialog(content) {
+function renderConfirmDialog(content, state) {
+  const choice = state.ui.confirmChoice;
   content.innerHTML = `
     <div class="shop-header" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--dim);">
       <h3 style="margin: 0 0 10px 0; color: var(--danger);">⚠️ WARNING ⚠️</h3>
@@ -322,16 +139,13 @@ function renderConfirmDialog(content) {
       <p style="color: var(--fg); margin-bottom: 20px;">You are about to sell an <span style="color: var(--ok)">EQUIPPED</span> item!</p>
       <p style="color: var(--accent); margin-bottom: 30px;">Are you sure you want to sell it?</p>
       <div style="display: flex; gap: 40px; justify-content: center; font-size: 18px;">
-        <div style="padding: 10px 20px; border: 2px solid ${shopState.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'}; border-radius: 4px; color: ${shopState.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'};">
+        <div style="padding: 10px 20px; border: 2px solid ${choice === 'yes' ? 'var(--danger)' : 'var(--dim)'}; border-radius: 4px; color: ${choice === 'yes' ? 'var(--danger)' : 'var(--dim)'};">
           YES
         </div>
-        <div style="padding: 10px 20px; border: 2px solid ${shopState.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'}; border-radius: 4px; color: ${shopState.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'};">
+        <div style="padding: 10px 20px; border: 2px solid ${choice === 'no' ? 'var(--ok)' : 'var(--dim)'}; border-radius: 4px; color: ${choice === 'no' ? 'var(--ok)' : 'var(--dim)'};">
           NO
         </div>
       </div>
-    </div>
-    <div class="shop-controls" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
-      [←→] Select | [Enter] Confirm | [Esc] Cancel
     </div>
   `;
 }
@@ -339,161 +153,188 @@ function renderConfirmDialog(content) {
 /**
  * Render buy list
  */
-function renderBuyList(state, vendor, items) {
-  let html = `<div class="shop-gold" style="margin-bottom: 10px; color: var(--gold);">Your Gold: ${state.player.gold}</div>`;
-  html += '<div class="inventory-grid">';
+function renderBuyList(state, vendor) {
+  let html = '';
+  
+  const items = vendor.inventory || [];
+  
+  if (items.length === 0) {
+    return '<div style="color: var(--dim); text-align: center; padding: 20px;">The vendor is sold out!</div>';
+  }
   
   items.forEach((item, idx) => {
-    console.log('Shop item:', idx, item);
-    console.log('  - item.name:', item.name);
-    console.log('  - item.item:', item.item);
-    console.log('  - item.item?.name:', item.item?.name);
-    
     const price = item.price || 10;
     const canAfford = state.player.gold >= price;
-    const selected = idx === shopState.selectedIndex;
+    const selected = idx === state.ui.shopSelectedIndex;
+    
     // Vendor inventory items have nested structure: { type, item: {...}, price }
     const itemData = item.item || item;
     const itemName = itemData.name || 'Unknown Item';
     
-    console.log('  - Final itemName:', itemName);
-    console.log('  - getItemIcon result:', getItemIcon(item));
+    // Get type symbol
+    const typeSymbol = item.type === 'potion' ? '!' : 
+                       item.type === 'weapon' ? '/' : 
+                       item.type === 'armor' ? ']' : 
+                       item.type === 'headgear' ? '^' : 
+                       item.type === 'ring' ? 'o' : '?';
     
-    try {
-      const escapedName = esc(itemName);
-      console.log('  - esc(itemName) result:', escapedName);
-      
-      const itemHtml = `
-        <div class="inventory-item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
-          <div>${getItemIcon(item)} ${escapedName}</div>
-          <div style="color: ${canAfford ? 'var(--gold)' : 'var(--danger)'};">${price}g</div>
-        </div>
-      `;
-      console.log('  - Generated HTML for item:', itemHtml);
-      html += itemHtml;
-    } catch (error) {
-      console.error('  - ERROR in rendering item:', error);
-      console.error('  - Error stack:', error.stack);
-      // Fallback without escaping
-      html += `
-        <div class="inventory-item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
-          <div>${getItemIcon(item)} ${itemName}</div>
-          <div style="color: ${canAfford ? 'var(--gold)' : 'var(--danger)'};">${price}g</div>
-        </div>
-      `;
+    // Build stats display
+    let statsText = '';
+    if (item.type === 'weapon') {
+      statsText = ` [DMG: ${itemData.dmg || 0}]`;
+      if (itemData.effect) {
+        statsText += ` [${itemData.effect}]`;
+      }
+    } else if (item.type === 'armor') {
+      statsText = ` [DEF: ${itemData.def || 0}]`;
+    } else if (item.type === 'headgear') {
+      const stats = [];
+      if (itemData.def) stats.push(`DEF: ${itemData.def}`);
+      if (itemData.str) stats.push(`STR: ${itemData.str}`);
+      if (itemData.spd) stats.push(`SPD: ${itemData.spd}`);
+      if (itemData.magic) stats.push(`MAG: ${itemData.magic}`);
+      if (stats.length > 0) statsText = ` [${stats.join(', ')}]`;
     }
+    
+    html += `
+      <div class="item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
+        <div>
+          <div class="name">${typeSymbol} ${esc(itemName)}${statsText} - ${price}g</div>
+          <div class="desc">${itemData.desc ? esc(itemData.desc) : ''}</div>
+          ${!canAfford ? '<div style="color: var(--danger); font-size: 0.9em;">Not enough gold!</div>' : ''}
+        </div>
+      </div>
+    `;
   });
   
-  if (items.length === 0) {
-    html += '<div style="color: var(--dim); text-align: center; padding: 20px;">No items for sale</div>';
-  }
-  
-  html += '</div>';
   return html;
 }
 
 /**
  * Render sell list
  */
-function renderSellList(state, items) {
-  let html = `<div class="shop-gold" style="margin-bottom: 10px; color: var(--gold);">Your Gold: ${state.player.gold}</div>`;
-  html += '<div class="inventory-grid">';
+function renderSellList(state) {
+  let html = '';
   
-  items.forEach((invItem, idx) => {
-    const item = invItem.item;
-    const sellPrice = Math.floor((item.price || 10) * 0.5);
-    const selected = idx === shopState.selectedIndex;
-    const isEquipped = (
-      (invItem.type === 'weapon' && state.player.weapon === item) ||
-      (invItem.type === 'armor' && state.player.armor === item) ||
-      (invItem.type === 'headgear' && state.player.headgear === item)
-    );
-    
-    html += `
-      <div class="inventory-item ${selected ? 'selected' : ''}">
-        <div>
-          ${getItemIcon(item)} ${esc(item.name)}
-          ${isEquipped ? ' <span style="color: var(--ok)">[E]</span>' : ''}
-          ${item.quantity ? ` x${item.quantity}` : ''}
-        </div>
-        <div style="color: var(--gold);">${sellPrice}g</div>
-      </div>
-    `;
-  });
+  const items = state.player.inventory.filter(item => 
+    item.type === 'weapon' || 
+    item.type === 'armor' || 
+    item.type === 'headgear' || 
+    item.type === 'ring' ||
+    item.type === 'potion'
+  );
   
   if (items.length === 0) {
-    html += '<div style="color: var(--dim); text-align: center; padding: 20px;">No items to sell</div>';
+    return '<div style="color: var(--dim); text-align: center; padding: 20px;">You have nothing to sell!</div>';
   }
   
-  html += '</div>';
-  return html;
-}
-
-/**
- * Render quest list
- */
-function renderQuestList(state, quests) {
-  let html = '<div class="quest-list">';
-  
-  quests.forEach((questId, idx) => {
-    const quest = QUEST_TEMPLATES[questId] || state.player.quests.fetchQuests?.[questId];
-    const selected = idx === shopState.selectedIndex;
+  items.forEach((invItem, idx) => {
+    const item = invItem.item || invItem;
+    const sellPrice = Math.floor((item.price || 10) * 0.5);
+    const selected = idx === state.ui.shopSelectedIndex;
+    const isEquipped = checkIfEquipped(state, invItem);
+    
+    // Get type symbol
+    const typeSymbol = invItem.type === 'potion' ? '!' : 
+                       invItem.type === 'weapon' ? '/' : 
+                       invItem.type === 'armor' ? ']' : 
+                       invItem.type === 'headgear' ? '^' : 
+                       invItem.type === 'ring' ? 'o' : '?';
+    
+    // Build stats display
+    let statsText = '';
+    if (invItem.type === 'weapon') {
+      statsText = ` [DMG: ${item.dmg || 0}]`;
+      if (item.effect) {
+        statsText += ` [${item.effect}]`;
+      }
+    } else if (invItem.type === 'armor') {
+      statsText = ` [DEF: ${item.def || 0}]`;
+    } else if (invItem.type === 'headgear') {
+      const stats = [];
+      if (item.def) stats.push(`DEF: ${item.def}`);
+      if (item.str) stats.push(`STR: ${item.str}`);
+      if (item.spd) stats.push(`SPD: ${item.spd}`);
+      if (item.magic) stats.push(`MAG: ${item.magic}`);
+      if (stats.length > 0) statsText = ` [${stats.join(', ')}]`;
+    }
     
     html += `
-      <div class="quest-item ${selected ? 'selected' : ''}" style="padding: 10px; margin: 5px 0; border: 1px solid ${selected ? 'var(--accent)' : 'var(--dim)'};">
-        <div style="color: var(--accent);">📜 ${quest.name}</div>
-        <div style="color: var(--dim); font-size: 0.9em;">${quest.description}</div>
-        <div style="color: var(--gold); margin-top: 5px;">Reward: ${quest.goldReward}g, ${quest.xpReward} XP</div>
+      <div class="item ${selected ? 'selected' : ''}">
+        <div>
+          <div class="name">
+            ${typeSymbol} ${esc(item.name || 'Unknown Item')}${statsText}
+            ${isEquipped ? ' <span style="color: var(--ok)">[EQUIPPED]</span>' : ''}
+            ${item.quantity ? ` x${item.quantity}` : ''}
+            - ${sellPrice}g
+          </div>
+          <div class="desc">${item.desc ? esc(item.desc) : ''}</div>
+        </div>
       </div>
     `;
   });
   
-  html += '</div>';
   return html;
 }
 
 /**
- * Get item icon
+ * Get item icon based on type
  */
 function getItemIcon(item) {
-  if (item.type === 'weapon' || item.slot === 'weapon') return '⚔️';
-  if (item.type === 'armor' || item.slot === 'armor') return '🛡️';
-  if (item.type === 'headgear' || item.slot === 'headgear') return '👑';
+  if (item.type === 'weapon') return '⚔️';
+  if (item.type === 'armor') return '🛡️';
+  if (item.type === 'headgear') return '👑';
+  if (item.type === 'ring') return '💍';
   if (item.type === 'potion') return '🧪';
   return '📦';
 }
 
 /**
- * Helper functions
+ * Render quest offer
  */
-let nextItemId = 1;
-function generateItemId() {
-  return `item_${nextItemId++}`;
-}
-
-function addPotionToInventory(state, potion) {
-  const existingPotion = state.player.inventory.find(
-    i => i.type === 'potion' && i.item.name === potion.name
-  );
-  
-  if (existingPotion) {
-    existingPotion.item.quantity = (existingPotion.item.quantity || 1) + 1;
-  } else {
-    state.player.inventory.push({
-      id: generateItemId(),
-      type: 'potion',
-      item: { ...potion, quantity: 1 }
-    });
+function renderQuestOffer(state, vendor) {
+  if (!vendor || !vendor.fetchQuest) {
+    return '<div style="color: var(--dim); text-align: center; padding: 20px;">No quests available from this vendor.</div>';
   }
   
-  state.player.potionCount++;
+  const quest = vendor.fetchQuest;
+  const questDisplay = getQuestDisplay(quest);
+  
+  if (!questDisplay) {
+    return '<div style="color: var(--dim); text-align: center; padding: 20px;">No quests available.</div>';
+  }
+  
+  return `
+    <div class="quest-offer" style="padding: 15px; border: 1px solid var(--accent); border-radius: 4px;">
+      <div style="color: var(--xp); font-size: 1.2em; margin-bottom: 10px;">📜 ${esc(questDisplay.name)}</div>
+      <div style="color: var(--fg); margin-bottom: 10px;">"${esc(questDisplay.description)}"</div>
+      <div style="color: var(--note); margin-bottom: 15px;">
+        <strong>Objective:</strong> ${esc(questDisplay.objective)}
+      </div>
+      <div style="color: var(--good);">
+        <strong>Rewards:</strong>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+          <li>${questDisplay.rewards.gold} gold</li>
+          <li>${questDisplay.rewards.xp} XP</li>
+          ${questDisplay.rewards.item ? `<li>${esc(questDisplay.rewards.item)}</li>` : ''}
+        </ul>
+      </div>
+      <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
+        Press [Enter] to accept this quest
+      </div>
+    </div>
+  `;
 }
 
-// Export shop state for external access
-export function getShopState() {
-  return shopState;
-}
-
-export function isShopOpen() {
-  return shopState.isOpen;
+/**
+ * Check if item is equipped (read-only check for display)
+ */
+function checkIfEquipped(state, item) {
+  if (item.type === 'weapon' && item.id === state.equippedWeaponId) return true;
+  if (item.type === 'armor' && item.id === state.equippedArmorId) return true;
+  if (item.type === 'headgear' && item.id === state.equippedHeadgearId) return true;
+  if (item.type === 'ring' && state.equippedRingIds) {
+    return item.id === state.equippedRingIds[0] || item.id === state.equippedRingIds[1];
+  }
+  return false;
 }

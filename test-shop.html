@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shop Refactoring Test</title>
+  <style>
+    body { 
+      font-family: monospace; 
+      background: #222; 
+      color: #fff;
+      padding: 20px;
+    }
+    #test-output {
+      white-space: pre-wrap;
+      border: 1px solid #666;
+      padding: 10px;
+      margin: 10px 0;
+      background: #333;
+    }
+    .success { color: #0f0; }
+    .error { color: #f00; }
+    .info { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Shop Refactoring Test</h1>
+  <div id="test-output"></div>
+  
+  <script type="module">
+    const output = document.getElementById('test-output');
+    
+    function log(msg, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = msg;
+      output.appendChild(line);
+    }
+    
+    async function runTests() {
+      try {
+        log('Loading shop modules...');
+        
+        // Test imports
+        const { openShop, purchaseItem, sellItem, closeShop } = await import('./src/js/systems/shop.js');
+        log('✓ systems/shop.js loaded', 'success');
+        
+        const { renderShop, initShopUI } = await import('./src/js/ui/shop.js');
+        log('✓ ui/shop.js loaded', 'success');
+        
+        // Create mock state
+        const mockState = {
+          ui: {},
+          player: {
+            gold: 100,
+            inventory: [
+              { id: 'item1', type: 'weapon', item: { name: 'Sword', price: 20, dmg: 5 } },
+              { id: 'item2', type: 'potion', item: { name: 'Health Potion', price: 10, quantity: 3 } }
+            ]
+          },
+          equippedWeaponId: 'item1',
+          worldSeed: 12345
+        };
+        
+        const mockVendor = {
+          x: 10,
+          y: 20,
+          name: 'Test Vendor',
+          inventory: [
+            { type: 'armor', item: { name: 'Leather Armor', def: 3 }, price: 50 },
+            { type: 'potion', item: { name: 'Mana Potion' }, price: 15 }
+          ]
+        };
+        
+        log('\nTesting openShop...');
+        const vendorData = openShop(mockState, mockVendor);
+        
+        if (mockState.ui.shopOpen === true) {
+          log('✓ Shop opened successfully', 'success');
+        } else {
+          log('✗ Shop failed to open', 'error');
+        }
+        
+        if (vendorData.id === 'vendor_12345_10_20') {
+          log('✓ Vendor ID generated correctly', 'success');
+        } else {
+          log(`✗ Vendor ID incorrect: ${vendorData.id}`, 'error');
+        }
+        
+        log('\nTesting purchaseItem...');
+        const purchaseResult = purchaseItem(mockState, vendorData.id, 0);
+        
+        if (purchaseResult.success) {
+          log('✓ Purchase successful', 'success');
+          log(`  Gold remaining: ${mockState.player.gold}`, 'info');
+          log(`  Items in inventory: ${mockState.player.inventory.length}`, 'info');
+        } else {
+          log(`✗ Purchase failed: ${purchaseResult.reason}`, 'error');
+        }
+        
+        log('\nTesting sellItem...');
+        const sellResult = sellItem(mockState, 0, true); // Force confirm to sell equipped
+        
+        if (sellResult.success) {
+          log('✓ Sell successful', 'success');
+          log(`  Gold after sale: ${mockState.player.gold}`, 'info');
+          log(`  Was equipped: ${sellResult.wasEquipped}`, 'info');
+        } else {
+          log(`✗ Sell failed: ${sellResult.reason}`, 'error');
+        }
+        
+        log('\nTesting closeShop...');
+        closeShop(mockState);
+        
+        if (mockState.ui.shopOpen === false) {
+          log('✓ Shop closed successfully', 'success');
+        } else {
+          log('✗ Shop failed to close', 'error');
+        }
+        
+        log('\n=== All tests completed ===', 'success');
+        
+      } catch (error) {
+        log(`\nTest failed with error: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+    
+    runTests();
+  </script>
+</body>
+</html>

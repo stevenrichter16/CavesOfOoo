@@ -10,14 +10,14 @@ import {
   log, 
   newWorld,
   openVendorShop,
-  buyFromVendor,
-  sellToVendor,
   claimQuestRewards,
   renderQuestTurnIn,
   renderQuestTurnInConfirm,
-  closeShop,
-  renderShop
+  closeShop
 } from '../game.js';
+import * as ShopSystem from '../systems/shop.js';
+import * as ShopUI from '../ui/shop.js';
+import * as VendorQuests from '../systems/vendorQuests.js';
 import { saveChunk } from '../persistence.js';
 import { openInventory, closeInventory, useInventoryItem, dropInventoryItem, renderInventory } from '../inventory.js';
 import { handleMapNavigation } from '../worldMap.js';
@@ -378,22 +378,22 @@ function handleShopControls(STATE, e) {
   // Handle confirmation dialog
   if (STATE.ui.confirmSell) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      STATE.ui.confirmChoice = STATE.ui.confirmChoice === "yes" ? "no" : "yes";
-      renderShop(STATE);
+      ShopSystem.navigateShop(STATE, 'left');
+      ShopUI.renderShop(STATE);
     } else if (e.key === "Enter") {
       if (STATE.ui.confirmChoice === "yes") {
         // Proceed with selling equipped item
-        STATE.ui.confirmSell = false;
-        sellToVendor(STATE, true); // Force confirm
+        const result = ShopSystem.handleSellConfirmation(STATE, true);
+        ShopUI.renderShop(STATE);
       } else {
         // Cancel
         STATE.ui.confirmSell = false;
-        renderShop(STATE);
+        ShopUI.renderShop(STATE);
       }
     } else if (e.key === "Escape") {
       // Cancel confirmation
       STATE.ui.confirmSell = false;
-      renderShop(STATE);
+      ShopUI.renderShop(STATE);
     }
     e.preventDefault();
     return;
@@ -405,60 +405,89 @@ function handleShopControls(STATE, e) {
   } else if (e.key === "Tab") {
     // Toggle between buy, sell, and quest modes
     const vendor = STATE.ui.shopVendor;
-    const hasQuestToOffer = vendor.fetchQuest && 
-      !hasQuest(STATE.player, vendor.fetchQuest.id) && 
-      !STATE.player.quests.completed.includes(vendor.fetchQuest.id);
+    const hasQuestToOffer = VendorQuests.hasQuestToOffer(STATE, vendor);
     
     if (STATE.ui.shopMode === "buy") {
-      STATE.ui.shopMode = "sell";
+      ShopSystem.switchShopMode(STATE, "sell");
     } else if (STATE.ui.shopMode === "sell") {
-      STATE.ui.shopMode = hasQuestToOffer ? "quest" : "buy";
+      ShopSystem.switchShopMode(STATE, hasQuestToOffer ? "quest" : "buy");
     } else if (STATE.ui.shopMode === "quest") {
-      STATE.ui.shopMode = "buy";
+      ShopSystem.switchShopMode(STATE, "buy");
     }
-    STATE.ui.shopSelectedIndex = 0;
-    renderShop(STATE);
+    ShopUI.renderShop(STATE);
   } else if (e.key === "ArrowUp") {
     if (STATE.ui.shopMode !== "quest") {
-      STATE.ui.shopSelectedIndex = Math.max(0, STATE.ui.shopSelectedIndex - 1);
-      renderShop(STATE);
+      ShopSystem.navigateShop(STATE, 'up');
+      ShopUI.renderShop(STATE);
     }
   } else if (e.key === "ArrowDown") {
     if (STATE.ui.shopMode !== "quest") {
-      let maxIdx;
-      if (STATE.ui.shopMode === "buy") {
-        maxIdx = STATE.ui.shopVendor.inventory.length - 1;
-      } else {
-        const sellableItems = STATE.player.inventory.filter(item => 
-          item.type === "weapon" || item.type === "armor" || 
-          item.type === "headgear" || item.type === "potion"
-        );
-        maxIdx = sellableItems.length - 1;
-      }
-      STATE.ui.shopSelectedIndex = Math.min(maxIdx, STATE.ui.shopSelectedIndex + 1);
-      renderShop(STATE);
+      ShopSystem.navigateShop(STATE, 'down');
+      ShopUI.renderShop(STATE);
     }
   } else if (e.key === "Enter") {
     if (STATE.ui.shopMode === "buy") {
-      buyFromVendor(STATE);
+      handleBuyFromVendor(STATE);
     } else if (STATE.ui.shopMode === "sell") {
-      sellToVendor(STATE);
+      handleSellToVendor(STATE);
     } else if (STATE.ui.shopMode === "quest") {
       // Accept quest from vendor
       const vendor = STATE.ui.shopVendor;
-      if (vendor && vendor.fetchQuest) {
-        const questAccepted = giveQuest(STATE, vendor.fetchQuest.id, vendor.fetchQuest);
-        if (questAccepted) {
-          // Close shop after accepting quest
-          closeShop(STATE);
-        } else {
-          log(STATE, "Cannot accept quest (already have it or completed it)", "note");
-        }
+      const result = VendorQuests.acceptVendorQuest(STATE, vendor);
+      
+      if (result.success) {
+        // Close shop after accepting quest
+        closeShop(STATE);
       } else {
-        log(STATE, "No quest available from this vendor", "note");
+        log(STATE, result.message || "Cannot accept quest", "note");
       }
     }
   }
   e.preventDefault();
   return;
+}// Shop handler functions to add to keys.js
+
+function handleBuyFromVendor(STATE) {
+  const vendor = STATE.ui.shopVendor;
+  if (!vendor) return;
+  
+  const result = ShopSystem.purchaseItem(STATE, vendor.id, STATE.ui.shopSelectedIndex);
+  
+  if (result.success) {
+    ShopUI.renderShop(STATE);
+    
+    if (result.vendorEmpty) {
+      closeShop(STATE);
+    }
+  }
+}
+
+function handleSellToVendor(STATE) {
+  if (STATE.ui.confirmSell) {
+    const result = ShopSystem.handleSellConfirmation(STATE, true);
+    ShopUI.renderShop(STATE);
+    return;
+  }
+  
+  const sellableItems = STATE.player.inventory.filter(item => 
+    item.type === 'weapon' || 
+    item.type === 'armor' || 
+    item.type === 'headgear' || 
+    item.type === 'ring' ||
+    item.type === 'potion'
+  );
+  
+  const selectedItem = sellableItems[STATE.ui.shopSelectedIndex];
+  if (!selectedItem) return;
+  
+  const actualIndex = STATE.player.inventory.indexOf(selectedItem);
+  const result = ShopSystem.sellItem(STATE, actualIndex);
+  
+  if (result.needsConfirmation) {
+    STATE.ui.confirmSell = true;
+    STATE.ui.confirmChoice = 'no';
+    ShopUI.renderShop(STATE);
+  } else if (result.success) {
+    ShopUI.renderShop(STATE);
+  }
 }

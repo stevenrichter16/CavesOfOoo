@@ -14,7 +14,9 @@ import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
-import { initShopUI, ShopEvents, isShopOpen } from './ui/shop.js';
+import * as ShopSystem from './systems/shop.js';
+import * as ShopUI from './ui/shop.js';
+import * as VendorQuests from './systems/vendorQuests.js';
 import { initMapUI, MapEvents, isMapOpen, renderMap } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
@@ -66,10 +68,8 @@ function addPotionToInventory(state, potion) {
 
 // Vendor shop functions
 export function openVendorShop(state, vendor) {
-  // Ensure vendor has an ID
-  if (!vendor.id) {
-    vendor.id = `vendor_${state.worldSeed}_${vendor.x}_${vendor.y}`;
-  }
+  // Initialize vendor quest if needed
+  VendorQuests.initializeVendorQuest(state, vendor);
   
   // Check for completed quests first
   const completedFetchQuests = state.player.quests.active.filter(qId => {
@@ -92,27 +92,17 @@ export function openVendorShop(state, vendor) {
     // Show quest turn-in option first
     openQuestTurnIn(state, vendor, allCompletedQuests);
   } else {
-    // Delegate to shop UI module for normal shopping
-    emit(ShopEvents.OpenShop, { vendor, state });
-    renderShop(state);
+    // Use systems/shop.js to open shop (handles vendor initialization)
+    ShopSystem.openShop(state, vendor);
+    // Use ui/shop.js to render
+    ShopUI.renderShop(state);
   }
 }
 
 export function closeShop(state) {
-  // Update state flags
-  state.ui.shopOpen = false;
-  state.ui.shopVendor = null;
-  state.ui.shopMode = null;
-  state.ui.shopSelectedIndex = 0;
-  state.ui.confirmSell = false;
-  state.ui.confirmChoice = "no";
-  
-  // Hide overlay
-  const overlay = document.getElementById("overlay");
-  if (overlay) overlay.style.display = "none";
-  
-  // Delegate to new shop UI module
-  emit(ShopEvents.CloseShop);
+  // Use systems/shop.js to handle closing (manages state)
+  ShopSystem.closeShop(state);
+  // UI will auto-close via event listener
   render(state);
 }
 
@@ -450,405 +440,10 @@ function closeMap(state) {
 }
 
 export function renderShop(state) {
-  const overlay = document.getElementById("overlay");
-  const content = document.getElementById("overlayContent");
-  
-  overlay.style.display = "flex";
-  
-  // Check if we're showing confirmation dialog
-  if (state.ui.confirmSell) {
-    content.innerHTML = `
-      <div class="shop-header" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--dim);">
-        <h3 style="margin: 0 0 10px 0; color: var(--danger);">⚠️ WARNING ⚠️</h3>
-      </div>
-      <div style="text-align: center; padding: 20px;">
-        <p style="color: var(--fg); margin-bottom: 20px;">You are about to sell an <span style="color: var(--ok)">EQUIPPED</span> item!</p>
-        <p style="color: var(--accent); margin-bottom: 30px;">Are you sure you want to sell it?</p>
-        <div style="display: flex; gap: 40px; justify-content: center; font-size: 18px;">
-          <div style="padding: 10px 20px; border: 2px solid ${state.ui.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'}; border-radius: 4px; color: ${state.ui.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'};">
-            YES
-          </div>
-          <div style="padding: 10px 20px; border: 2px solid ${state.ui.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'}; border-radius: 4px; color: ${state.ui.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'};">
-            NO
-          </div>
-        </div>
-      </div>
-      <div class="shop-controls" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
-        [←→] Select | [Enter] Confirm | [Esc] Cancel
-      </div>
-    `;
-    return;
-  }
-  
-  const vendor = state.ui.shopVendor;
-  const shopMode = state.ui.shopMode;
-  
-  // Retrofit existing vendors with fetch quests if they don't have one
-  if (!vendor.id) {
-    // Generate a unique vendor ID if missing
-    vendor.id = `vendor_${state.worldSeed}_${vendor.x}_${vendor.y}`;
-  }
-  
-  if (!vendor.fetchQuest) {
-    // Add fetch quest to existing vendor
-    const items = FETCH_ITEMS;
-    const randomItem = items[Math.floor(Math.random() * items.length)];
-    
-    vendor.fetchQuest = {
-      id: `fetch_${vendor.id}`,
-      name: "Vendor's Request",
-      description: `I need ${randomItem.name}. Can you help me?`,
-      objective: `Bring ${randomItem.name} to this vendor`,
-      targetItem: randomItem,
-      vendorId: vendor.id,
-      vendorChunk: { x: state.cx, y: state.cy },
-      rewards: {
-        gold: 40 + Math.floor(Math.random() * 60),
-        xp: 20 + Math.floor(Math.random() * 30),
-        item: Math.random() < 0.5 ? { type: "potion", item: POTIONS[Math.floor(Math.random() * POTIONS.length)] } : null
-      },
-      completionText: "Perfect! This is exactly what I needed. Thank you!",
-      isRepeatable: false
-    };
-    
-    // Save the updated chunk data
-    state.chunk.items = state.chunk.items || [];
-    const vendorIndex = state.chunk.items.findIndex(i => i.type === "vendor" && i.x === vendor.x && i.y === vendor.y);
-    if (vendorIndex >= 0) {
-      state.chunk.items[vendorIndex] = vendor;
-      saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
-    }
-  }
-  
-  // Check if vendor has a quest to offer
-  const hasQuestToOffer = vendor.fetchQuest && 
-    !hasQuest(state.player, vendor.fetchQuest.id) && 
-    !state.player.quests.completed.includes(vendor.fetchQuest.id);
-  
-  let modeText = "";
-  let modeToggleHint = "";
-  let actionHint = "";
-  
-  if (shopMode === "buy") {
-    modeText = "BUYING";
-    modeToggleHint = hasQuestToOffer ? "[Tab] Sell/Quest" : "[Tab] Switch to Sell";
-    actionHint = "[Enter] Buy";
-  } else if (shopMode === "sell") {
-    modeText = "SELLING";
-    modeToggleHint = hasQuestToOffer ? "[Tab] Quest/Buy" : "[Tab] Switch to Buy";
-    actionHint = "[Enter] Sell";
-  } else if (shopMode === "quest") {
-    modeText = "QUEST";
-    modeToggleHint = "[Tab] Buy/Sell";
-    actionHint = "[Enter] Accept Quest";
-  }
-  
-  content.innerHTML = `
-    <div class="shop-header" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--dim);">
-      <h3 style="margin: 0 0 10px 0; color: var(--accent);">VENDOR - ${modeText}</h3>
-      <div style="color: var(--gold, #ffd700);">Your Gold: ${state.player.gold}</div>
-    </div>
-    <div class="shop-items"></div>
-    <div class="shop-controls" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
-      [↑↓] Navigate | ${actionHint} | ${modeToggleHint} | [Esc/V] Exit
-    </div>
-  `;
-  
-  const itemsDiv = content.querySelector(".shop-items");
-  
-  if (shopMode === "quest") {
-    // Quest mode - show available quest
-    if (!hasQuestToOffer) {
-      itemsDiv.innerHTML = '<div style="color: var(--dim);">No quests available from this vendor.</div>';
-      return;
-    }
-    
-    const quest = vendor.fetchQuest;
-    itemsDiv.innerHTML = `
-      <div class="quest-offer" style="padding: 15px; border: 1px solid var(--accent); border-radius: 4px;">
-        <div style="color: var(--xp); font-size: 1.2em; margin-bottom: 10px;">📜 ${quest.name}</div>
-        <div style="color: var(--fg); margin-bottom: 10px;">"${quest.description}"</div>
-        <div style="color: var(--note); margin-bottom: 15px;">
-          <strong>Objective:</strong> ${quest.objective}
-        </div>
-        <div style="color: var(--good);">
-          <strong>Rewards:</strong>
-          <ul style="margin: 5px 0; padding-left: 20px;">
-            <li>${quest.rewards.gold} gold</li>
-            <li>${quest.rewards.xp} XP</li>
-            ${quest.rewards.item ? `<li>${quest.rewards.item.item.name}</li>` : ''}
-          </ul>
-        </div>
-        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
-          Press [Enter] to accept this quest
-        </div>
-      </div>
-    `;
-  } else if (shopMode === "buy") {
-    // Buy mode - show vendor inventory
-    const vendor = state.ui.shopVendor;
-    
-    if (vendor.inventory.length === 0) {
-      itemsDiv.innerHTML = '<div style="color: var(--dim);">The vendor is sold out!</div>';
-      return;
-    }
-    
-    vendor.inventory.forEach((item, idx) => {
-    const div = document.createElement("div");
-    div.className = "item";
-    if (idx === state.ui.shopSelectedIndex) div.className += " selected";
-    
-    const canAfford = state.player.gold >= item.price;
-    const typeSymbol = item.type === "potion" ? "!" : 
-                       item.type === "weapon" ? "/" : 
-                       item.type === "armor" ? "]" : "^";
-    
-    // Build stats display
-    let statsText = "";
-    if (item.type === "weapon") {
-      statsText = ` [DMG: ${item.item.dmg}]`;
-      if (item.item.effect) {
-        statsText += ` [${item.item.effect}]`;
-      }
-    } else if (item.type === "armor") {
-      statsText = ` [DEF: ${item.item.def}]`;
-    } else if (item.type === "headgear") {
-      const stats = [];
-      if (item.item.def) stats.push(`DEF: ${item.item.def}`);
-      if (item.item.str) stats.push(`STR: ${item.item.str}`);
-      if (item.item.spd) stats.push(`SPD: ${item.item.spd}`);
-      if (item.item.magic) stats.push(`MAG: ${item.item.magic}`);
-      if (stats.length > 0) statsText = ` [${stats.join(", ")}]`;
-    }
-    
-    div.style.opacity = canAfford ? "1" : "0.5";
-    div.innerHTML = `
-      <div>
-        <div class="name">${typeSymbol} ${item.item.name}${statsText} - ${item.price}g</div>
-        <div class="desc">${item.item.desc || ''}</div>
-        ${!canAfford ? '<div style="color: var(--danger); font-size: 0.9em;">Not enough gold!</div>' : ''}
-      </div>
-    `;
-      itemsDiv.appendChild(div);
-    });
-  } else {
-    // Sell mode - show player inventory
-    const sellableItems = state.player.inventory.filter(item => 
-      item.type === "weapon" || item.type === "armor" || 
-      item.type === "headgear" || item.type === "potion"
-    );
-    
-    if (sellableItems.length === 0) {
-      itemsDiv.innerHTML = '<div style="color: var(--dim);">You have nothing to sell!</div>';
-      return;
-    }
-    
-    sellableItems.forEach((item, idx) => {
-      const div = document.createElement("div");
-      div.className = "item";
-      if (idx === state.ui.shopSelectedIndex) div.className += " selected";
-      
-      // Calculate sell price (50% of base value)
-      let sellPrice = 10; // Default minimum
-      if (item.type === "potion") {
-        // Potion prices based on effect
-        if (item.item.effect === "max_heal") sellPrice = 40;
-        else if (item.item.effect === "heal") sellPrice = 12;
-        else if (item.item.effect === "buff_both") sellPrice = 30;
-        else if (item.item.effect === "berserk") sellPrice = 25;
-        else sellPrice = 20;
-      } else if (item.type === "weapon") {
-        sellPrice = 25 + (item.item.dmg * 5);
-        if (item.item.effect) sellPrice += 25; // Enchanted bonus
-      } else if (item.type === "armor") {
-        sellPrice = 20 + (item.item.def * 10);
-      } else if (item.type === "headgear") {
-        sellPrice = 15;
-        if (item.item.def) sellPrice += item.item.def * 5;
-        if (item.item.str) sellPrice += item.item.str * 5;
-        if (item.item.spd) sellPrice += item.item.spd * 5;
-        if (item.item.magic) sellPrice += item.item.magic * 8;
-      }
-      
-      const typeSymbol = item.type === "potion" ? "!" : 
-                         item.type === "weapon" ? "/" : 
-                         item.type === "armor" ? "]" : "^";
-      
-      // Build stats display
-      let statsText = "";
-      if (item.type === "weapon") {
-        statsText = ` [DMG: ${item.item.dmg}]`;
-        if (item.item.effect) statsText += ` [${item.item.effect}]`;
-      } else if (item.type === "armor") {
-        statsText = ` [DEF: ${item.item.def}]`;
-      } else if (item.type === "headgear") {
-        const stats = [];
-        if (item.item.def) stats.push(`DEF: ${item.item.def}`);
-        if (item.item.str) stats.push(`STR: ${item.item.str}`);
-        if (item.item.spd) stats.push(`SPD: ${item.item.spd}`);
-        if (item.item.magic) stats.push(`MAG: ${item.item.magic}`);
-        if (stats.length > 0) statsText = ` [${stats.join(", ")}]`;
-      }
-      
-      // Check if equipped
-      const isEquipped = 
-        (item.type === "weapon" && item.id === state.equippedWeaponId) ||
-        (item.type === "armor" && item.id === state.equippedArmorId) ||
-        (item.type === "headgear" && item.id === state.equippedHeadgearId);
-      
-      const equippedText = isEquipped ? ' <span style="color: var(--ok)">[EQUIPPED]</span>' : '';
-      const countText = item.count && item.count > 1 ? ` x${item.count}` : '';
-      
-      div.innerHTML = `
-        <div>
-          <div class="name">${typeSymbol} ${item.item.name}${countText}${statsText} - Sell: ${sellPrice}g${equippedText}</div>
-          <div class="desc">${item.item.desc || ''}</div>
-        </div>
-      `;
-      
-      // Store sell price for later use
-      div.dataset.sellPrice = sellPrice;
-      div.dataset.itemIndex = idx;
-      
-      itemsDiv.appendChild(div);
-    });
-  }
+  // Delegate all rendering to the UI module
+  ShopUI.renderShop(state);
 }
 
-export function buyFromVendor(state) {
-  const vendor = state.ui.shopVendor;
-  const item = vendor.inventory[state.ui.shopSelectedIndex];
-  
-  if (!item) return;
-  
-  if (state.player.gold >= item.price) {
-    state.player.gold -= item.price;
-    
-    // Add to inventory
-    if (item.type === "potion") {
-      addPotionToInventory(state, item.item);
-    } else {
-      state.player.inventory.push({
-        type: item.type,
-        item: { ...item.item },
-        id: generateItemId()
-      });
-    }
-    
-    log(state, `Bought ${item.item.name} for ${item.price}g!`, "good");
-    
-    // Remove from vendor inventory
-    vendor.inventory.splice(state.ui.shopSelectedIndex, 1);
-    
-    // Adjust selected index if needed
-    if (vendor.inventory.length === 0) {
-      closeShop(state);
-      log(state, "The vendor is sold out!", "note");
-    } else if (state.ui.shopSelectedIndex >= vendor.inventory.length) {
-      state.ui.shopSelectedIndex = vendor.inventory.length - 1;
-      renderShop(state);
-    } else {
-      renderShop(state);
-    }
-  } else {
-    log(state, "Not enough gold!", "bad");
-  }
-}
-
-export function sellToVendor(state, forceConfirm = false) {
-  const sellableItems = state.player.inventory.filter(item => 
-    item.type === "weapon" || item.type === "armor" || 
-    item.type === "headgear" || item.type === "potion"
-  );
-  
-  if (state.ui.shopSelectedIndex >= sellableItems.length) return;
-  
-  const item = sellableItems[state.ui.shopSelectedIndex];
-  
-  // Check if trying to sell equipped item
-  const isEquipped = 
-    (item.type === "weapon" && item.id === state.equippedWeaponId) ||
-    (item.type === "armor" && item.id === state.equippedArmorId) ||
-    (item.type === "headgear" && item.id === state.equippedHeadgearId);
-  
-  if (isEquipped && !forceConfirm) {
-    // Show confirmation dialog
-    state.ui.confirmSell = true;
-    state.ui.confirmChoice = "no";
-    state.ui.pendingSellItem = item; // Store item for later
-    renderShop(state);
-    return;
-  }
-  
-  // Calculate sell price (same as in renderShop)
-  let sellPrice = 10;
-  if (item.type === "potion") {
-    if (item.item.effect === "max_heal") sellPrice = 40;
-    else if (item.item.effect === "heal") sellPrice = 12;
-    else if (item.item.effect === "buff_both") sellPrice = 30;
-    else if (item.item.effect === "berserk") sellPrice = 25;
-    else sellPrice = 20;
-  } else if (item.type === "weapon") {
-    sellPrice = 25 + (item.item.dmg * 5);
-    if (item.item.effect) sellPrice += 25;
-  } else if (item.type === "armor") {
-    sellPrice = 20 + (item.item.def * 10);
-  } else if (item.type === "headgear") {
-    sellPrice = 15;
-    if (item.item.def) sellPrice += item.item.def * 5;
-    if (item.item.str) sellPrice += item.item.str * 5;
-    if (item.item.spd) sellPrice += item.item.spd * 5;
-    if (item.item.magic) sellPrice += item.item.magic * 8;
-  }
-  
-  // Unequip if it was equipped
-  if (isEquipped) {
-    if (item.type === "weapon") {
-      state.player.weapon = null;
-      state.equippedWeaponId = null;
-    } else if (item.type === "armor") {
-      state.player.armor = null;
-      state.equippedArmorId = null;
-    } else if (item.type === "headgear") {
-      state.player.headgear = null;
-      state.equippedHeadgearId = null;
-    }
-    log(state, `Unequipped and sold ${item.item.name} for ${sellPrice}g!`, "gold");
-  } else {
-    log(state, `Sold ${item.item.name} for ${sellPrice}g!`, "gold");
-  }
-  
-  // Add gold to player
-  state.player.gold += sellPrice;
-  
-  // Remove from inventory
-  if (item.type === "potion" && item.count && item.count > 1) {
-    // Decrease potion stack
-    item.count--;
-    state.player.potionCount--;
-  } else {
-    // Remove item completely
-    const idx = state.player.inventory.indexOf(item);
-    if (idx >= 0) {
-      state.player.inventory.splice(idx, 1);
-      if (item.type === "potion") state.player.potionCount--;
-    }
-  }
-  
-  // Adjust selected index if needed
-  const newSellableItems = state.player.inventory.filter(item => 
-    item.type === "weapon" || item.type === "armor" || 
-    item.type === "headgear" || item.type === "potion"
-  );
-  
-  if (newSellableItems.length === 0) {
-    state.ui.shopSelectedIndex = 0;
-  } else if (state.ui.shopSelectedIndex >= newSellableItems.length) {
-    state.ui.shopSelectedIndex = newSellableItems.length - 1;
-  }
-  
-  renderShop(state);
-}
 
 export function interactTile(state, x, y) {
   // Check bounds
@@ -2167,7 +1762,7 @@ export function newWorld() {
 // Initialize game
 export function initGame() {
   // Initialize UI modules
-  initShopUI();
+  ShopUI.initShopUI();
   initMapUI();
   initQuestUI();
   
