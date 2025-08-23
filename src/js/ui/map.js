@@ -41,6 +41,7 @@ export function initMapUI() {
  */
 export function openMap(state) {
   mapState.isOpen = true;
+  state.ui.mapOpen = true;  // Set the state flag
   initMapCursor(state);
   renderMap(state);
 }

@@ -253,12 +253,23 @@ function sellToVendor(state, forceConfirm = false) {
  * Render the shop UI
  */
 export function renderShop(state) {
+  console.log("in renderShop shop.js");
   const overlay = document.getElementById('overlay');
   const content = document.getElementById('overlayContent');
   const title = document.getElementById('overlayTitle');
   const hint = document.getElementById('overlayHint');
   
   if (!overlay || !content) return;
+  
+  // Sync shopState with state.ui
+  if (state.ui.shopOpen) {
+    shopState.isOpen = state.ui.shopOpen;
+    shopState.mode = state.ui.shopMode || 'buy';
+    shopState.selectedIndex = state.ui.shopSelectedIndex || 0;
+    shopState.vendor = state.ui.shopVendor;
+    shopState.confirmSell = state.ui.confirmSell || false;
+    shopState.confirmChoice = state.ui.confirmChoice || 'no';
+  }
   
   overlay.style.display = 'flex';
   
@@ -333,16 +344,44 @@ function renderBuyList(state, vendor, items) {
   html += '<div class="inventory-grid">';
   
   items.forEach((item, idx) => {
+    console.log('Shop item:', idx, item);
+    console.log('  - item.name:', item.name);
+    console.log('  - item.item:', item.item);
+    console.log('  - item.item?.name:', item.item?.name);
+    
     const price = item.price || 10;
     const canAfford = state.player.gold >= price;
     const selected = idx === shopState.selectedIndex;
+    // Vendor inventory items have nested structure: { type, item: {...}, price }
+    const itemData = item.item || item;
+    const itemName = itemData.name || 'Unknown Item';
     
-    html += `
-      <div class="inventory-item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
-        <div>${getItemIcon(item)} ${esc(item.name)}</div>
-        <div style="color: ${canAfford ? 'var(--gold)' : 'var(--danger)'};">${price}g</div>
-      </div>
-    `;
+    console.log('  - Final itemName:', itemName);
+    console.log('  - getItemIcon result:', getItemIcon(item));
+    
+    try {
+      const escapedName = esc(itemName);
+      console.log('  - esc(itemName) result:', escapedName);
+      
+      const itemHtml = `
+        <div class="inventory-item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
+          <div>${getItemIcon(item)} ${escapedName}</div>
+          <div style="color: ${canAfford ? 'var(--gold)' : 'var(--danger)'};">${price}g</div>
+        </div>
+      `;
+      console.log('  - Generated HTML for item:', itemHtml);
+      html += itemHtml;
+    } catch (error) {
+      console.error('  - ERROR in rendering item:', error);
+      console.error('  - Error stack:', error.stack);
+      // Fallback without escaping
+      html += `
+        <div class="inventory-item ${selected ? 'selected' : ''}" style="${!canAfford ? 'opacity: 0.5;' : ''}">
+          <div>${getItemIcon(item)} ${itemName}</div>
+          <div style="color: ${canAfford ? 'var(--gold)' : 'var(--danger)'};">${price}g</div>
+        </div>
+      `;
+    }
   });
   
   if (items.length === 0) {

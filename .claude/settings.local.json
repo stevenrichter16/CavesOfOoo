@@ -5,7 +5,9 @@
       "Bash(grep:*)",
       "Bash(open http://localhost:8000)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

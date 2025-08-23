@@ -32,7 +32,8 @@ export function hashStr(s) {
 }
 
 export function esc(s) { 
-  return s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])); 
+  if (!s) return '';
+  return String(s).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])); 
 }
 
 export function dist(x1, y1, x2, y2) { 
