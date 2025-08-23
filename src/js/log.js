@@ -40,7 +40,9 @@ export function mountLog(element) {
     else if (type == "shock") {
         pushLine(`${vs} ${vs==='You'?'are':'is'} electrified!`, "magic")
     }
-    // TODO: Implement weakened log
+    else if (type == "weaken") {
+        pushLine(`${vs} ${vs==='You'?'are':'is'} weakened!`, "note")
+    }
   })
   on(EventType.StatusEffectPerform, ({ toId, effect, delta }) => {
     if (effect === "burn" && delta < 0) {

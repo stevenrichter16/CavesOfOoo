@@ -48,7 +48,6 @@ export function initShopUI() {
  * Open the shop UI
  */
 export function openShop(vendor, state) {
-  console.log('🛍️ Opening vendor shop', { vendor });
   
   // Normal shop (quest checking is now done in game.js)
   shopState.isOpen = true;

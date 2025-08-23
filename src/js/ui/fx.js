@@ -8,10 +8,11 @@ on(EventType.FloatingText, ({ x, y, text, kind }) => {
   el.className = `float ${kind || ''}`;
   el.textContent = text;
   
-  // Position relative to tile size (16px default)
+  // Position relative to character grid (monospace font)
+  // Approximate character width: 9.6px, line height: 17px
   el.style.position = 'absolute';
-  el.style.left = `${x * 16}px`;
-  el.style.top = `${y * 16}px`;
+  el.style.left = `${x * 9.6}px`;
+  el.style.top = `${y * 17}px`;
   el.style.pointerEvents = 'none';
   el.style.zIndex = '1000';
   
@@ -41,5 +42,5 @@ on(EventType.Shake, ({ intensity = 5, duration = 200 }) => {
 on(EventType.PlaySound, ({ sound }) => {
   // Placeholder for sound effects
   // You could integrate with Web Audio API or HTML5 audio here
-  console.log(`[SFX] Would play: ${sound}`);
+  // Sound effect placeholder
 });

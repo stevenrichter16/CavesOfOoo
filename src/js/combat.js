@@ -6,7 +6,6 @@ import { emit } from './events.js';
 import { EventType } from './eventTypes.js';
 
 export function attack(state, attacker, defender, labelA = "you", labelD = null) {
-  console.log("Attacking Monster");
   labelD = labelD || defender.name || "enemy";
   const aStr = attacker.str + getStatusModifier(attacker, "str");
   const dDef = defender.def + getStatusModifier(defender, "def");
@@ -39,7 +38,6 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   // NEW FORMULA: Hit chance based on STR vs SPD
   const hitRoll = roll(1, 100);
   const hitChance = clamp(75 + (totalStr * 2) - (totalSpd * 3), 35, 85);
-  console.log("Calculated Hit Chance");
   
   if (hitRoll > hitChance) { 
     state.log(`${labelA} miss ${labelD}.`); 
@@ -61,10 +59,9 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   const dmg = reduced * (crit ? 2 : 1);
   
   defender.hp -= dmg;
-  console.log("Subtracted defender HP. Damage Done:", dmg);
   if (crit) {
     state.log(`${labelA} crit ${labelD} for ${dmg}!`, "good");
-    emit(EventType.Crit, {by:labelA, vs:labelD, dmg:dmg})
+    emit(EventType.Crit, {by:labelA, vs:labelD, dmg:dmg});
   }
   else {
     emit(EventType.Hit, {by:labelA, vs:labelD, dmg:dmg});
@@ -77,7 +74,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
     x: defender.x, 
     y: defender.y, 
     text: damageText, 
-    kind: isPlayerTarget ? 'damage' : 'damage' 
+    kind: crit ? 'crit' : 'damage'
   });
   
   // Apply weapon effects if attacker is player with an enchanted weapon
@@ -116,11 +113,11 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
       } else if (weapon.effect === "shock") {
         applyStatusEffect(defender, "shock", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is electrified!`, "magic");
-        emit(EventType.StatusEffectRegister, { type:'shock', vs:labelD })
+        emit(EventType.StatusEffectRegister, { type:'shock', vs:labelD });
       } else if (weapon.effect === "weaken") {
         applyStatusEffect(defender, "weaken", weapon.effectTurns, weapon.effectValue);
         state.log(`${labelD} is weakened!`, "note");
-        //TODO: Emit weakended log
+        emit(EventType.StatusEffectRegister, { type: 'weaken', vs: labelD });
       }
     }
   }

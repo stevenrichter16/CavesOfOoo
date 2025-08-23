@@ -42,6 +42,12 @@ export function runPlayerMove(state, action) {
     const from = { x: player.x, y: player.y };
     player.x = nx; 
     player.y = ny;
+    
+    // Check for items/interactions at new position
+    if (state.interactTile) {
+      state.interactTile(state, nx, ny);
+    }
+    
     emit(EventType.DidMove, { id: 'player', from, to: { x: nx, y: ny } });
     emit(EventType.DidStep, { id: 'player', x: nx, y: ny });
     return true;

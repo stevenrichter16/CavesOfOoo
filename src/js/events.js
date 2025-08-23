@@ -10,14 +10,9 @@ const bus = new Map(); // Map<eventType, Array<handler>>
  * @returns {()=>void}
  */
 export function on(type, handler) {
-    try {
-        let arr = bus.get(type);
-        if (!arr) { arr = []; bus.set(type, arr); }
-        arr.push(handler);
-        console.log("in ON arr:", arr);
-    } catch (e) {
-        console.log("Exception in ON:", e);
-    }
+    let arr = bus.get(type);
+    if (!arr) { arr = []; bus.set(type, arr); }
+    arr.push(handler);
     return () => off(type, handler);
 }
 

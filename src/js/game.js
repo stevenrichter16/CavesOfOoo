@@ -15,7 +15,7 @@ import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
 import { initShopUI, ShopEvents, isShopOpen } from './ui/shop.js';
-import { initMapUI, MapEvents, isMapOpen } from './ui/map.js';
+import { initMapUI, MapEvents, isMapOpen, renderMap } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
 
@@ -99,6 +99,18 @@ function openVendorShop(state, vendor) {
 }
 
 function closeShop(state) {
+  // Update state flags
+  state.ui.shopOpen = false;
+  state.ui.shopVendor = null;
+  state.ui.shopMode = null;
+  state.ui.shopSelectedIndex = 0;
+  state.ui.confirmSell = false;
+  state.ui.confirmChoice = "no";
+  
+  // Hide overlay
+  const overlay = document.getElementById("overlay");
+  if (overlay) overlay.style.display = "none";
+  
   // Delegate to new shop UI module
   emit(ShopEvents.CloseShop);
   render(state);
@@ -106,10 +118,8 @@ function closeShop(state) {
 
 // Quest turn-in functions
 function openQuestTurnIn(state, vendor, completedQuests) {
-  console.log('📜 Opening quest turn-in UI', { completedQuests });
   // Prevent opening if already open or if shop is open
   if (state.ui.questTurnInOpen || state.ui.shopOpen) {
-    console.log('⚠️ Quest turn-in already open or shop is open, canceling');
     return;
   }
   
@@ -123,12 +133,6 @@ function openQuestTurnIn(state, vendor, completedQuests) {
 }
 
 function renderQuestTurnIn(state) {
-  console.log('🎨 Rendering quest turn-in', {
-    selectingQuest: state.ui.selectingQuest,
-    selectingFetchItem: state.ui.selectingFetchItem,
-    confirmGiveEquipped: state.ui.confirmGiveEquipped,
-    completedQuests: state.ui.completedQuests
-  });
   const overlay = document.getElementById("overlay");
   const content = document.getElementById("overlayContent");
   const title = document.getElementById("overlayTitle");
@@ -138,7 +142,6 @@ function renderQuestTurnIn(state) {
   
   // Check if we need to select an item for a fetch quest
   if (state.ui.selectingFetchItem) {
-    console.log('📦 Rendering item selection for fetch quest', { questId: state.ui.selectingFetchItem });
     title.textContent = "SELECT ITEM TO GIVE";
     
     const fetchQuest = state.player.quests.fetchQuests[state.ui.selectingFetchItem];
@@ -199,7 +202,6 @@ function renderQuestTurnIn(state) {
   
   // Quest selection menu
   if (state.ui.selectingQuest) {
-    console.log('📃 Rendering quest selection menu');
     title.textContent = "SELECT QUEST TO TURN IN";
     
     const quests = state.ui.completedQuests.map((qId, idx) => {
@@ -319,7 +321,6 @@ function renderQuestTurnInConfirm(state) {
 }
 
 function claimQuestRewards(state, questsToTurnIn = null) {
-  console.log('💰 Claiming quest rewards', { questsToTurnIn, completedQuests: state.ui.completedQuests });
   // Use provided quests or all completed quests
   const quests = questsToTurnIn || state.ui.completedQuests;
   
@@ -350,8 +351,8 @@ function claimQuestRewards(state, questsToTurnIn = null) {
   });
   
   // If we need to select an item and haven't yet
-  if (fetchQuestsNeedingSelection.length > 0 && !state.ui.selectingFetchItem) {
-    console.log('🎯 Need to select item for fetch quest', { fetchQuestsNeedingSelection });
+  // But skip if we already have a selected item index
+  if (fetchQuestsNeedingSelection.length > 0 && !state.ui.selectingFetchItem && state.ui.selectedFetchItemIndex === undefined) {
     // Start item selection for the first fetch quest
     state.ui.selectingFetchItem = fetchQuestsNeedingSelection[0];
     state.ui.fetchItemSelectedIndex = 0;
@@ -361,24 +362,19 @@ function claimQuestRewards(state, questsToTurnIn = null) {
   }
   
   // Process all quests
-  console.log('🔄 Processing quests for turn-in', { quests });
   quests.forEach(qId => {
     // Check if it's a fetch quest
     const fetchQuest = state.player.quests.fetchQuests?.[qId];
     if (fetchQuest) {
-      console.log('🎁 Turning in fetch quest', { qId, fetchQuest });
       // If we had item selection, use the selected item
       if (state.ui.selectedFetchItemIndex !== undefined) {
-        console.log('🎯 Using selected item index:', state.ui.selectedFetchItemIndex);
         turnInFetchQuestWithItem(state, qId, state.ui.shopVendor, state.ui.selectedFetchItemIndex);
         state.ui.selectedFetchItemIndex = undefined;
       } else {
         // Otherwise use the first matching item
-        console.log('🤔 Using first matching item');
         turnInFetchQuest(state, qId, state.ui.shopVendor);
       }
     } else {
-      console.log('⚔️ Turning in regular quest', { qId });
       turnInQuest(state, qId);
     }
   });
@@ -414,7 +410,6 @@ function claimQuestRewards(state, questsToTurnIn = null) {
     }) : [];
   
   if (remainingQuests.length > 0) {
-    console.log('🔁 Still have remaining quests', { remainingQuests });
     // Still have quests to turn in, go back to selection
     state.ui.completedQuests = remainingQuests;
     state.ui.allCompletedQuests = remainingQuests; // Update the list
@@ -424,7 +419,6 @@ function claimQuestRewards(state, questsToTurnIn = null) {
     state.ui.fetchItemSelectedIndex = 0;
     renderQuestTurnIn(state);
   } else {
-    console.log('✅ All quests turned in, closing UI');
     // Close quest turn-in UI
     state.ui.questTurnInOpen = false;
     state.ui.completedQuests = [];
@@ -857,8 +851,11 @@ function sellToVendor(state, forceConfirm = false) {
 }
 
 function interactTile(state, x, y) {
+  // Check bounds
+  if (y < 0 || y >= H || x < 0 || x >= W) return;
+  if (!state.chunk?.map?.[y]?.[x]) return;
+  
   const tile = state.chunk.map[y][x];
-  console.log('👋 Interacting with tile', { x, y, tile });
   if (!state.chunk.items) state.chunk.items = [];
   const items = state.chunk.items;
   
@@ -866,11 +863,9 @@ function interactTile(state, x, y) {
   if (tile === "V") {
     const vendor = items.find(i => i.type === "vendor" && i.x === x && i.y === y);
     if (vendor) {
-      console.log('💬 Found vendor at position', { vendor });
       log(state, "\"Hello, adventurer! Take a look at my wares!\"", "note");
       // Delay vendor shop opening to next tick to avoid UI conflicts
       setTimeout(() => {
-        console.log('⏰ Opening vendor shop on next tick');
         openVendorShop(state, vendor);
       }, 0);
     }
@@ -976,8 +971,15 @@ function interactTile(state, x, y) {
   } else if (tile === "$") {
     // Open chest
     const chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
-    if (chest && !chest.opened) {
-      chest.opened = true;
+    if (!chest) {
+      // No chest object found, but tile is $, so create one
+      const newChest = { type: "chest", x: x, y: y, opened: false };
+      items.push(newChest);
+    }
+    
+    const chestToOpen = chest || items.find(i => i.type === "chest" && i.x === x && i.y === y);
+    if (chestToOpen && !chestToOpen.opened) {
+      chestToOpen.opened = true;
       state.chunk.map[y][x] = ".";
       
       // Gold chance (40%)
@@ -990,20 +992,24 @@ function interactTile(state, x, y) {
       const loot = Math.random();
       if (loot < 0.3) {
         const weapon = choice(WEAPONS);
-        state.player.inventory.push({ 
+        const newItem = { 
           type: "weapon", 
           item: { ...weapon }, // Clone to avoid shared references
           id: generateItemId() 
-        });
+        };
+        state.player.inventory.push(newItem);
         log(state, `Chest contains: ${weapon.name}!`, "good");
+        log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
       } else if (loot < 0.6) {
         const armor = choice(ARMORS);
-        state.player.inventory.push({ 
+        const newItem = { 
           type: "armor", 
           item: { ...armor }, // Clone to avoid shared references
           id: generateItemId() 
-        });
+        };
+        state.player.inventory.push(newItem);
         log(state, `Chest contains: ${armor.name}!`, "good");
+        log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
       } else if (loot < 0.8) {
         const headgear = choice(HEADGEAR);
         state.player.inventory.push({ 
@@ -1072,6 +1078,20 @@ function loadOrGenChunk(state, cx, cy) {
   const existing = loadChunk(state.worldSeed, cx, cy);
   state.chunk = existing ? existing : genChunk(state.worldSeed, cx, cy);
   if (!state.chunk.items) state.chunk.items = [];
+  
+  // Restore itemCheck functions for vendor fetch quests (lost during JSON serialization)
+  if (state.chunk.items) {
+    state.chunk.items.forEach(item => {
+      if (item.type === "vendor" && item.fetchQuest && item.fetchQuest.targetItem) {
+        const targetItem = item.fetchQuest.targetItem;
+        // Find matching FETCH_ITEM by name to restore the itemCheck function
+        const matchingFetchItem = FETCH_ITEMS.find(fi => fi.name === targetItem.name);
+        if (matchingFetchItem) {
+          item.fetchQuest.targetItem = matchingFetchItem;
+        }
+      }
+    });
+  }
 }
 
 function handlePlayerMove(state, dx, dy) {
@@ -1089,6 +1109,9 @@ function handlePlayerMove(state, dx, dy) {
   state.W = W;
   state.H = H;
   
+  // Add interactTile reference for movePipeline
+  state.interactTile = interactTile;
+  
   // Add edge travel handler
   state.handleEdgeTravel = (nx, ny) => {
     const tcx = state.cx + (nx < 0 ? -1 : nx >= W ? 1 : 0);
@@ -1096,7 +1119,7 @@ function handlePlayerMove(state, dx, dy) {
     loadOrGenChunk(state, tcx, tcy);
     state.player.x = (nx + W) % W;
     state.player.y = (ny + H) % H;
-    if (state.chunk.map[state.player.y][state.player.x] === "#") {
+    if (state.chunk?.map?.[state.player.y]?.[state.player.x] === "#") {
       const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
       state.player.x = spot.x; 
       state.player.y = spot.y;
@@ -1115,7 +1138,9 @@ function handlePlayerMove(state, dx, dy) {
   }
 }
 
-// Keep old tryMove for now as fallback for edge travel
+// Old tryMove function - no longer used, replaced by handlePlayerMove + runPlayerMove pipeline
+// Kept for reference during migration
+/*
 function tryMove(state, dx, dy) {
   if (state.over) return;
   const { player } = state;
@@ -1137,7 +1162,7 @@ function tryMove(state, dx, dy) {
     loadOrGenChunk(state, tcx, tcy);
     player.x = (nx + W) % W;
     player.y = (ny + H) % H;
-    if (state.chunk.map[player.y][player.x] === "#") {
+    if (state.chunk?.map?.[player.y]?.[player.x] === "#") {
       const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
       player.x = spot.x; player.y = spot.y;
     }
@@ -1188,9 +1213,9 @@ function tryMove(state, dx, dy) {
     log(state, "The shrine's aura heals you slightly.", "good");
   }
   
-  console.log("About to call enemiesTurn()");
   enemiesTurn(state);
 }
+*/
 
 function waitTurn(state) { 
   if (state.over) return;
@@ -1267,7 +1292,13 @@ function processMonsterAbility(state, monster) {
   log(state, `You take ${damage} damage from the ${ability.type}!`, "bad");
   
   // Show damage number
-  showAbilityDamage(state, state.player, damage, ability.type);
+  // Show damage via floating text event
+  emit(EventType.FloatingText, {
+    x: state.player.x,
+    y: state.player.y,
+    text: `-${damage}`,
+    kind: 'damage'
+  });
   
   // Handle special ability effects
   if (ability.type === "lifeDrain" && ability.heal) {
@@ -1308,52 +1339,7 @@ function processMonsterAbility(state, monster) {
   return true; // Ability was used
 }
 
-function showAbilityDamage(state, target, damage, abilityType) {
-  const gameEl = document.getElementById("game");
-  const charWidth = 8;
-  const lineHeight = 17;
-  
-  const x = target.x !== undefined ? target.x : 0;
-  const y = target.y !== undefined ? target.y : 0;
-  
-  // Create damage number
-  const dmgEl = document.createElement("div");
-  dmgEl.className = "damage-float ability-damage";
-  dmgEl.textContent = `-${damage}`;
-  dmgEl.style.left = `${x * charWidth}px`;
-  dmgEl.style.top = `${y * lineHeight}px`;
-  
-  // Add ability-specific styling
-  if (abilityType === "fireBlast") {
-    dmgEl.style.color = "#ff6633";
-    dmgEl.style.textShadow = "0 0 5px rgba(255,107,0,0.8)";
-  } else if (abilityType === "iceBreath") {
-    dmgEl.style.color = "#66ccff";
-    dmgEl.style.textShadow = "0 0 5px rgba(102,204,255,0.8)";
-  } else if (abilityType === "poisonSpit") {
-    dmgEl.style.color = "#66ff66";
-    dmgEl.style.textShadow = "0 0 5px rgba(102,255,102,0.8)";
-  } else if (abilityType === "electricPulse") {
-    dmgEl.style.color = "#ffff66";
-    dmgEl.style.textShadow = "0 0 5px rgba(255,255,102,0.8)";
-  }
-  
-  gameEl.parentElement.appendChild(dmgEl);
-  
-  // Create visual effect for ability
-  const effectEl = document.createElement("div");
-  effectEl.className = `ability-animation ${abilityType}`;
-  effectEl.style.left = `${x * charWidth - 20}px`;
-  effectEl.style.top = `${y * lineHeight - 20}px`;
-  
-  gameEl.parentElement.appendChild(effectEl);
-  
-  // Cleanup
-  setTimeout(() => {
-    dmgEl.remove();
-    effectEl.remove();
-  }, 1000);
-}
+// showAbilityDamage removed - now using EventType.FloatingText events
 
 // HP mutator functions for the new status system
 function applyStatusDamage(entityId, amount, source) {
@@ -1976,6 +1962,18 @@ function newWorld() {
   player.x = spot.x;
   player.y = spot.y;
   
+  // Restore itemCheck functions for player's accepted fetch quests
+  if (player.quests && player.quests.fetchQuests) {
+    Object.values(player.quests.fetchQuests).forEach(fetchQuest => {
+      if (fetchQuest.targetItem) {
+        const matchingFetchItem = FETCH_ITEMS.find(fi => fi.name === fetchQuest.targetItem.name);
+        if (matchingFetchItem) {
+          fetchQuest.targetItem = matchingFetchItem;
+        }
+      }
+    });
+  }
+  
   log(state, "Welcome to the Land of Ooo! Press 'H' for help.", "note");
   log(state, "Walk off edges to explore. Press 'I' for inventory.", "note");
   
@@ -2002,35 +2000,26 @@ export function initGame() {
   
   // Keyboard controls
   window.addEventListener("keydown", e => {
-    console.log('⌨️ Key pressed:', e.key, {
-      questTurnInOpen: STATE.ui.questTurnInOpen,
-      shopOpen: STATE.ui.shopOpen,
-      mapOpen: STATE.ui.mapOpen,
-      inventoryOpen: STATE.ui.inventoryOpen
-    });
     
     // Quest turn-in controls
     if (STATE.ui.questTurnInOpen) {
-      console.log('📜 In quest turn-in mode');
       // Confirmation dialog for giving equipped item (check this FIRST)
       if (STATE.ui.confirmGiveEquipped) {
-        console.log('⚠️ In equipped item confirmation dialog');
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
           STATE.ui.confirmChoice = STATE.ui.confirmChoice === "yes" ? "no" : "yes";
           renderQuestTurnInConfirm(STATE);
         } else if (e.key === "Enter") {
           if (STATE.ui.confirmChoice === "yes") {
-            console.log('✅ User confirmed giving equipped item');
             // Proceed with giving equipped item using the stored selected item
             const selectedItem = STATE.ui.tempSelectedItem;
             const actualIndex = selectedItem.inventoryIndex;
             STATE.ui.selectedFetchItemIndex = actualIndex;
-            STATE.ui.selectingFetchItem = null;
+            // Keep selectingFetchItem set so claimQuestRewards knows we've selected
+            // It will be cleared after the quest is turned in
             STATE.ui.confirmGiveEquipped = false;
             STATE.ui.tempSelectedItem = null;
             claimQuestRewards(STATE);
           } else {
-            console.log('❌ User declined giving equipped item');
             // Cancel - go back to item selection
             STATE.ui.confirmGiveEquipped = false;
             STATE.ui.tempSelectedItem = null;
@@ -2047,7 +2036,6 @@ export function initGame() {
       }
       // Quest selection menu
       else if (STATE.ui.selectingQuest) {
-        console.log('📃 In quest selection mode');
         if (e.key === "ArrowUp") {
           STATE.ui.selectedQuestIndex = Math.max(0, STATE.ui.selectedQuestIndex - 1);
           renderQuestTurnIn(STATE);
@@ -2057,13 +2045,11 @@ export function initGame() {
         } else if (e.key === "Enter") {
           // Turn in selected quest
           const selectedQuestId = STATE.ui.completedQuests[STATE.ui.selectedQuestIndex];
-          console.log('🎯 Selected quest to turn in:', selectedQuestId);
           STATE.ui.selectingQuest = false;
           STATE.ui.completedQuests = [selectedQuestId]; // Only turn in the selected quest
           claimQuestRewards(STATE);
         } else if (e.key.toLowerCase() === "a") {
           // Turn in all quests
-          console.log('📦 Turning in ALL quests');
           STATE.ui.selectingQuest = false;
           claimQuestRewards(STATE);
         } else if (e.key === "Escape") {
@@ -2079,7 +2065,6 @@ export function initGame() {
       }
       // Item selection for fetch quest
       else if (STATE.ui.selectingFetchItem) {
-        console.log('📦 In fetch item selection mode');
         const fetchQuest = STATE.player.quests.fetchQuests[STATE.ui.selectingFetchItem];
         const matchingItems = [];
         STATE.player.inventory.forEach((item, idx) => {
@@ -2103,14 +2088,12 @@ export function initGame() {
             (selectedItem.type === "headgear" && selectedItem.id === STATE.equippedHeadgearId);
           
           if (isEquipped && !STATE.ui.confirmGiveEquipped) {
-            console.log('⚠️ Item is equipped, showing confirmation dialog');
             // Show confirmation for equipped item
             STATE.ui.confirmGiveEquipped = true;
             STATE.ui.confirmChoice = "no";
             STATE.ui.tempSelectedItem = selectedItem; // Store the selected item
             renderQuestTurnInConfirm(STATE);
           } else {
-            console.log('✅ Proceeding to give item', { selectedItem, actualIndex: selectedItem.inventoryIndex });
             // Proceed with giving the item
             const actualIndex = selectedItem.inventoryIndex;
             STATE.ui.selectedFetchItemIndex = actualIndex;
@@ -2130,10 +2113,8 @@ export function initGame() {
       }
       // Normal quest turn-in (not selecting quest, not selecting item, not confirming)
       else {
-        console.log('🎯 In normal quest turn-in mode');
         // Normal quest turn-in
         if (e.key === "Enter") {
-          console.log('💰 Claiming rewards for all quests');
           claimQuestRewards(STATE);
         } else if (e.key === "Escape") {
           STATE.ui.questTurnInOpen = false;
@@ -2148,7 +2129,6 @@ export function initGame() {
     
     // Map controls
     if (STATE.ui.mapOpen) {
-      console.log('🗺️ In map mode');
       const result = handleMapNavigation(STATE, e.key);
       if (result === 'close') {
         closeMap(STATE);
@@ -2165,7 +2145,6 @@ export function initGame() {
     
     // Shop controls
     if (STATE.ui.shopOpen) {
-      console.log('🛍️ In shop mode', { shopMode: STATE.ui.shopMode });
       // Handle confirmation dialog
       if (STATE.ui.confirmSell) {
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -2237,12 +2216,16 @@ export function initGame() {
         } else if (STATE.ui.shopMode === "quest") {
           // Accept quest from vendor
           const vendor = STATE.ui.shopVendor;
-          if (vendor.fetchQuest) {
+          if (vendor && vendor.fetchQuest) {
             const questAccepted = giveQuest(STATE, vendor.fetchQuest.id, vendor.fetchQuest);
             if (questAccepted) {
               // Close shop after accepting quest
               closeShop(STATE);
+            } else {
+              log(STATE, "Cannot accept quest (already have it or completed it)", "note");
             }
+          } else {
+            log(STATE, "No quest available from this vendor", "note");
           }
         }
       }
@@ -2252,7 +2235,6 @@ export function initGame() {
     
     // Inventory controls
     if (STATE.ui.inventoryOpen) {
-      console.log('🎪 In inventory mode');
       if (e.key === "ArrowUp") {
         STATE.ui.selectedIndex = Math.max(0, STATE.ui.selectedIndex - 1);
         renderInventory(STATE);
@@ -2329,7 +2311,6 @@ export function initGame() {
     }
     else if (k.toLowerCase() === "l") {
       log(STATE, "=== DEBUG: Testing Lifesteal ===", "magic");
-      console.log("in L key");
       applyStatusEffect(STATE.player, "lifesteal", 1, 10);
       render(STATE);
       e.preventDefault();

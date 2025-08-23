@@ -76,7 +76,9 @@ export function generateWorldMap(state) {
       if (parts.length === 4) {
         const cx = parseInt(parts[2]);
         const cy = parseInt(parts[3]);
-        exploredChunks.add(`${cx},${cy}`);
+        if (!isNaN(cx) && !isNaN(cy)) {
+          exploredChunks.add(`${cx},${cy}`);
+        }
       }
     }
   });
