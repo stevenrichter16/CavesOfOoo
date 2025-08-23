@@ -14,6 +14,7 @@ import { EventType } from './eventTypes.js';
 import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
+import { initShopUI, ShopEvents, isShopOpen, renderShop } from './ui/shop.js';
 
 // Game state
 let STATE = null;
@@ -62,44 +63,13 @@ function addPotionToInventory(state, potion) {
 
 // Vendor shop functions
 function openVendorShop(state, vendor) {
-  console.log('🛍️ Opening vendor shop', { vendor });
-  // Check for completed fetch quests for this vendor
-  const completedFetchQuests = state.player.quests.active.filter(qId => {
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (fetchQuest && fetchQuest.vendorId === vendor.id) {
-      return checkFetchQuestItem(state.player, fetchQuest);
-    }
-    return false;
-  });
-
-  // Check for completed regular quests
-  const completedRegularQuests = state.player.quests.active.filter(qId => {
-    const progress = state.player.quests.progress[qId] || 0;
-    const quest = QUEST_TEMPLATES[qId];
-    return quest && progress >= quest.targetCount;
-  });
-  
-  const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
-  console.log('📄 Completed quests check', { completedFetchQuests, completedRegularQuests, allCompletedQuests });
-  
-  if (allCompletedQuests.length > 0) {
-    // Show quest turn-in option first
-    openQuestTurnIn(state, vendor, allCompletedQuests);
-  } else {
-    // Normal shop
-    state.ui.shopOpen = true;
-    state.ui.shopVendor = vendor;
-    state.ui.shopSelectedIndex = 0;
-    state.ui.shopMode = "buy"; // "buy", "sell", or "quest"
-    state.ui.confirmSell = false; // For equipped item confirmation
-    state.ui.confirmChoice = "no"; // "yes" or "no"
-    renderShop(state);
-  }
+  // Delegate to new shop UI module
+  emit(ShopEvents.OpenShop, { vendor, state });
 }
 
 function closeShop(state) {
-  state.ui.shopOpen = false;
-  state.ui.shopVendor = null;
+  // Delegate to new shop UI module
+  emit(ShopEvents.CloseShop);
   render(state);
 }
 
