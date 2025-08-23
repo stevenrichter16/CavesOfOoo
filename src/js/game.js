@@ -16,6 +16,7 @@ import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
 import { initShopUI, ShopEvents, isShopOpen, renderShop } from './ui/shop.js';
 import { initMapUI, MapEvents, isMapOpen } from './ui/map.js';
+import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
 
 // Game state
@@ -1967,6 +1968,7 @@ export function initGame() {
   // Initialize UI modules
   initShopUI();
   initMapUI();
+  initQuestUI();
   
   STATE = newWorld();
   render(STATE);
