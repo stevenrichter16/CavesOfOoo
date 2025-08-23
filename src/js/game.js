@@ -15,6 +15,7 @@ import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
 import { initShopUI, ShopEvents, isShopOpen, renderShop } from './ui/shop.js';
+import { endOfTurnStatusPass } from './systems/statusSystem.js';
 
 // Game state
 let STATE = null;
@@ -1334,6 +1335,55 @@ function showAbilityDamage(state, target, damage, abilityType) {
   }, 1000);
 }
 
+// HP mutator functions for the new status system
+function applyStatusDamage(entityId, amount, source) {
+  const entity = entityId === 'player' ? STATE.player : 
+                 STATE.chunk.monsters.find(m => m.id === entityId);
+  
+  if (!entity) return;
+  
+  entity.hp = Math.max(0, entity.hp - amount);
+  emit(EventType.TookDamage, { id: entityId, amount: -amount, source });
+  
+  if (entity.hp <= 0) {
+    entity.alive = false;
+    const name = entity === STATE.player ? 'You' : entity.name || `entity#${entityId}`;
+    emit(EventType.EntityDied, { id: entityId, name, cause: source });
+    
+    if (entity === STATE.player) {
+      STATE.over = true;
+      log(STATE, `Game over - ${source} was too much!`, 'bad');
+    }
+  }
+}
+
+function applyStatusHeal(entityId, amount, source) {
+  const entity = entityId === 'player' ? STATE.player : 
+                 STATE.chunk.monsters.find(m => m.id === entityId);
+  
+  if (!entity) return;
+  
+  const before = entity.hp;
+  entity.hp = Math.min(entity.hpMax || entity.hp, entity.hp + amount);
+  const gained = entity.hp - before;
+  
+  if (gained > 0) {
+    emit(EventType.FloatingText, { 
+      x: entity.x, 
+      y: entity.y, 
+      text: `+${gained}`, 
+      kind: 'heal' 
+    });
+  }
+}
+
+// Process the new status system (gradual migration)
+function processNewStatusSystem(state) {
+  // For now, this is a no-op since we're still using the old system
+  // Uncomment below to enable the new system:
+  // endOfTurnStatusPass(state, applyStatusDamage, applyStatusHeal);
+}
+
 function enemiesTurn(state) {
   const mons = state.chunk.monsters;
   
@@ -1445,6 +1495,10 @@ function enemiesTurn(state) {
 function turnEnd(state) {
   // Process player status effects
   processStatusEffects(state, state.player, "You");
+  
+  // NEW: Also process with the new status system (gradual migration)
+  // This will eventually replace processStatusEffects above
+  processNewStatusSystem(state);
   
   // Time progression
   if (Math.random() < 0.1) {
