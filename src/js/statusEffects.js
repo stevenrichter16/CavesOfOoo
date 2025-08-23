@@ -1,4 +1,5 @@
 import { emit } from "./events.js";
+import { EventType } from "./eventTypes.js";
 
 export function applyStatusEffect(entity, type, turns, value = 0) {
   if (!entity.statusEffects) entity.statusEffects = [];
@@ -16,7 +17,7 @@ export function processStatusEffects(state, entity, label = "") {
     // Damage over time effects
     if (eff.type == "lifesteal") {
       entity.hp += eff.value;
-      emit('lifesteal', {healAmount:10});
+      // Lifesteal handled via floating text in combat
     }
     if (eff.type === "poison") {
       entity.hp -= eff.value;

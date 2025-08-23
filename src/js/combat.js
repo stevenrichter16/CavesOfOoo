@@ -43,7 +43,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   
   if (hitRoll > hitChance) { 
     state.log(`${labelA} miss ${labelD}.`); 
-    emit('miss', {by:labelA, vs:labelD});
+    emit(EventType.Miss, {by:labelA, vs:labelD});
     const isPlayerTarget = defender === state.player;
     emit(EventType.FloatingText, { 
       x: defender.x, 
@@ -64,10 +64,10 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   console.log("Subtracted defender HP. Damage Done:", dmg);
   if (crit) {
     state.log(`${labelA} crit ${labelD} for ${dmg}!`, "good");
-    emit('crit', {by:labelA, vs:labelD, dmg:dmg})
+    emit(EventType.Crit, {by:labelA, vs:labelD, dmg:dmg})
   }
   else {
-    emit('hit', {by:labelA, vs:labelD, dmg:dmg});
+    emit(EventType.Hit, {by:labelA, vs:labelD, dmg:dmg});
     state.log(`${labelA} hit ${labelD} for ${dmg}.`);
   }
   
@@ -92,7 +92,7 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
         const healAmount = Math.floor(dmg * weapon.effectValue);
         attacker.hp = Math.min(attacker.hpMax, attacker.hp + healAmount);
         state.log(`You drain ${healAmount} life!`, "good");
-        emit('lifesteal', {healAmount:healAmount});
+        // Lifesteal effect handled via floating text
         // TODO: Use applyStatusEffect for lifesteal weapon
         emit(EventType.FloatingText, { 
           x: attacker.x, 

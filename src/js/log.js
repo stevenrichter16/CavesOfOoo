@@ -17,17 +17,16 @@ let mountEl = null;
 export function mountLog(element) {
   mountEl = element;
 
-  // Generic channel: emit('log', { text, cls? })
-  on('log', ({ text, cls }) => pushLine(text, cls));
+  // Generic channel: emit(EventType.Log, { text, cls? })
+  on(EventType.Log, ({ text, cls }) => pushLine(text, cls));
 
   // Domain events → human text
-  on('equipped',   ({ item })              => pushLine(`You equip ${item}.`, 'note'));
-  on('unequipped', ({ item })              => pushLine(`You sheathe ${item}.`, 'note'));
-  on('hit',        ({ by, vs, dmg })       => pushLine(`HIT LOG - ${by} hit ${vs} for ${fmtDmg(dmg)}.`, 'hit'));
-  on('crit',       ({ by, vs, dmg })       => pushLine(`Critical! ${by} smashes ${vs} for ${fmtDmg(dmg)}!`, 'crit'));
-  on('miss',       ({ by, vs })            => pushLine(`${by} miss${by==='You'?'':'es'} ${vs}.`, 'miss'));
-  on('entityDied', ({ name, by, cause })   => pushLine(`${name} ${name==='You'?'are':'is'} defeated${by?` by ${by}`:''}${cause?` (${cause})`:''}.`, 'good'));
-  on('lifesteal',  ({ healAmount })        => pushLine(`You drain ${healAmount} life!`, "good"));
+  on(EventType.InventoryEquipped,   ({ item })              => pushLine(`You equip ${item}.`, 'note'));
+  on(EventType.InventoryUnequipped, ({ item })              => pushLine(`You sheathe ${item}.`, 'note'));
+  on(EventType.Hit,                  ({ by, vs, dmg })       => pushLine(`HIT LOG - ${by} hit ${vs} for ${fmtDmg(dmg)}.`, 'hit'));
+  on(EventType.Crit,                 ({ by, vs, dmg })       => pushLine(`Critical! ${by} smashes ${vs} for ${fmtDmg(dmg)}!`, 'crit'));
+  on(EventType.Miss,                 ({ by, vs })            => pushLine(`${by} miss${by==='You'?'':'es'} ${vs}.`, 'miss'));
+  on(EventType.EntityDied,           ({ name, by, cause })   => pushLine(`${name} ${name==='You'?'are':'is'} defeated${by?` by ${by}`:''}${cause?` (${cause})`:''}.`, 'good'));
   on(EventType.StatusEffectRegister, ({ type, vs }) => {
     if (type == "freeze") {
         pushLine(`${vs} ${vs==='You'?'are':'is'} frozen solid!`, "magic")
@@ -43,15 +42,20 @@ export function mountLog(element) {
     }
     // TODO: Implement weakened log
   })
-  on('statusEffectApply', ({ type, vs, dmg }) => {
-    if (type === "burn") {
-        pushLine(`${vs} take${lvs === "You" ? "" : "s"} ${dmg} burn damage!`, "bad");
+  on(EventType.StatusEffectPerform, ({ toId, effect, delta }) => {
+    if (effect === "burn" && delta < 0) {
+        pushLine(`${toId === 'player' ? 'You' : toId} take${toId === 'player' ? '' : 's'} ${-delta} burn damage!`, "bad");
     }
+    // Add other status effect messages as needed
   })
-  on('chunkLoaded',({ cx, cy, biome })     => pushLine(`[${cx},${cy}] ${biome} shivers as you arrive.`, 'note'));
+  on(EventType.DidChangeChunk, ({ cx, cy, biome }) => {
+    if (biome) {
+      pushLine(`[${cx},${cy}] ${biome} shivers as you arrive.`, 'note');
+    }
+  });
 
   // Optional hello
-  emit('log', { text: 'Log ready.', cls: 'note' });
+  emit(EventType.Log, { text: 'Log ready.', cls: 'note' });
 }
 
 /**
@@ -60,7 +64,7 @@ export function mountLog(element) {
  * @param {string} [cls]
  */
 export function push(text, cls) {
-  emit('log', { text, cls });
+  emit(EventType.Log, { text, cls });
 }
 
 // --- internals ---

@@ -2305,29 +2305,29 @@ export function initGame() {
     }
     else if (k.toLowerCase() === "b") {
       applyStatusEffect(STATE.player, "burn", 2, 1);
-      emit("statusEffectRegister", { type:"burn", vs:"You" });
+      emit(EventType.StatusEffectRegister, { type:"burn", vs:"You" });
       render(STATE);
       e.preventDefault();
     }
     else if (k.toLowerCase() === "p") {
       applyStatusEffect(STATE.player, "poison", 2, 1)
-      emit("statusEffectRegister", { type:"poison", vs:"You" });
+      emit(EventType.StatusEffectRegister, { type:"poison", vs:"You" });
       render(STATE);
       e.preventDefault();
     }
     else if (k.toLowerCase() === "e") {
       applyStatusEffect(STATE.player, "shock", 2, 1)
-      emit("statusEffectRegister", { type:"shock", vs:"You" });
+      emit(EventType.StatusEffectRegister, { type:"shock", vs:"You" });
       render(STATE);
       e.preventDefault();
     }
   });
 
   /// Test Emits
-  emit('entityDied', { name:"You", by:"falling boulder", cause:"big rock" });
-  emit('entityDied', { name:"Goober", by:"falling boulder", cause:"big rock" });
-  emit('equipped', { item:'Big Sword' });
-  emit('unequipped', { item:'Big Sword' });
+  emit(EventType.EntityDied, { name:"You", by:"falling boulder", cause:"big rock" });
+  emit(EventType.EntityDied, { name:"Goober", by:"falling boulder", cause:"big rock" });
+  emit(EventType.InventoryEquipped, { item:'Big Sword' });
+  emit(EventType.InventoryUnequipped, { item:'Big Sword' });
   /// Test Emits
 
   // Button handlers
