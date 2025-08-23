@@ -89,6 +89,7 @@ function openVendorShop(state, vendor) {
   } else {
     // Delegate to shop UI module for normal shopping
     emit(ShopEvents.OpenShop, { vendor, state });
+    renderShop(state);
   }
 }
 

@@ -72,9 +72,11 @@ export function openShop(vendor, state) {
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
   
-  // Call the game's renderShop
-  if (typeof renderShop === 'function') {
-    renderShop(state);
+  // Render shop overlay
+  const overlay = document.getElementById('overlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    // The actual rendering will be done by game.js renderShop when called
   }
 }
 
@@ -146,7 +148,7 @@ function navigateShop(direction, state) {
  */
 function getShopItems(state) {
   if (shopState.mode === 'buy') {
-    return shopState.vendor?.stock || [];
+    return shopState.vendor?.inventory || [];
   } else if (shopState.mode === 'sell') {
     return state.player.inventory || [];
   } else if (shopState.mode === 'quest') {
@@ -162,7 +164,7 @@ function buyFromVendor(state) {
   if (!shopState.isOpen || shopState.mode !== 'buy') return;
   
   const vendor = shopState.vendor;
-  const selectedItem = vendor.stock[shopState.selectedIndex];
+  const selectedItem = vendor.inventory[shopState.selectedIndex];
   
   if (!selectedItem) return;
   
@@ -177,21 +179,21 @@ function buyFromVendor(state) {
   
   // Add to inventory
   if (selectedItem.type === 'potion') {
-    addPotionToInventory(state, selectedItem);
+    addPotionToInventory(state, selectedItem.item);
   } else {
     state.player.inventory.push({
       id: generateItemId(),
       type: selectedItem.type,
-      item: { ...selectedItem }
+      item: { ...selectedItem.item }
     });
   }
   
-  emit(EventType.Log, { text: `Bought ${selectedItem.name} for ${price} gold!`, cls: 'good' });
+  emit(EventType.Log, { text: `Bought ${selectedItem.item.name} for ${price} gold!`, cls: 'good' });
   
-  // Remove from vendor stock if not infinite
+  // Remove from vendor inventory if not infinite
   if (!vendor.infiniteStock) {
-    vendor.stock.splice(shopState.selectedIndex, 1);
-    shopState.selectedIndex = Math.min(shopState.selectedIndex, vendor.stock.length - 1);
+    vendor.inventory.splice(shopState.selectedIndex, 1);
+    shopState.selectedIndex = Math.min(shopState.selectedIndex, vendor.inventory.length - 1);
   }
   
   renderShop(state);
