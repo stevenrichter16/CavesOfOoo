@@ -15,6 +15,7 @@ import { Move } from './actions.js';
 import { runPlayerMove } from './movePipeline.js';
 import { isBlocked } from './queries.js';
 import { initShopUI, ShopEvents, isShopOpen, renderShop } from './ui/shop.js';
+import { initMapUI, MapEvents, isMapOpen } from './ui/map.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
 
 // Game state
@@ -416,23 +417,13 @@ function claimQuestRewards(state, questsToTurnIn = null) {
 
 function openMap(state) {
   state.ui.mapOpen = true;
-  initMapCursor(state);
-  renderMap(state);
+  emit(MapEvents.OpenWorldMap, { state });
 }
 
 function closeMap(state) {
   state.ui.mapOpen = false;
-  const mapOverlay = document.getElementById("mapOverlay");
-  mapOverlay.classList.remove("active");
+  emit(MapEvents.CloseWorldMap);
   render(state);
-}
-
-function renderMap(state) {
-  const mapOverlay = document.getElementById("mapOverlay");
-  const mapContent = document.getElementById("mapContent");
-  
-  mapContent.innerHTML = renderWorldMap(state);
-  mapOverlay.classList.add("active");
 }
 
 function renderShop(state) {
@@ -1973,6 +1964,10 @@ function newWorld() {
 
 // Initialize game
 export function initGame() {
+  // Initialize UI modules
+  initShopUI();
+  initMapUI();
+  
   STATE = newWorld();
   render(STATE);
   
