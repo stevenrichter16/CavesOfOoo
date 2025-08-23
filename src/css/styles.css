@@ -49,6 +49,40 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
   animation: pulse 2s infinite;
 }
 
+/* Floating text effects */
+.float {
+  position: absolute;
+  pointer-events: none;
+  animation: rise 0.8s ease-out forwards;
+  font-weight: bold;
+  z-index: 1000;
+}
+
+.float.damage { color: var(--danger); }
+.float.heal { color: var(--ok); }
+.float.crit { color: var(--accent); font-size: 1.2em; }
+.float.magic { color: var(--magic); }
+.float.xp { color: var(--xp); }
+.float.gold { color: var(--gold); }
+
+@keyframes rise {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+
+/* Screen shake effect */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
 .bone-knight {
   color: #F5F5DC !important;
   text-shadow: 0 0 3px rgba(255, 255, 255, 0.4);

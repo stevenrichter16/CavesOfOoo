@@ -3,7 +3,7 @@ import { rnd, choice, esc } from './utils.js';
 import { makePlayer, levelUp } from './entities.js';
 import { genChunk, findOpenSpot } from './worldGen.js';
 import { saveChunk, loadChunk, clearWorld } from './persistence.js';
-import { attack, showDamageNumber } from './combat.js';
+import { attack } from './combat.js';
 import { processStatusEffects, getStatusModifier, applyStatusEffect, isFrozen } from './statusEffects.js';
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';

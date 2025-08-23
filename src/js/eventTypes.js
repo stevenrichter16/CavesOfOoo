@@ -39,4 +39,7 @@ export const EventType = {
 
   // UI / Log
   Log: 'log',
+  FloatingText: 'floatingText',   // for damage/heal numbers
+  PlaySound: 'playSound',          // optional for SFX
+  Shake: 'shake',                  // optional for screen shake
 };

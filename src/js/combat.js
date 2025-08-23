@@ -45,7 +45,12 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
     state.log(`${labelA} miss ${labelD}.`); 
     emit('miss', {by:labelA, vs:labelD});
     const isPlayerTarget = defender === state.player;
-    showDamageNumber(state, defender, "MISS", isPlayerTarget ? "player" : "enemy", true);
+    emit(EventType.FloatingText, { 
+      x: defender.x, 
+      y: defender.y, 
+      text: "MISS", 
+      kind: 'miss' 
+    });
     return false; 
   }
   
@@ -68,7 +73,12 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   
   const isPlayerTarget = defender === state.player;
   const damageText = crit ? `${dmg}!` : dmg.toString();
-  showDamageNumber(state, defender, damageText, isPlayerTarget ? "player" : "enemy");
+  emit(EventType.FloatingText, { 
+    x: defender.x, 
+    y: defender.y, 
+    text: damageText, 
+    kind: isPlayerTarget ? 'damage' : 'damage' 
+  });
   
   // Apply weapon effects if attacker is player with an enchanted weapon
   if (attacker === state.player && state.player.weapon && state.player.weapon.effect) {
@@ -84,7 +94,12 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
         state.log(`You drain ${healAmount} life!`, "good");
         emit('lifesteal', {healAmount:healAmount});
         // TODO: Use applyStatusEffect for lifesteal weapon
-        showDamageNumber(state, attacker, healAmount.toString(), "heal");
+        emit(EventType.FloatingText, { 
+          x: attacker.x, 
+          y: attacker.y, 
+          text: `+${healAmount}`, 
+          kind: 'heal' 
+        });
       } else if (weapon.effect === "freeze") {
         // Freeze skips enemy turns
         applyStatusEffect(defender, "freeze", weapon.effectTurns, 0);
@@ -137,34 +152,4 @@ export function attack(state, attacker, defender, labelA = "you", labelD = null)
   return true;
 }
 
-export function showDamageNumber(state, entity, text, targetType = "enemy", isMiss = false) {
-  const gameEl = document.getElementById("game");
-  const charWidth = 8; // Approximate monospace char width
-  const lineHeight = 17; // Line height from CSS
-  
-  // Get coordinates from entity
-  const x = entity.x !== undefined ? entity.x : 0;
-  const y = entity.y !== undefined ? entity.y : 0;
-  
-  const dmgEl = document.createElement("div");
-  
-  // Set appropriate class based on target
-  if (isMiss) {
-    dmgEl.className = "damage-float miss";
-  } else if (targetType === "player") {
-    dmgEl.className = "damage-float player-damage";
-    text = `-${text}`; // Add minus sign for player damage
-  } else if (targetType === "heal") {
-    dmgEl.className = "damage-float heal";
-    text = `+${text}`; // Add plus sign for healing
-  } else {
-    dmgEl.className = "damage-float enemy-damage";
-  }
-  
-  dmgEl.textContent = text;
-  dmgEl.style.left = `${x * charWidth}px`;
-  dmgEl.style.top = `${y * lineHeight}px`;
-  
-  gameEl.parentElement.appendChild(dmgEl);
-  setTimeout(() => dmgEl.remove(), 1000);
-}
+// showDamageNumber removed - now using EventType.FloatingText events
