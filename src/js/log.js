@@ -1,75 +1,95 @@
-// src/ui/log.js
-// Centralized message log UI that listens to game events and renders text.
-// No game rule code should manipulate the DOM; emit events instead.
-
-import { on, emit } from './events.js';
+// log.js - Event-driven log system using constants
+import { on } from './events.js';
 import { EventType } from './eventTypes.js';
 
 const MAX = 80;
-const lines = []; // [{text, cls}]
+const lines = [];
 let mountEl = null;
 
-/**
- * Mount the log to a DOM element and register event handlers.
- * Call once on startup: mountLog(document.getElementById('log'))
- * @param {HTMLElement} element
- */
 export function mountLog(element) {
   mountEl = element;
 
-  // Generic channel: emit(EventType.Log, { text, cls? })
+  // Generic log event
   on(EventType.Log, ({ text, cls }) => pushLine(text, cls));
 
-  // Domain events → human text
-  on(EventType.InventoryEquipped,   ({ item })              => pushLine(`You equip ${item}.`, 'note'));
-  on(EventType.InventoryUnequipped, ({ item })              => pushLine(`You sheathe ${item}.`, 'note'));
-  on(EventType.Hit,                  ({ by, vs, dmg })       => pushLine(`HIT LOG - ${by} hit ${vs} for ${fmtDmg(dmg)}.`, 'hit'));
-  on(EventType.Crit,                 ({ by, vs, dmg })       => pushLine(`Critical! ${by} smashes ${vs} for ${fmtDmg(dmg)}!`, 'crit'));
-  on(EventType.Miss,                 ({ by, vs })            => pushLine(`${by} miss${by==='You'?'':'es'} ${vs}.`, 'miss'));
-  on(EventType.EntityDied,           ({ name, by, cause })   => pushLine(`${name} ${name==='You'?'are':'is'} defeated${by?` by ${by}`:''}${cause?` (${cause})`:''}.`, 'good'));
-  on(EventType.StatusEffectRegister, ({ type, vs }) => {
-    if (type == "freeze") {
-        pushLine(`${vs} ${vs==='You'?'are':'is'} frozen solid!`, "magic")
+  // Combat events
+  on(EventType.Miss, ({ by, vs }) => 
+    pushLine(`${by} miss${by==='You'?'':'es'} ${vs}.`, 'miss'));
+  
+  on(EventType.Hit, ({ by, vs, dmg }) => 
+    pushLine(`${by} hit${vs==='You'?'s':''} ${vs} for ${dmg}.`, 'hit'));
+  
+  on(EventType.Crit, ({ by, vs, dmg }) => 
+    pushLine(`Critical! ${by} smash${by==='You'?'':'es'} ${vs} for ${dmg}!`, 'crit'));
+  
+  on(EventType.EntityDied, ({ name, by, cause }) => 
+    pushLine(`${name} ${name==='You'?'are':'is'} defeated${by?` by ${by}`:''}${cause?` (${cause})`:''}.`, 'good'));
+
+  // Status effect events
+  on(EventType.StatusEffectRegister, ({ toId, type, vs, value, turns }) => {
+    // Use 'vs' (the label) if provided, otherwise use toId
+    const target = vs || (toId === 'player' ? 'You' : toId);
+    
+    if (type === 'freeze') {
+      pushLine(`${target} ${target==='You'?'are':'is'} frozen solid!`, 'magic');
+    } else if (type === 'burn') {
+      pushLine(`${target} catch${target==='You'?'':'es'} fire!`, 'bad');
+    } else if (type === 'poison') {
+      pushLine(`${target} ${target==='You'?'are':'is'} poisoned!`, 'bad');
+    } else if (type === 'shock') {
+      pushLine(`${target} ${target==='You'?'are':'is'} electrified!`, 'magic');
+    } else if (type === 'weaken') {
+      pushLine(`${target} ${target==='You'?'are':'is'} weakened!`, 'note');
+    } else {
+      // Generic status effect message
+      pushLine(`${target} gains ${type}${value?` (${value}/turn)`:''}${turns?` for ${turns} turns`:''}.`, 'note');
     }
-    else if (type == "burn") {
-        pushLine(`${vs} catch${vs==='You'?'':'es'} fire!`, "bad")
+  });
+  
+  on(EventType.StatusEffectPerform, ({ toId, effect, delta, remaining }) => {
+    const target = toId === 'player' ? 'You' : toId;
+    if (delta < 0) {
+      if (effect === 'burn') {
+        pushLine(`${target} take${target === 'You' ? '' : 's'} ${Math.abs(delta)} burn damage!`, 'bad');
+      } else if (effect === 'poison') {
+        pushLine(`${target} take${target === 'You' ? '' : 's'} ${Math.abs(delta)} poison damage!`, 'bad');
+      } else if (effect === 'shock') {
+        pushLine(`${target} take${target === 'You' ? '' : 's'} ${Math.abs(delta)} shock damage!`, 'magic');
+      } else {
+        pushLine(`${target} suffer${target === 'You' ? '' : 's'} ${Math.abs(delta)} from ${effect}.`, 'hit');
+      }
+    } else if (delta > 0) {
+      pushLine(`${target} recover${target === 'You' ? '' : 's'} ${delta} from ${effect}.`, 'good');
+    } else {
+      pushLine(`${effect} persists on ${target}.`, 'note');
     }
-    else if (type == "poison") {
-        pushLine(`${vs} ${vs==='You'?'are':'is'} poisoned!`, "bad")
+    
+    if (remaining !== undefined && remaining > 0) {
+      pushLine(`(${remaining} turn${remaining === 1 ? '' : 's'} remaining)`, 'dim');
     }
-    else if (type == "shock") {
-        pushLine(`${vs} ${vs==='You'?'are':'is'} electrified!`, "magic")
-    }
-    else if (type == "weaken") {
-        pushLine(`${vs} ${vs==='You'?'are':'is'} weakened!`, "note")
-    }
-  })
-  on(EventType.StatusEffectPerform, ({ toId, effect, delta }) => {
-    if (effect === "burn" && delta < 0) {
-        pushLine(`${toId === 'player' ? 'You' : toId} take${toId === 'player' ? '' : 's'} ${-delta} burn damage!`, "bad");
-    }
-    // Add other status effect messages as needed
-  })
+  });
+  
+  on(EventType.StatusEffectExpired, ({ toId, effect, reason }) => {
+    const target = toId === 'player' ? 'You' : toId;
+    pushLine(`${effect} ends on ${target}${reason?` (${reason})`:''}.`, 'note');
+  });
+
+  // World change events
   on(EventType.DidChangeChunk, ({ cx, cy, biome }) => {
     if (biome) {
       pushLine(`[${cx},${cy}] ${biome} shivers as you arrive.`, 'note');
     }
   });
 
-  // Optional hello
-  emit(EventType.Log, { text: 'Log ready.', cls: 'note' });
-}
+  // Inventory events (optional)
+  on(EventType.InventoryEquipped, ({ item }) => 
+    pushLine(`You equip ${item}.`, 'note'));
+  
+  on(EventType.InventoryUnequipped, ({ item }) => 
+    pushLine(`You sheathe ${item}.`, 'note'));
 
-/**
- * Convenience writer: push('hello', 'note')
- * @param {string} text
- * @param {string} [cls]
- */
-export function push(text, cls) {
-  emit(EventType.Log, { text, cls });
+  pushLine('Log ready.', 'note');
 }
-
-// --- internals ---
 
 function pushLine(text, cls) {
   lines.push({ text, cls });
@@ -79,18 +99,17 @@ function pushLine(text, cls) {
 
 function render() {
   if (!mountEl) return;
-  //console.log("in RENDER");
   mountEl.innerHTML = lines
     .map(({ text, cls }) => `<span class="${cls||''}">${escapeHtml(text)}</span>`)
     .join('<br/>');
-  // autoscroll to bottom
   mountEl.scrollTop = mountEl.scrollHeight;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function escapeHtml(s) { 
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); 
 }
 
-function fmtDmg(dmg) {
-  return dmg === Infinity ? '∞' : String(dmg);
+// Helper to format damage numbers
+function fmtDmg(n) {
+  return n > 0 ? `-${n}` : `${n}`;
 }

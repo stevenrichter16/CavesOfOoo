@@ -1105,28 +1105,13 @@ function handlePlayerMove(state, dx, dy) {
     return;
   }
   
-  // Add dimensions to state for movePipeline
+  // Add dimensions and references to state for movePipeline
   state.W = W;
   state.H = H;
+  state.FETCH_ITEMS = FETCH_ITEMS; // For restoring fetch quest functions
   
   // Add interactTile reference for movePipeline
   state.interactTile = interactTile;
-  
-  // Add edge travel handler
-  state.handleEdgeTravel = (nx, ny) => {
-    const tcx = state.cx + (nx < 0 ? -1 : nx >= W ? 1 : 0);
-    const tcy = state.cy + (ny < 0 ? -1 : ny >= H ? 1 : 0);
-    loadOrGenChunk(state, tcx, tcy);
-    state.player.x = (nx + W) % W;
-    state.player.y = (ny + H) % H;
-    if (state.chunk?.map?.[state.player.y]?.[state.player.x] === "#") {
-      const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
-      state.player.x = spot.x; 
-      state.player.y = spot.y;
-    }
-    log(state, `You step into a new area.`, "note");
-    emit(EventType.DidChangeChunk, { cx: tcx, cy: tcy });
-  };
   
   // Create move action and run through pipeline
   const action = Move(dx, dy);
