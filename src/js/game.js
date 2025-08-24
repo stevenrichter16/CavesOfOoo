@@ -17,6 +17,7 @@ import { isBlocked } from './queries.js';
 import * as ShopSystem from './systems/shop.js';
 import * as ShopUI from './ui/shop.js';
 import * as VendorQuests from './systems/vendorQuests.js';
+import { processMonsterTurns } from './systems/monsters.js';
 import { initMapUI, MapEvents, isMapOpen, renderMap } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
@@ -704,7 +705,8 @@ export function handlePlayerMove(state, dx, dy) {
   const frozen = isFrozen(state.player);
   if (frozen) {
     log(state, "You're frozen solid and can't move!", "magic");
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
     return;
   }
   
@@ -722,7 +724,8 @@ export function handlePlayerMove(state, dx, dy) {
   
   // If action was consumed (move attempted), run enemy turn
   if (consumed) {
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
   }
 }
 
@@ -737,7 +740,8 @@ function tryMove(state, dx, dy) {
   const frozen = isFrozen(player);
   if (frozen) {
     log(state, "You're frozen solid and can't move!", "magic");
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
     return;
   }
   
@@ -755,7 +759,8 @@ function tryMove(state, dx, dy) {
       player.x = spot.x; player.y = spot.y;
     }
     log(state, `You step into a new area.`, "note");
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
     return;
   }
   
@@ -774,7 +779,8 @@ function tryMove(state, dx, dy) {
   if (tile === "#") { 
     log(state, "You bonk the wall. It forgives you."); 
     turnEnd(state); 
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
     return; 
   }
   
@@ -782,7 +788,10 @@ function tryMove(state, dx, dy) {
   const m = state.chunk.monsters.find(mm => mm.alive && mm.x === nx && mm.y === ny);
   if (m) { 
     attack(state, player, m, "You", m.name); 
-    if (!state.over) enemiesTurn(state); 
+    if (!state.over) {
+      processMonsterTurns(state);
+      turnEnd(state);
+    } 
     return; 
   }
   
@@ -801,7 +810,8 @@ function tryMove(state, dx, dy) {
     log(state, "The shrine's aura heals you slightly.", "good");
   }
   
-  enemiesTurn(state);
+  processMonsterTurns(state);
+  turnEnd(state);
 }
 */
 
@@ -811,7 +821,8 @@ export function waitTurn(state) {
   // Check if player is frozen
   if (isFrozen(state.player)) {
     log(state, "You're frozen solid and can't act!", "magic");
-    enemiesTurn(state);
+    processMonsterTurns(state);
+    turnEnd(state);
     return;
   }
   
@@ -822,112 +833,8 @@ export function waitTurn(state) {
     state.player.hp = Math.min(state.player.hpMax, state.player.hp + 1);
     log(state, "You catch your breath. +1 HP", "good");
   }
-  enemiesTurn(state); 
+  processMonsterTurns(state); 
 }
-
-function processMonsterAbility(state, monster) {
-  if (!monster.ability) return false;
-  
-  // Handle self-buff abilities
-  if (monster.ability.selfBuff) {
-    // Check if ability triggers
-    if (Math.random() >= monster.ability.chance) return false;
-    
-    // Execute self-buff ability
-    const ability = monster.ability;
-    
-    if (ability.type === "boneShield") {
-      log(state, `${monster.name} raises a bone shield!`, "bad");
-      applyStatusEffect(monster, ability.effect, ability.turns, ability.value);
-      return true;
-    }
-    
-    return false;
-  }
-  
-  // Calculate distance to player for ranged abilities
-  const dx = Math.abs(state.player.x - monster.x);
-  const dy = Math.abs(state.player.y - monster.y);
-  const distance = dx + dy;
-  
-  // Check if player is in range
-  if (monster.ability.range && distance > monster.ability.range) return false;
-  
-  // Check if ability triggers (with tier scaling already applied)
-  if (Math.random() >= monster.ability.chance) return false;
-  
-  // Execute ability
-  const ability = monster.ability;
-  const abilityNames = {
-    fireBlast: "emits a blast of fire",
-    iceBreath: "breathes freezing ice",
-    poisonSpit: "spits toxic venom",
-    electricPulse: "releases an electric pulse",
-    lifeDrain: "drains your life force",
-    shadowStrike: "strikes from the shadows",
-    hellfire: "unleashes hellfire"
-  };
-  
-  log(state, `${monster.name} ${abilityNames[ability.type] || "uses special ability"}!`, "bad");
-  
-  // Apply damage (reduced by defense)
-  const playerDef = state.player.def + 
-    (state.player.armor ? state.player.armor.def : 0) +
-    (state.player.headgear && state.player.headgear.def ? state.player.headgear.def : 0);
-  const damage = Math.max(1, ability.damage - Math.floor(playerDef / 2));
-  
-  state.player.hp -= damage;
-  log(state, `You take ${damage} damage from the ${ability.type}!`, "bad");
-  
-  // Show damage number
-  // Show damage via floating text event
-  emit(EventType.FloatingText, {
-    x: state.player.x,
-    y: state.player.y,
-    text: `-${damage}`,
-    kind: 'damage'
-  });
-  
-  // Handle special ability effects
-  if (ability.type === "lifeDrain" && ability.heal) {
-    // Heal the monster
-    monster.hp = Math.min(monster.hp + ability.heal, monster.hpMax || monster.hp + ability.heal);
-    log(state, `${monster.name} heals ${ability.heal} HP!`, "good");
-  } else if (ability.type === "shadowStrike" && ability.blindTurns) {
-    // Apply blind status
-    applyStatusEffect(state.player, "blind", ability.blindTurns, 0);
-    log(state, "You are blinded by the shadows!", "bad");
-  } else if (ability.type === "hellfire") {
-    // Always apply burn with hellfire
-    applyStatusEffect(state.player, "burn", 5, 3);
-    log(state, "The hellfire burns you!", "bad");
-  }
-  
-  // Apply status effect if any (for original abilities)
-  if (ability.effect && ability.effectTurns > 0) {
-    applyStatusEffect(state.player, ability.effect, ability.effectTurns, ability.effectValue);
-    
-    const effectMessages = {
-      burn: "You catch fire!",
-      freeze: "You are frozen solid!",
-      poison: "You are poisoned!",
-      shock: "You are electrified!",
-      weakness: "You feel weakened!"
-    };
-    log(state, effectMessages[ability.effect] || "You are afflicted!", "bad");
-  }
-  
-  // Check if player died
-  if (state.player.hp <= 0) {
-    state.player.alive = false;
-    state.over = true;
-    log(state, `You were defeated by ${monster.name}'s ${ability.type}!`, "bad");
-  }
-  
-  return true; // Ability was used
-}
-
-// showAbilityDamage removed - now using EventType.FloatingText events
 
 // HP mutator functions for the new status system
 function applyStatusDamage(entityId, amount, source) {
@@ -978,115 +885,7 @@ function processNewStatusSystem(state) {
   // endOfTurnStatusPass(state, applyStatusDamage, applyStatusHeal);
 }
 
-function enemiesTurn(state) {
-  const mons = state.chunk.monsters;
-  
-  for (const m of mons) {
-    if (!m.alive) continue;
-    
-    // Check if monster is frozen - skip turn if so
-    if (isFrozen(m)) {
-      log(state, `${m.name} is frozen and can't move!`, "magic");
-      processStatusEffects(state, m, m.name);
-      continue;
-    }
-    
-    // Check for ability activation
-    if (processMonsterAbility(state, m)) {
-      processStatusEffects(state, m, m.name);
-      continue; // Skip normal turn if ability was used
-    }
-    
-    // Ensure monster is within bounds
-    m.x = Math.max(0, Math.min(W - 1, m.x));
-    m.y = Math.max(0, Math.min(H - 1, m.y));
-    
-    const dx = state.player.x - m.x;
-    const dy = state.player.y - m.y;
-    const distance = Math.abs(dx) + Math.abs(dy);
-    
-    // Attack if adjacent
-    if (distance === 1) {
-      attack(state, m, state.player, m.name, "you");
-      if (state.player.hp <= 0) {
-        state.player.alive = false;
-        state.over = true;
-        log(state, "You fall. The floor hums a lullaby. Game over.", "bad");
-        break;
-      }
-      // Process status effects after normal attack
-      processStatusEffects(state, m, m.name);
-      continue;
-    }
-    
-    // Movement AI
-    let moved = false;
-    if (m.ai === "chase" && distance < 8) {
-      // Move toward player
-      const moveX = Math.sign(dx);
-      const moveY = Math.sign(dy);
-      
-      const newX = m.x + moveX;
-      const newY = m.y + moveY;
-      
-      if (moveX && newX >= 0 && newX < W && !isBlocked(state, newX, m.y)) {
-        m.x = newX;
-        moved = true;
-      } else if (moveY && newY >= 0 && newY < H && !isBlocked(state, m.x, newY)) {
-        m.y = newY;
-        moved = true;
-      }
-    } else if (m.ai === "smart") {
-      // Boss AI - smarter pathfinding
-      if (distance < 10) {
-        const moveX = Math.sign(dx);
-        const moveY = Math.sign(dy);
-        
-        const newX = m.x + moveX;
-        const newY = m.y + moveY;
-        
-        // Try direct approach
-        if (newX >= 0 && newX < W && newY >= 0 && newY < H && !isBlocked(state, newX, newY)) {
-          m.x = newX;
-          m.y = newY;
-        } else if (newX >= 0 && newX < W && !isBlocked(state, newX, m.y)) {
-          m.x = newX;
-        } else if (newY >= 0 && newY < H && !isBlocked(state, m.x, newY)) {
-          m.y = newY;
-        }
-      }
-    } else if (m.ai === "wander") {
-      // Random movement
-      const dir = choice([[1, 0], [-1, 0], [0, 1], [0, -1], [0, 0]]);
-      const newX = m.x + dir[0];
-      const newY = m.y + dir[1];
-      
-      if (newX >= 0 && newX < W && newY >= 0 && newY < H && !isBlocked(state, newX, newY)) {
-        m.x = newX;
-        m.y = newY;
-      }
-    } else if (m.ai === "skittish" && distance < 5) {
-      // Run away
-      const moveX = -Math.sign(dx);
-      const moveY = -Math.sign(dy);
-      
-      const newX = m.x + moveX;
-      const newY = m.y + moveY;
-      
-      if (newX >= 0 && newX < W && newY >= 0 && newY < H && !isBlocked(state, newX, newY)) {
-        m.x = newX;
-        m.y = newY;
-      }
-    }
-    
-    // Process status effects on monster
-    processStatusEffects(state, m, m.name);
-  }
-  
-  turnEnd(state);
-}
-
-function turnEnd(state) {
+export function turnEnd(state) {
   // Process player status effects
   processStatusEffects(state, state.player, "You");
   
