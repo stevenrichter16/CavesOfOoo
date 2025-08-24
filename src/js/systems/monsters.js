@@ -5,7 +5,7 @@ import { W, H } from '../config.js';
 import { choice } from '../utils.js';
 import { attack } from '../combat.js';
 import { isBlocked } from '../queries.js';
-import { isFrozen, processStatusEffects, applyStatusEffect } from '../statusEffects.js';
+import { isFrozen, processStatusEffects, applyStatusEffect } from './statusSystem.js';
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
 
@@ -205,6 +205,16 @@ function processSelfBuffAbility(state, monster) {
   if (ability.type === "boneShield") {
     log(state, `${monster.name} raises a bone shield!`, "bad");
     applyStatusEffect(monster, ability.effect, ability.turns, ability.value);
+    
+    // Emit event for particle system (on the monster)
+    const monsterId = `monster_${monster.x}_${monster.y}`;
+    emit(EventType.StatusEffectRegister, { 
+      type: ability.effect,
+      vs: monster.name,
+      toId: monsterId,
+      turns: ability.turns,
+      value: ability.value
+    });
     return true;
   }
   
@@ -252,6 +262,15 @@ function executeMonsterAbility(state, monster) {
   if (ability.effect && ability.effectTurns > 0) {
     applyStatusEffect(state.player, ability.effect, ability.effectTurns, ability.effectValue);
     
+    // Emit event for particle system
+    emit(EventType.StatusEffectRegister, { 
+      type: ability.effect,
+      vs: 'You',
+      toId: 'player',
+      turns: ability.effectTurns,
+      value: ability.effectValue
+    });
+    
     const effectMessages = {
       burn: "You catch fire!",
       freeze: "You are frozen solid!",
@@ -281,10 +300,24 @@ function handleSpecialAbilityEffects(state, monster, ability) {
   } else if (ability.type === "shadowStrike" && ability.blindTurns) {
     // Apply blind status
     applyStatusEffect(state.player, "blind", ability.blindTurns, 0);
+    emit(EventType.StatusEffectRegister, { 
+      type: "blind",
+      vs: 'You',
+      toId: 'player',
+      turns: ability.blindTurns,
+      value: 0
+    });
     log(state, "You are blinded by the shadows!", "bad");
   } else if (ability.type === "hellfire") {
     // Always apply burn with hellfire
     applyStatusEffect(state.player, "burn", 5, 3);
+    emit(EventType.StatusEffectRegister, { 
+      type: "burn",
+      vs: 'You',
+      toId: 'player',
+      turns: 5,
+      value: 3
+    });
     log(state, "The hellfire burns you!", "bad");
   }
 }

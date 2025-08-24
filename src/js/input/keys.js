@@ -25,7 +25,7 @@ import { handleMapNavigation } from '../worldMap.js';
 import { openMap, closeMap, renderMap } from '../ui/map.js';
 import { displayActiveQuests, hasQuest, giveQuest, checkFetchQuestItem } from '../quests.js';
 import { QUEST_TEMPLATES } from '../config.js';
-import { applyStatusEffect, isFrozen } from '../statusEffects.js';
+import { applyStatusEffect, isFrozen } from '../systems/statusSystem.js';
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
 import { W, H } from '../config.js';
@@ -36,6 +36,13 @@ export function initKeyboardControls() {
     // Use window.STATE to always get the current STATE object
     const STATE = window.STATE;
     if (!STATE) return;
+    
+    // Prevent Tab key from selecting HTML elements when any UI is open
+    if (e.key === "Tab" && (STATE.ui.questTurnInOpen || STATE.ui.mapOpen || 
+        STATE.ui.shopOpen || STATE.ui.inventoryOpen)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
     // Quest turn-in controls
     if (STATE.ui.questTurnInOpen) {
@@ -504,6 +511,7 @@ function handleShopControls(STATE, e) {
       ShopSystem.switchShopMode(STATE, "buy");
     }
     ShopUI.renderShop(STATE);
+    e.preventDefault();  // Prevent browser's default tab behavior
   } else if (e.key === "ArrowUp") {
     if (STATE.ui.shopMode !== "quest" && STATE.ui.shopMode !== "turn-in") {
       ShopSystem.navigateShop(STATE, 'up');

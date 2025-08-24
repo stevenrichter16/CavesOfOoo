@@ -1,4 +1,4 @@
-import { applyStatusEffect } from './statusEffects.js';
+import { applyStatusEffect } from './systems/statusSystem.js';
 import { runOnEquipHooks, runOnUnequipHooks } from './gear/effects.js';
 import { emit } from './events.js';
 import { EventType } from './eventTypes.js';

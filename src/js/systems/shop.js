@@ -4,6 +4,7 @@
 
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
+import { saveChunk } from '../persistence.js';
 
 // Shop transaction events
 export const ShopTransactionEvents = {
@@ -104,6 +105,20 @@ export function purchaseItem(state, vendorId, itemIndex) {
   // Remove from vendor inventory
   vendor.inventory.splice(itemIndex, 1);
   
+  // Update the vendor in the chunk items and save
+  if (state.chunk && state.chunk.items) {
+    const vendorIndex = state.chunk.items.findIndex(i => 
+      i.type === "vendor" && i.x === vendor.x && i.y === vendor.y
+    );
+    
+    if (vendorIndex >= 0) {
+      // Update vendor inventory in chunk
+      state.chunk.items[vendorIndex].inventory = vendor.inventory;
+      // Save the chunk to persist the change
+      saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
+    }
+  }
+  
   // Update selected index if needed
   if (vendor.inventory.length === 0) {
     // Vendor is out of stock
@@ -177,6 +192,39 @@ export function sellItem(state, itemIndex, forceConfirm = false) {
   
   // Add gold
   state.player.gold += sellPrice;
+  
+  // Add item to vendor inventory (if vendor is present)
+  if (state.ui.shopVendor) {
+    // Create vendor inventory item with proper structure
+    const vendorItem = {
+      type: item.type,
+      item: { ...(item.item || item) },
+      price: basePrice  // Use full price for resale
+    };
+    
+    // Initialize vendor inventory if it doesn't exist
+    if (!state.ui.shopVendor.inventory) {
+      state.ui.shopVendor.inventory = [];
+    }
+    
+    // Add to vendor's inventory
+    state.ui.shopVendor.inventory.push(vendorItem);
+    
+    // Update the vendor in the chunk items and save
+    if (state.chunk && state.chunk.items) {
+      const vendor = state.ui.shopVendor;
+      const vendorIndex = state.chunk.items.findIndex(i => 
+        i.type === "vendor" && i.x === vendor.x && i.y === vendor.y
+      );
+      
+      if (vendorIndex >= 0) {
+        // Update vendor inventory in chunk
+        state.chunk.items[vendorIndex].inventory = vendor.inventory;
+        // Save the chunk to persist the change
+        saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
+      }
+    }
+  }
   
   // Log success
   emit(EventType.Log, { 

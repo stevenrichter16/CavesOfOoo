@@ -7,12 +7,12 @@ import { EventType } from '../eventTypes.js';
 import { log } from '../game.js';
 import { Move } from '../actions.js';
 import { runPlayerMove } from '../movePipeline.js';
-import { isFrozen } from '../statusEffects.js';
+import { isFrozen } from './statusSystem.js';
 import { saveChunk, loadChunk } from '../persistence.js';
 import { genChunk } from '../worldGen.js';
 import { levelUp } from '../entities.js';
 import { choice } from '../utils.js';
-import { applyStatusEffect } from '../statusEffects.js';
+import { applyStatusEffect } from './statusSystem.js';
 import { WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, QUOTES, QUEST_TEMPLATES } from '../config.js';
 import { checkFetchQuestItem } from '../quests.js';
 

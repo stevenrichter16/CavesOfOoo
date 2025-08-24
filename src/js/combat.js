@@ -2,7 +2,7 @@
 import { emit } from './events.js';
 import { EventType } from './eventTypes.js';
 import { clamp, roll } from './utils.js';
-import { getStatusModifier, applyStatusEffect } from './statusEffects.js';
+import { getStatusModifier, applyStatusEffect } from './systems/statusSystem.js';
 import { levelUp } from './entities.js';
 import { updateQuestProgress } from './quests.js';
 import { getGearMods, runOnAttackHooks, runOnHitTakenHooks } from './gear/effects.js';
