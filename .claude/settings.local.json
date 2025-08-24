@@ -7,7 +7,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(find:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

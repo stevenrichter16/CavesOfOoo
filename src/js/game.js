@@ -11,8 +11,7 @@ import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, 
 import { mountLog } from './log.js';
 import { on, emit } from './events.js'
 import { EventType } from './eventTypes.js';
-import { Move } from './actions.js';
-import { runPlayerMove } from './movePipeline.js';
+import * as PlayerMovement from './systems/playerMovement.js';
 import { isBlocked } from './queries.js';
 import * as ShopSystem from './systems/shop.js';
 import * as ShopUI from './ui/shop.js';
@@ -374,52 +373,15 @@ export function interactTile(state, x, y) {
   }
 }
 
-function loadOrGenChunk(state, cx, cy) {
-  if (state.chunk) saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
-  state.cx = cx;
-  state.cy = cy;
-  const existing = loadChunk(state.worldSeed, cx, cy);
-  state.chunk = existing ? existing : genChunk(state.worldSeed, cx, cy);
-  if (!state.chunk.items) state.chunk.items = [];
-  
-  // Restore itemCheck functions for vendor fetch quests (lost during JSON serialization)
-  if (state.chunk.items) {
-    state.chunk.items.forEach(item => {
-      if (item.type === "vendor" && item.fetchQuest && item.fetchQuest.targetItem) {
-        const targetItem = item.fetchQuest.targetItem;
-        // Find matching FETCH_ITEM by name to restore the itemCheck function
-        const matchingFetchItem = FETCH_ITEMS.find(fi => fi.name === targetItem.name);
-        if (matchingFetchItem) {
-          item.fetchQuest.targetItem = matchingFetchItem;
-        }
-      }
-    });
-  }
-}
 
 export function handlePlayerMove(state, dx, dy) {
   if (state.over) return;
   
-  // Check if player is frozen
-  const frozen = isFrozen(state.player);
-  if (frozen) {
-    log(state, "You're frozen solid and can't move!", "magic");
-    processMonsterTurns(state);
-    turnEnd(state);
-    return;
-  }
+  // Set up state references for movement system
+  state.FETCH_ITEMS = FETCH_ITEMS;
   
-  // Add dimensions and references to state for movePipeline
-  state.W = W;
-  state.H = H;
-  state.FETCH_ITEMS = FETCH_ITEMS; // For restoring fetch quest functions
-  
-  // Add interactTile reference for movePipeline
-  state.interactTile = interactTile;
-  
-  // Create move action and run through pipeline
-  const action = Move(dx, dy);
-  const consumed = runPlayerMove(state, action);
+  // Process movement through the movement system
+  const consumed = PlayerMovement.handlePlayerMove(state, dx, dy);
   
   // If action was consumed (move attempted), run enemy turn
   if (consumed) {
@@ -428,111 +390,16 @@ export function handlePlayerMove(state, dx, dy) {
   }
 }
 
-// Old tryMove function - no longer used, replaced by handlePlayerMove + runPlayerMove pipeline
-// Kept for reference during migration
-/*
-function tryMove(state, dx, dy) {
-  if (state.over) return;
-  const { player } = state;
-  
-  // Check if player is frozen
-  const frozen = isFrozen(player);
-  if (frozen) {
-    log(state, "You're frozen solid and can't move!", "magic");
-    processMonsterTurns(state);
-    turnEnd(state);
-    return;
-  }
-  
-  const nx = player.x + dx, ny = player.y + dy;
-  
-  // Edge travel
-  if (nx < 0 || nx >= W || ny < 0 || ny >= H) {
-    const tcx = state.cx + (nx < 0 ? -1 : nx >= W ? 1 : 0);
-    const tcy = state.cy + (ny < 0 ? -1 : ny >= H ? 1 : 0);
-    loadOrGenChunk(state, tcx, tcy);
-    player.x = (nx + W) % W;
-    player.y = (ny + H) % H;
-    if (state.chunk?.map?.[player.y]?.[player.x] === "#") {
-      const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
-      player.x = spot.x; player.y = spot.y;
-    }
-    log(state, `You step into a new area.`, "note");
-    processMonsterTurns(state);
-    turnEnd(state);
-    return;
-  }
-  
-  // Check tile
-  const tile = state.chunk.map[ny][nx];
-  
-  // Doors
-  if (tile === "+") {
-    state.chunk.map[ny][nx] = ".";
-    log(state, "You open the door.");
-    turnEnd(state);
-    return;
-  }
-  
-  // Walls
-  if (tile === "#") { 
-    log(state, "You bonk the wall. It forgives you."); 
-    turnEnd(state); 
-    processMonsterTurns(state);
-    turnEnd(state);
-    return; 
-  }
-  
-  // Combat
-  const m = state.chunk.monsters.find(mm => mm.alive && mm.x === nx && mm.y === ny);
-  if (m) { 
-    attack(state, player, m, "You", m.name); 
-    if (!state.over) {
-      processMonsterTurns(state);
-      turnEnd(state);
-    } 
-    return; 
-  }
-  
-  // Move
-  player.x = nx; 
-  player.y = ny;
-  player.turnsSinceRest++;
-  
-  // Auto-pickup items
-  interactTile(state, nx, ny);
-  
-  // Regen at shrines
-  if (tile === "▲" && player.hp < player.hpMax && player.turnsSinceRest > 10) {
-    player.hp = Math.min(player.hpMax, player.hp + 2);
-    player.turnsSinceRest = 0;
-    log(state, "The shrine's aura heals you slightly.", "good");
-  }
-  
-  processMonsterTurns(state);
-  turnEnd(state);
-}
-*/
 
 export function waitTurn(state) { 
   if (state.over) return;
   
-  // Check if player is frozen
-  if (isFrozen(state.player)) {
-    log(state, "You're frozen solid and can't act!", "magic");
+  const consumed = PlayerMovement.waitTurn(state);
+  
+  if (consumed) {
     processMonsterTurns(state);
     turnEnd(state);
-    return;
   }
-  
-  log(state, "You wait. Time wiggles."); 
-  state.player.turnsSinceRest = 0;
-  // Small heal if hurt
-  if (state.player.hp < state.player.hpMax) {
-    state.player.hp = Math.min(state.player.hpMax, state.player.hp + 1);
-    log(state, "You catch your breath. +1 HP", "good");
-  }
-  processMonsterTurns(state); 
 }
 
 // HP mutator functions for the new status system
@@ -1226,7 +1093,8 @@ export function newWorld() {
     render: () => render(state)
   };
   console.log("Right before loadOrGenChunk");
-  loadOrGenChunk(state, 0, 0);
+  state.FETCH_ITEMS = FETCH_ITEMS; // Set reference for PlayerMovement module
+  PlayerMovement.loadOrGenChunk(state, 0, 0);
   const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
   player.x = spot.x;
   player.y = spot.y;
