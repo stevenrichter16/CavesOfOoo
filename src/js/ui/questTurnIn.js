@@ -17,7 +17,10 @@ export function initQuestTurnInUI() {
   });
   
   on('questTurnIn:update', ({ remainingQuests }) => {
-    // UI will be rendered by explicit render calls
+    // Re-render the quest turn-in UI with updated quests
+    if (window.STATE) {
+      renderQuestTurnIn(window.STATE);
+    }
   });
   
   on('questTurnIn:close', () => {

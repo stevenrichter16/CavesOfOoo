@@ -40,7 +40,7 @@ export function runPlayerMove(state, action) {
     
     // Check for items/interactions at new position
     if (state.interactTile) {
-      state.interactTile(state, nx, ny);
+      state.interactTile(state, nx, ny, state.openVendorShop);
     }
     
     emit(EventType.DidMove, { 

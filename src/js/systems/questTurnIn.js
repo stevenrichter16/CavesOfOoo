@@ -5,6 +5,7 @@ import { QUEST_TEMPLATES } from '../config.js';
 import { turnInQuest, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem, giveQuest } from '../quests.js';
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
+import { renderQuestTurnIn as renderUI } from '../ui/questTurnIn.js';
 
 /**
  * Open the quest turn-in interface
@@ -67,6 +68,9 @@ export function processQuestRewards(state, questsToTurnIn = null) {
     state.ui.fetchItemSelectedIndex = 0;
     state.ui.completedQuests = quests; // Update to only the quests we're turning in
     emit('questTurnIn:selectItem', { questId: fetchQuestsNeedingSelection[0] });
+    
+    // Need to re-render the UI to show item selection
+    renderUI(state);
     return;
   }
   

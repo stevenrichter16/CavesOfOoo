@@ -12,6 +12,37 @@ import { saveChunk, loadChunk } from '../persistence.js';
 import { genChunk } from '../worldGen.js';
 import { levelUp } from '../entities.js';
 import { choice } from '../utils.js';
+import { applyStatusEffect } from '../statusEffects.js';
+import { WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, QUOTES, QUEST_TEMPLATES } from '../config.js';
+import { checkFetchQuestItem } from '../quests.js';
+
+// Helper to generate unique IDs
+let nextItemId = 1;
+function generateItemId() {
+  return `item_${Date.now()}_${nextItemId++}`;
+}
+
+// Helper to add potion with stacking
+function addPotionToInventory(state, potion) {
+  // Check if we already have this potion type
+  const existingPotion = state.player.inventory.find(
+    i => i.type === "potion" && i.item.name === potion.name
+  );
+  
+  if (existingPotion) {
+    // Stack it
+    existingPotion.count = (existingPotion.count || 1) + 1;
+  } else {
+    // Add new stack
+    state.player.inventory.push({
+      type: "potion",
+      item: { ...potion },
+      id: generateItemId(),
+      count: 1
+    });
+  }
+  state.player.potionCount++;
+}
 
 /**
  * Handle player movement input
@@ -34,8 +65,8 @@ export function handlePlayerMove(state, dx, dy) {
   state.H = H;
   state.FETCH_ITEMS = state.FETCH_ITEMS || []; // For restoring fetch quest functions
   
-  // Add interactTile reference for movePipeline
-  state.interactTile = interactTile;
+  // Add interactTile reference for movePipeline with vendor shop callback
+  state.interactTile = (state, x, y) => interactTile(state, x, y, state.openVendorShop);
   
   // Create move action and run through pipeline
   const action = Move(dx, dy);
@@ -126,7 +157,7 @@ export function findOpenSpot(map) {
  * Handle interactions with tiles at a specific position
  * Processes vendors, artifacts, special tiles, items, etc.
  */
-export function interactTile(state, x, y) {
+export function interactTile(state, x, y, openVendorShop = null) {
   // Check bounds
   if (y < 0 || y >= H || x < 0 || x >= W) return;
   if (!state.chunk?.map?.[y]?.[x]) return;
@@ -135,13 +166,20 @@ export function interactTile(state, x, y) {
   if (!state.chunk.items) state.chunk.items = [];
   const items = state.chunk.items;
   
-  // Vendor interaction
+  // Vendor interaction - needs special handling due to UI dependencies
   if (tile === "V") {
     const vendor = items.find(i => i.type === "vendor" && i.x === x && i.y === y);
     if (vendor) {
       log(state, "\"Hello, adventurer! Take a look at my wares!\"", "note");
-      // Emit vendor interaction event
-      emit(EventType.VendorInteraction, { vendor, x, y });
+      // If openVendorShop callback provided (from game.js), use it
+      if (openVendorShop) {
+        setTimeout(() => {
+          openVendorShop(state, vendor);
+        }, 0);
+      } else {
+        // Otherwise just emit event
+        emit(EventType.VendorInteraction, { vendor, x, y });
+      }
     }
     return; // Don't auto-pickup vendors!
   }
@@ -168,30 +206,118 @@ export function interactTile(state, x, y) {
     log(state, choice(getSpecialTileMessages()), "magic");
   }
   
-  // Shrine interaction
-  else if (tile === "▲") {
-    if (state.player.hp < state.player.hpMax && state.player.turnsSinceRest > 10) {
-      state.player.hp = Math.min(state.player.hpMax, state.player.hp + 2);
-      state.player.turnsSinceRest = 0;
-      log(state, "The shrine's aura heals you slightly.", "good");
+  // Chest opening
+  else if (tile === "$") {
+    const chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
+    if (!chest) {
+      // No chest object found, but tile is $, so create one
+      const newChest = { type: "chest", x: x, y: y, opened: false };
+      items.push(newChest);
+    }
+    
+    const chestToOpen = chest || items.find(i => i.type === "chest" && i.x === x && i.y === y);
+    if (chestToOpen && !chestToOpen.opened) {
+      chestToOpen.opened = true;
+      state.chunk.map[y][x] = ".";
+      
+      // Gold chance (40%)
+      if (Math.random() < 0.4) {
+        const goldAmount = 10 + Math.floor(Math.random() * 40);
+        state.player.gold += goldAmount;
+        log(state, `The chest contains ${goldAmount} gold!`, "gold");
+      }
+      
+      const loot = Math.random();
+      if (loot < 0.25) {
+        const weapon = choice(WEAPONS);
+        const newItem = { 
+          type: "weapon", 
+          item: { ...weapon }, // Clone to avoid shared references
+          id: generateItemId() 
+        };
+        state.player.inventory.push(newItem);
+        log(state, `Chest contains: ${weapon.name}!`, "good");
+      } else if (loot < 0.45) {
+        const armor = choice(ARMORS);
+        const newItem = { 
+          type: "armor", 
+          item: { ...armor }, // Clone to avoid shared references
+          id: generateItemId() 
+        };
+        state.player.inventory.push(newItem);
+        log(state, `Chest contains: ${armor.name}!`, "good");
+      } else if (loot < 0.65) {
+        const headgear = choice(HEADGEAR);
+        state.player.inventory.push({ 
+          type: "headgear", 
+          item: { ...headgear }, // Clone to avoid shared references
+          id: generateItemId() 
+        });
+        log(state, `Chest contains: ${headgear.name}!`, "good");
+      } else if (loot < 0.85) {
+        const ring = choice(RINGS);
+        state.player.inventory.push({ 
+          type: "ring", 
+          item: { ...ring }, // Clone to avoid shared references
+          id: generateItemId() 
+        });
+        log(state, `Chest contains: ${ring.name}!`, "good");
+      } else {
+        const potion = choice(POTIONS);
+        addPotionToInventory(state, potion);
+        log(state, `Chest contains: ${potion.name}!`, "good");
+      }
     }
   }
   
-  // Check for items at this position
-  const itemIdx = items.findIndex(i => i.x === x && i.y === y);
-  if (itemIdx >= 0) {
-    const item = items[itemIdx];
-    
-    // Gold pickup
-    if (item.type === "gold") {
-      state.player.gold += item.amount;
-      log(state, `+${item.amount} gold! (Total: ${state.player.gold}g)`, "gold");
-      items.splice(itemIdx, 1);
-      emit(EventType.ItemPickup, { item, x, y });
+  // Potion pickup
+  else if (tile === "!") {
+    const potion = items.find(i => i.type === "potion" && i.x === x && i.y === y);
+    if (potion) {
+      addPotionToInventory(state, potion.item);
+      state.chunk.map[y][x] = ".";
+      log(state, `You pickup: ${potion.item.name}`, "good");
+      // Remove from items
+      const idx = items.indexOf(potion);
+      if (idx >= 0) items.splice(idx, 1);
     }
-    
-    // Other item types would be handled here
-    // (weapons, armor, potions, etc. - already handled elsewhere)
+  }
+  
+  // Equipment pickup (weapon/armor/headgear)
+  else if (tile === "/" || tile === "]" || tile === "^") {
+    const item = items.find(i => (i.type === "weapon" || i.type === "armor" || i.type === "headgear") && i.x === x && i.y === y);
+    if (item) {
+      state.player.inventory.push({ 
+        type: item.type, 
+        item: { ...item.item }, // Clone to avoid shared references
+        id: generateItemId() 
+      });
+      state.chunk.map[y][x] = ".";
+      log(state, `You pickup: ${item.item.name}`, "good");
+      const idx = items.indexOf(item);
+      if (idx >= 0) items.splice(idx, 1);
+    }
+  }
+  
+  // Shrine interaction
+  else if (tile === "▲") {
+    const shrine = items.find(i => i.type === "shrine" && i.x === x && i.y === y);
+    if (shrine && !shrine.used) {
+      shrine.used = true;
+      log(state, choice(QUOTES[state.chunk.biome]?.shrine || ["The shrine pulses with ancient power."]), "magic");
+      // Blessing effect
+      const blessing = Math.random();
+      if (blessing < 0.3) {
+        state.player.hp = state.player.hpMax;
+        log(state, "The shrine fully restores your health!", "good");
+      } else if (blessing < 0.6) {
+        applyStatusEffect(state.player, "buff_str", 50, 3);
+        log(state, "The shrine grants you strength!", "good");
+      } else {
+        applyStatusEffect(state.player, "buff_def", 50, 3);
+        log(state, "The shrine grants you protection!", "good");
+      }
+    }
   }
 }
 

@@ -40,33 +40,6 @@ function setText(id, text) {
   if (el) el.textContent = text; 
 }
 
-// Helper to generate unique IDs
-let nextItemId = 1;
-function generateItemId() {
-  return `item_${nextItemId++}`;
-}
-
-// Helper to add potion with stacking
-function addPotionToInventory(state, potion) {
-  // Check if we already have this potion type
-  const existingPotion = state.player.inventory.find(
-    i => i.type === "potion" && i.item.name === potion.name
-  );
-  
-  if (existingPotion) {
-    // Stack it
-    existingPotion.count = (existingPotion.count || 1) + 1;
-  } else {
-    // Add new stack
-    state.player.inventory.push({
-      type: "potion",
-      item: { ...potion },
-      id: generateItemId(),
-      count: 1
-    });
-  }
-  state.player.potionCount++;
-}
 
 // Vendor shop functions
 export function openVendorShop(state, vendor, skipQuestCheck = false) {
@@ -144,234 +117,17 @@ export function renderShop(state) {
 }
 
 
+// Delegate tile interactions to PlayerMovement module
 export function interactTile(state, x, y) {
-  // Check bounds
-  if (y < 0 || y >= H || x < 0 || x >= W) return;
-  if (!state.chunk?.map?.[y]?.[x]) return;
-  
-  const tile = state.chunk.map[y][x];
-  if (!state.chunk.items) state.chunk.items = [];
-  const items = state.chunk.items;
-  
-  // Vendor interaction
-  if (tile === "V") {
-    const vendor = items.find(i => i.type === "vendor" && i.x === x && i.y === y);
-    if (vendor) {
-      log(state, "\"Hello, adventurer! Take a look at my wares!\"", "note");
-      // Delay vendor shop opening to next tick to avoid UI conflicts
-      setTimeout(() => {
-        openVendorShop(state, vendor);
-      }, 0);
-    }
-    return; // Don't auto-pickup vendors!
-  }
-  
-  if (tile === "★") {
-    log(state, choice([
-      "A diary speaks: 'I dreamed I was a butterfly...'",
-      "A music box plays a forgotten lullaby.",
-      "An old crown whispers of lost kingdoms."
-    ]), "rare");
-    state.chunk.map[y][x] = ".";
-    state.player.xp += 5;
-    log(state, "+5 XP from artifact!", "xp");
-    
-    // Check for level up
-    if (state.player.xp >= state.player.xpNext) {
-      levelUp(state);
-    }
-  } else if (tile === "♪") {
-    log(state, choice([
-      // Original messages
-      "The floor hums with ancient magic.",
-      "A voice echoes: 'Remember to be awesome.'",
-      "Time feels stretchy here, like taffy.",
-      
-      // New mystical/philosophical
-      "You hear the universe giggling softly.",
-      "Something here remembers being a star.",
-      "The air tastes like purple nostalgia.",
-      "Reality hiccups. You pretend not to notice.",
-      "This spot exists in seven dimensions. You can feel three.",
-      "A memory that isn't yours floats by.",
-      "The ground purrs like a sleepy cosmic cat.",
-      "You smell colors and see sounds for a moment.",
-      "Gravity feels optional here.",
-      "The shadows are dancing to silent music.",
-      "You briefly understand everything, then forget.",
-      "Time moves sideways for exactly three seconds.",
-      "The walls are dreaming about being clouds.",
-      "You hear tomorrow's echo.",
-      "Something whispers your true name backwards.",
-      
-      // Adventure Time vibes
-      "Mathematical! This place is algebraic!",
-      "The dungeon sighs contentedly.",
-      "You feel inexplicably radical.",
-      "A ghostly voice says 'What time is it?'",
-      "Everything turns sepia-toned briefly.",
-      "You taste bacon pancakes... somehow.",
-      "The stones remember better days.",
-      "Reality does a little flip. Neat!",
-      
-      // Funny/whimsical
-      "Your reflection winks at you from nowhere.",
-      "The floor apologizes for being cold.",
-      "You hear someone humming off-key nearby. It's you.",
-      "A dust mote does a tiny backflip.",
-      "The darkness feels unusually friendly.",
-      "Your shadow high-fives itself.",
-      "Something invisible boops your nose.",
-      "The silence is uncomfortably loud.",
-      "You feel briefly taller. Or is everything else shorter?",
-      "The air sparkles with unfinished thoughts.",
-      
-      // Cryptic/mysterious
-      "The number 47 appears in your mind.",
-      "You see a door that was never there.",
-      "Someone left their dreams here.",
-      "The walls know your middle name.",
-      "You hear dice rolling in the distance.",
-      "A clock ticks thirteen times.",
-      "The darkness has been expecting you.",
-      "You find a memory you haven't made yet.",
-      "The stones spell out words in a language you almost know.",
-      "You see your past self for half a second.",
-      
-      // Sensory/atmospheric
-      "It smells like rain on another planet.",
-      "The temperature can't decide what it wants to be.",
-      "Light bends wrong here.",
-      "You hear the sound of melting starlight.",
-      "The air feels thick with possibility.",
-      "Everything glows slightly from within.",
-      "The darkness has texture, like velvet.",
-      "You taste copper pennies and childhood.",
-      "The floor ripples like water, but stays solid.",
-      "Sounds echo before they're made.",
-      
-      // Meta/existential
-      "You suddenly wonder if you're the NPC.",
-      "The universe pauses to buffer.",
-      "Someone pressed pause, but you can still move.",
-      "You feel observed by friendly eyes.",
-      "The code shows through for a moment.",
-      "Reality.exe has stopped responding. Continue anyway?",
-      "You gain one point of existential awareness.",
-      "The fourth wall feels thin here.",
-      "You hear the sound of dice rolling.",
-      "A loading bar appears above your head briefly."
-    ]), "magic");
-  } else if (tile === "$") {
-    // Open chest
-    const chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
-    if (!chest) {
-      // No chest object found, but tile is $, so create one
-      const newChest = { type: "chest", x: x, y: y, opened: false };
-      items.push(newChest);
-    }
-    
-    const chestToOpen = chest || items.find(i => i.type === "chest" && i.x === x && i.y === y);
-    if (chestToOpen && !chestToOpen.opened) {
-      chestToOpen.opened = true;
-      state.chunk.map[y][x] = ".";
-      
-      // Gold chance (40%)
-      if (Math.random() < 0.4) {
-        const goldAmount = 10 + Math.floor(Math.random() * 40);
-        state.player.gold += goldAmount;
-        log(state, `The chest contains ${goldAmount} gold!`, "gold");
-      }
-      
-      const loot = Math.random();
-      if (loot < 0.25) {
-        const weapon = choice(WEAPONS);
-        const newItem = { 
-          type: "weapon", 
-          item: { ...weapon }, // Clone to avoid shared references
-          id: generateItemId() 
-        };
-        state.player.inventory.push(newItem);
-        log(state, `Chest contains: ${weapon.name}!`, "good");
-        log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
-      } else if (loot < 0.45) {
-        const armor = choice(ARMORS);
-        const newItem = { 
-          type: "armor", 
-          item: { ...armor }, // Clone to avoid shared references
-          id: generateItemId() 
-        };
-        state.player.inventory.push(newItem);
-        log(state, `Chest contains: ${armor.name}!`, "good");
-        log(state, `[DEBUG] Inventory now has ${state.player.inventory.length} items`, "note");
-      } else if (loot < 0.65) {
-        const headgear = choice(HEADGEAR);
-        state.player.inventory.push({ 
-          type: "headgear", 
-          item: { ...headgear }, // Clone to avoid shared references
-          id: generateItemId() 
-        });
-        log(state, `Chest contains: ${headgear.name}!`, "good");
-      } else if (loot < 0.85) {
-        const ring = choice(RINGS);
-        state.player.inventory.push({ 
-          type: "ring", 
-          item: { ...ring }, // Clone to avoid shared references
-          id: generateItemId() 
-        });
-        log(state, `Chest contains: ${ring.name}!`, "good");
-      } else {
-        const potion = choice(POTIONS);
-        addPotionToInventory(state, potion);
-        log(state, `Chest contains: ${potion.name}!`, "good");
-      }
-    }
-  } else if (tile === "!") {
-    // Pickup potion
-    const potion = items.find(i => i.type === "potion" && i.x === x && i.y === y);
-    if (potion) {
-      addPotionToInventory(state, potion.item);
-      state.chunk.map[y][x] = ".";
-      log(state, `You pickup: ${potion.item.name}`, "good");
-      // Remove from items
-      const idx = items.indexOf(potion);
-      if (idx >= 0) items.splice(idx, 1);
-    }
-  } else if (tile === "/" || tile === "]" || tile === "^") {
-    // Pickup weapon/armor/headgear
-    const item = items.find(i => (i.type === "weapon" || i.type === "armor" || i.type === "headgear") && i.x === x && i.y === y);
-    if (item) {
-      state.player.inventory.push({ 
-        type: item.type, 
-        item: { ...item.item }, // Clone to avoid shared references
-        id: generateItemId() 
-      });
-      state.chunk.map[y][x] = ".";
-      log(state, `You pickup: ${item.item.name}`, "good");
-      const idx = items.indexOf(item);
-      if (idx >= 0) items.splice(idx, 1);
-    }
-  } else if (tile === "▲") {
-    // Shrine interaction
-    const shrine = items.find(i => i.type === "shrine" && i.x === x && i.y === y);
-    if (shrine && !shrine.used) {
-      shrine.used = true;
-      log(state, choice(QUOTES[state.chunk.biome]?.shrine || ["The shrine pulses with ancient power."]), "magic");
-      // Blessing effect
-      const blessing = Math.random();
-      if (blessing < 0.3) {
-        state.player.hp = state.player.hpMax;
-        log(state, "The shrine fully restores your health!", "good");
-      } else if (blessing < 0.6) {
-        applyStatusEffect(state.player, "buff_str", 50, 3);
-        log(state, "The shrine grants you strength!", "good");
-      } else {
-        applyStatusEffect(state.player, "buff_def", 50, 3);
-        log(state, "The shrine grants you protection!", "good");
-      }
-    }
-  }
+  PlayerMovement.interactTile(state, x, y, openVendorShop);
 }
+
+// Large interactTile function moved to PlayerMovement module
+/*
+  The original function handled vendor interaction, artifacts, special tiles,
+  chests, potions, equipment, and shrines. All this logic is now in
+  src/js/systems/playerMovement.js
+*/
 
 
 export function handlePlayerMove(state, dx, dy) {
@@ -379,6 +135,7 @@ export function handlePlayerMove(state, dx, dy) {
   
   // Set up state references for movement system
   state.FETCH_ITEMS = FETCH_ITEMS;
+  state.openVendorShop = openVendorShop; // Pass vendor shop function
   
   // Process movement through the movement system
   const consumed = PlayerMovement.handlePlayerMove(state, dx, dy);
@@ -1139,7 +896,8 @@ export function initGame() {
   
   // Listen for quest turn-in events
   on('questTurnIn:openShop', ({ vendor }) => {
-    openVendorShop(STATE, vendor);
+    // Skip quest check to avoid immediately reopening quest turn-in
+    openVendorShop(STATE, vendor, true);
   });
   
   // Initialize particle effects
