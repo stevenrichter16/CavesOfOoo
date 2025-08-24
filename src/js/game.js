@@ -18,6 +18,8 @@ import * as ShopSystem from './systems/shop.js';
 import * as ShopUI from './ui/shop.js';
 import * as VendorQuests from './systems/vendorQuests.js';
 import { processMonsterTurns } from './systems/monsters.js';
+import { openQuestTurnIn, processQuestRewards, closeQuestTurnIn } from './systems/questTurnIn.js';
+import { renderQuestTurnIn as renderQuestTurnInUI, renderQuestTurnInConfirm as renderQuestTurnInConfirmUI } from './ui/questTurnIn.js';
 import { initMapUI, MapEvents, isMapOpen, renderMap } from './ui/map.js';
 import { initQuestUI, QuestEvents, isQuestUIOpen } from './ui/quests.js';
 import { endOfTurnStatusPass } from './systems/statusSystem.js';
@@ -68,36 +70,40 @@ function addPotionToInventory(state, potion) {
 }
 
 // Vendor shop functions
-export function openVendorShop(state, vendor) {
+export function openVendorShop(state, vendor, skipQuestCheck = false) {
   // Initialize vendor quest if needed
   VendorQuests.initializeVendorQuest(state, vendor);
   
-  // Check for completed quests first
-  const completedFetchQuests = state.player.quests.active.filter(qId => {
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (fetchQuest && fetchQuest.vendorId === vendor.id) {
-      return checkFetchQuestItem(state.player, fetchQuest);
-    }
-    return false;
-  });
+  // Check for completed quests first (unless explicitly skipping)
+  if (!skipQuestCheck) {
+    const completedFetchQuests = state.player.quests.active.filter(qId => {
+      const fetchQuest = state.player.quests.fetchQuests?.[qId];
+      if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+        return checkFetchQuestItem(state.player, fetchQuest);
+      }
+      return false;
+    });
 
-  const completedRegularQuests = state.player.quests.active.filter(qId => {
-    const progress = state.player.quests.progress[qId] || 0;
-    const quest = QUEST_TEMPLATES[qId];
-    return quest && progress >= quest.targetCount;
-  });
-  
-  const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
-  
-  if (allCompletedQuests.length > 0) {
-    // Show quest turn-in option first
-    openQuestTurnIn(state, vendor, allCompletedQuests);
-  } else {
-    // Use systems/shop.js to open shop (handles vendor initialization)
-    ShopSystem.openShop(state, vendor);
-    // Use ui/shop.js to render
-    ShopUI.renderShop(state);
+    const completedRegularQuests = state.player.quests.active.filter(qId => {
+      const progress = state.player.quests.progress[qId] || 0;
+      const quest = QUEST_TEMPLATES[qId];
+      return quest && progress >= quest.targetCount;
+    });
+    
+    const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+    
+    if (allCompletedQuests.length > 0) {
+      // Show quest turn-in option first
+      openQuestTurnIn(state, vendor, allCompletedQuests);
+      renderQuestTurnIn(state);  // Need to render the UI
+      return;
+    }
   }
+  
+  // Use systems/shop.js to open shop (handles vendor initialization)
+  ShopSystem.openShop(state, vendor);
+  // Use ui/shop.js to render
+  ShopUI.renderShop(state);
 }
 
 export function closeShop(state) {
@@ -107,327 +113,20 @@ export function closeShop(state) {
   render(state);
 }
 
-// Quest turn-in functions
-function openQuestTurnIn(state, vendor, completedQuests) {
-  // Prevent opening if already open or if shop is open
-  if (state.ui.questTurnInOpen || state.ui.shopOpen) {
-    return;
-  }
-  
-  state.ui.questTurnInOpen = true;
-  state.ui.shopVendor = vendor;
-  state.ui.completedQuests = completedQuests;
-  state.ui.allCompletedQuests = [...completedQuests]; // Store all for tracking
-  state.ui.selectedQuestIndex = 0;
-  state.ui.selectingQuest = completedQuests.length > 1; // Show selection if multiple quests
-  renderQuestTurnIn(state);
-}
-
+// Quest turn-in wrapper functions (delegate to systems/questTurnIn.js)
 export function renderQuestTurnIn(state) {
-  const overlay = document.getElementById("overlay");
-  const content = document.getElementById("overlayContent");
-  const title = document.getElementById("overlayTitle");
-  const hint = document.getElementById("overlayHint");
-  
-  overlay.style.display = "flex";
-  
-  // Check if we need to select an item for a fetch quest
-  if (state.ui.selectingFetchItem) {
-    title.textContent = "SELECT ITEM TO GIVE";
-    
-    const fetchQuest = state.player.quests.fetchQuests[state.ui.selectingFetchItem];
-    const matchingItems = [];
-    state.player.inventory.forEach((item, idx) => {
-      if (fetchQuest.targetItem.itemCheck(item)) {
-        matchingItems.push({...item, inventoryIndex: idx});
-      }
-    });
-    
-    let itemsHtml = '<div class="item-list">';
-    matchingItems.forEach((item, idx) => {
-      const isSelected = idx === state.ui.fetchItemSelectedIndex;
-      const isEquipped = 
-        (item.type === "weapon" && item.id === state.equippedWeaponId) ||
-        (item.type === "armor" && item.id === state.equippedArmorId) ||
-        (item.type === "headgear" && item.id === state.equippedHeadgearId);
-      
-      const typeSymbol = item.type === "potion" ? "!" : 
-                         item.type === "weapon" ? "/" : 
-                         item.type === "armor" ? "]" : "^";
-      
-      let statsText = "";
-      if (item.type === "weapon") {
-        statsText = ` [DMG: ${item.item.dmg}]`;
-        if (item.item.effect) statsText += ` [${item.item.effect}]`;
-      } else if (item.type === "armor") {
-        statsText = ` [DEF: ${item.item.def}]`;
-      } else if (item.type === "headgear") {
-        const stats = [];
-        if (item.item.def) stats.push(`DEF: ${item.item.def}`);
-        if (item.item.str) stats.push(`STR: ${item.item.str}`);
-        if (item.item.spd) stats.push(`SPD: ${item.item.spd}`);
-        if (item.item.magic) stats.push(`MAG: ${item.item.magic}`);
-        if (stats.length > 0) statsText = ` [${stats.join(", ")}]`;
-      }
-      
-      itemsHtml += `
-        <div class="item ${isSelected ? 'selected' : ''}" style="padding: 5px; ${isSelected ? 'border: 1px solid var(--accent);' : ''}">
-          <div>${typeSymbol} ${item.item.name}${statsText} ${isEquipped ? '<span style="color: var(--ok)">[EQUIPPED]</span>' : ''}</div>
-          ${item.item.desc ? `<div style="color: var(--dim); font-size: 0.9em;">${item.item.desc}</div>` : ''}
-        </div>
-      `;
-    });
-    itemsHtml += '</div>';
-    
-    content.innerHTML = `
-      <div style="margin-bottom: 20px;">
-        <div style="color: var(--note);">The vendor needs: ${fetchQuest.targetItem.name}</div>
-        <div style="color: var(--dim); margin-top: 10px;">Select which item to give:</div>
-      </div>
-      ${itemsHtml}
-    `;
-    
-    hint.textContent = "[↑↓] Select • [Enter] Give Item • [Esc] Cancel";
-    return;
-  }
-  
-  // Quest selection menu
-  if (state.ui.selectingQuest) {
-    title.textContent = "SELECT QUEST TO TURN IN";
-    
-    const quests = state.ui.completedQuests.map((qId, idx) => {
-      const isSelected = idx === state.ui.selectedQuestIndex;
-      
-      // Check if it's a fetch quest
-      const fetchQuest = state.player.quests.fetchQuests?.[qId];
-      if (fetchQuest) {
-        const hasItem = checkFetchQuestItem(state.player, fetchQuest);
-        return `
-          <div style="margin-bottom: 10px; padding: 10px; border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--dim)'}; border-radius: 4px; ${isSelected ? 'background: rgba(255, 255, 255, 0.05);' : ''}">
-            <div style="color: var(--good); font-weight: bold;">✓ ${fetchQuest.name}</div>
-            <div style="color: var(--dim); margin: 5px 0;">${fetchQuest.objective}</div>
-            ${!hasItem ? '<div style="color: var(--danger);">⚠️ Missing required item!</div>' : ''}
-            <div style="color: var(--accent);">
-              Rewards: ${fetchQuest.rewards.gold} gold, ${fetchQuest.rewards.xp} XP
-              ${fetchQuest.rewards.item ? `, ${fetchQuest.rewards.item.item.name}` : ''}
-            </div>
-          </div>
-        `;
-      } else {
-        // Regular quest
-        const quest = QUEST_TEMPLATES[qId];
-        if (!quest) return ''; // Skip if quest doesn't exist
-        return `
-          <div style="margin-bottom: 10px; padding: 10px; border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--dim)'}; border-radius: 4px; ${isSelected ? 'background: rgba(255, 255, 255, 0.05);' : ''}">
-            <div style="color: var(--good); font-weight: bold;">✓ ${quest.name}</div>
-            <div style="color: var(--dim); margin: 5px 0;">${quest.objective}</div>
-            <div style="color: var(--accent);">
-              Rewards: ${quest.rewards.gold} gold, ${quest.rewards.xp} XP
-              ${quest.rewards.item ? `, ${quest.rewards.item.item.name}` : ''}
-            </div>
-          </div>
-        `;
-      }
-    }).join('');
-    
-    content.innerHTML = `
-      <div style="margin-bottom: 20px;">
-        <div style="color: var(--note);">You have multiple completed quests. Select which one to turn in:</div>
-      </div>
-      ${quests}
-    `;
-    
-    hint.textContent = "[↑↓] Select • [Enter] Turn In Quest • [A] Turn In All • [Esc] Cancel";
-    return;
-  }
-  
-  title.textContent = "QUEST COMPLETE!";
-  
-  const quests = state.ui.completedQuests.map(qId => {
-    // Check if it's a fetch quest
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (fetchQuest) {
-      return `
-        <div style="margin-bottom: 15px; padding: 10px; border: 1px solid var(--dim); border-radius: 4px;">
-          <div style="color: var(--good); font-weight: bold;">✓ ${fetchQuest.name}</div>
-          <div style="color: var(--dim); margin: 5px 0;">${fetchQuest.objective}</div>
-          <div style="color: var(--accent);">
-            Rewards: ${fetchQuest.rewards.gold} gold, ${fetchQuest.rewards.xp} XP
-            ${fetchQuest.rewards.item ? `, ${fetchQuest.rewards.item.item.name}` : ''}
-          </div>
-        </div>
-      `;
-    } else {
-      // Regular quest
-      const quest = QUEST_TEMPLATES[qId];
-      if (!quest) return ''; // Skip if quest doesn't exist
-      return `
-        <div style="margin-bottom: 15px; padding: 10px; border: 1px solid var(--dim); border-radius: 4px;">
-          <div style="color: var(--good); font-weight: bold;">✓ ${quest.name}</div>
-          <div style="color: var(--dim); margin: 5px 0;">${quest.objective}</div>
-          <div style="color: var(--accent);">
-            Rewards: ${quest.rewards.gold} gold, ${quest.rewards.xp} XP
-            ${quest.rewards.item ? `, ${quest.rewards.item.item.name}` : ''}
-          </div>
-        </div>
-      `;
-    }
-  }).join('');
-  
-  content.innerHTML = `
-    <div style="text-align: center; margin-bottom: 20px;">
-      <div style="color: var(--xp); font-size: 1.2em;">The vendor is impressed!</div>
-    </div>
-    ${quests}
-  `;
-  
-  hint.textContent = "Press Enter to claim rewards • Esc to skip to shop";
+  renderQuestTurnInUI(state);
 }
 
 export function renderQuestTurnInConfirm(state) {
-  const overlay = document.getElementById("overlay");
-  const content = document.getElementById("overlayContent");
-  const title = document.getElementById("overlayTitle");
-  const hint = document.getElementById("overlayHint");
-  
-  overlay.style.display = "flex";
-  title.textContent = "⚠️ WARNING ⚠️";
-  
-  content.innerHTML = `
-    <div style="text-align: center; padding: 20px;">
-      <p style="color: var(--fg); margin-bottom: 20px;">You are about to give away an <span style="color: var(--ok)">EQUIPPED</span> item!</p>
-      <p style="color: var(--accent); margin-bottom: 30px;">Are you sure you want to give it to the vendor?</p>
-      <div style="display: flex; gap: 40px; justify-content: center; font-size: 18px;">
-        <div style="padding: 10px 20px; border: 2px solid ${state.ui.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'}; border-radius: 4px; color: ${state.ui.confirmChoice === 'yes' ? 'var(--danger)' : 'var(--dim)'};">
-          YES
-        </div>
-        <div style="padding: 10px 20px; border: 2px solid ${state.ui.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'}; border-radius: 4px; color: ${state.ui.confirmChoice === 'no' ? 'var(--ok)' : 'var(--dim)'};">
-          NO
-        </div>
-      </div>
-    </div>
-  `;
-  
-  hint.textContent = "[←→] Select • [Enter] Confirm • [Esc] Cancel";
+  renderQuestTurnInConfirmUI(state);
 }
 
 export function claimQuestRewards(state, questsToTurnIn = null) {
-  // Use provided quests or all completed quests
-  const quests = questsToTurnIn || state.ui.completedQuests;
-  
-  // Check if there are any fetch quests that need item selection
-  const fetchQuestsNeedingSelection = quests.filter(qId => {
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (!fetchQuest) return false;
-    
-    // Check if player has the item
-    if (!checkFetchQuestItem(state.player, fetchQuest)) return false;
-    
-    // Always show selection for equipment (weapon, armor, headgear)
-    // For consumables (potions), only show if multiple matches
-    const matchingItems = state.player.inventory.filter(item => 
-      fetchQuest.targetItem.itemCheck(item)
-    );
-    
-    if (matchingItems.length === 0) return false;
-    
-    // Always show selection for equipment items
-    const firstMatch = matchingItems[0];
-    if (firstMatch.type === "weapon" || firstMatch.type === "armor" || firstMatch.type === "headgear") {
-      return true; // Always show selection for equipment
-    }
-    
-    // For other items (like potions), only show if multiple
-    return matchingItems.length > 1;
-  });
-  
-  // If we need to select an item and haven't yet
-  // But skip if we already have a selected item index
-  if (fetchQuestsNeedingSelection.length > 0 && !state.ui.selectingFetchItem && state.ui.selectedFetchItemIndex === undefined) {
-    // Start item selection for the first fetch quest
-    state.ui.selectingFetchItem = fetchQuestsNeedingSelection[0];
-    state.ui.fetchItemSelectedIndex = 0;
-    state.ui.completedQuests = quests; // Update to only the quests we're turning in
-    renderQuestTurnIn(state);
-    return;
-  }
-  
-  // Process all quests
-  quests.forEach(qId => {
-    // Check if it's a fetch quest
-    const fetchQuest = state.player.quests.fetchQuests?.[qId];
-    if (fetchQuest) {
-      // If we had item selection, use the selected item
-      if (state.ui.selectedFetchItemIndex !== undefined) {
-        turnInFetchQuestWithItem(state, qId, state.ui.shopVendor, state.ui.selectedFetchItemIndex);
-        state.ui.selectedFetchItemIndex = undefined;
-      } else {
-        // Otherwise use the first matching item
-        turnInFetchQuest(state, qId, state.ui.shopVendor);
-      }
-    } else {
-      turnInQuest(state, qId);
-    }
-  });
-  
-  // Give new quest after turning in starter
-  if (quests.includes("kill_any")) {
-    // Give a random quest from available ones
-    const nextQuests = ["kill_goober", "kill_three"];
-    const nextQuest = nextQuests[Math.floor(Math.random() * nextQuests.length)];
-    giveQuest(state, nextQuest);
-  }
-  
-  // Check if there are more quests to turn in
-  // Filter out quests that were just turned in
-  const remainingQuests = state.ui.allCompletedQuests ? 
-    state.ui.allCompletedQuests.filter(qId => {
-      // Don't include quests we just turned in
-      if (quests.includes(qId)) return false;
-      
-      // Check if quest is still actually completed and ready to turn in
-      const fetchQuest = state.player.quests.fetchQuests?.[qId];
-      if (fetchQuest) {
-        // For fetch quests, check if we still have the item
-        return checkFetchQuestItem(state.player, fetchQuest);
-      } else {
-        // For regular quests, check if it's still in active quests
-        if (!state.player.quests.active.includes(qId)) return false;
-        const quest = QUEST_TEMPLATES[qId];
-        if (!quest) return false;
-        const progress = state.player.quests.progress[qId] || 0;
-        return progress >= quest.targetCount;
-      }
-    }) : [];
-  
-  if (remainingQuests.length > 0) {
-    // Still have quests to turn in, go back to selection
-    state.ui.completedQuests = remainingQuests;
-    state.ui.allCompletedQuests = remainingQuests; // Update the list
-    state.ui.selectingQuest = remainingQuests.length > 1;
-    state.ui.selectedQuestIndex = 0;
-    state.ui.selectingFetchItem = null;
-    state.ui.fetchItemSelectedIndex = 0;
-    renderQuestTurnIn(state);
-  } else {
-    // Close quest turn-in UI
-    state.ui.questTurnInOpen = false;
-    state.ui.completedQuests = [];
-    state.ui.allCompletedQuests = null;
-    state.ui.selectingFetchItem = null;
-    state.ui.fetchItemSelectedIndex = 0;
-    state.ui.selectingQuest = false;
-    
-    // Close overlay first
-    const overlay = document.getElementById("overlay");
-    overlay.style.display = "none";
-    
-    // Then open shop after a brief delay
-    setTimeout(() => {
-      openVendorShop(state, state.ui.shopVendor);
-    }, 100);
-  }
+  processQuestRewards(state, questsToTurnIn);
 }
+
+// Old implementations removed - moved to systems/questTurnIn.js and ui/questTurnIn.js
 
 function openMap(state) {
   state.ui.mapOpen = true;
@@ -1564,6 +1263,16 @@ export function initGame() {
   ShopUI.initShopUI();
   initMapUI();
   initQuestUI();
+  
+  // Initialize quest turn-in UI
+  import('./ui/questTurnIn.js').then(module => {
+    module.initQuestTurnInUI();
+  });
+  
+  // Listen for quest turn-in events
+  on('questTurnIn:openShop', ({ vendor }) => {
+    openVendorShop(STATE, vendor);
+  });
   
   // Initialize particle effects
   import('./ui/particles.js').then(module => {

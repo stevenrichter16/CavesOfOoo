@@ -15,6 +15,7 @@ import {
   renderQuestTurnInConfirm,
   closeShop
 } from '../game.js';
+import { openQuestTurnIn } from '../systems/questTurnIn.js';
 import * as ShopSystem from '../systems/shop.js';
 import * as ShopUI from '../ui/shop.js';
 import * as VendorQuests from '../systems/vendorQuests.js';
@@ -22,7 +23,8 @@ import { saveChunk } from '../persistence.js';
 import { openInventory, closeInventory, useInventoryItem, dropInventoryItem, renderInventory } from '../inventory.js';
 import { handleMapNavigation } from '../worldMap.js';
 import { openMap, closeMap, renderMap } from '../ui/map.js';
-import { displayActiveQuests, hasQuest, giveQuest } from '../quests.js';
+import { displayActiveQuests, hasQuest, giveQuest, checkFetchQuestItem } from '../quests.js';
+import { QUEST_TEMPLATES } from '../config.js';
 import { applyStatusEffect, isFrozen } from '../statusEffects.js';
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
@@ -301,11 +303,23 @@ function handleQuestTurnInControls(STATE, e) {
       claimQuestRewards(STATE);
     } else if (e.key === "Escape") {
       // Cancel quest turn-in
+      const vendor = STATE.ui.shopVendor;  // Save vendor before closing
       STATE.ui.questTurnInOpen = false;
       STATE.ui.completedQuests = [];
       STATE.ui.selectingQuest = false;
-      closeShop(STATE);
-      openVendorShop(STATE, STATE.ui.shopVendor);
+      
+      // Close the overlay
+      const overlay = document.getElementById("overlay");
+      if (overlay) overlay.style.display = "none";
+      
+      // Need to call render to refresh the game view
+      render(STATE);
+      
+      if (vendor) {
+        setTimeout(() => {
+          openVendorShop(STATE, vendor, true);  // Skip quest check when escaping
+        }, 50);
+      }
     }
     e.preventDefault();
     return;
@@ -350,12 +364,24 @@ function handleQuestTurnInControls(STATE, e) {
       }
     } else if (e.key === "Escape") {
       // Cancel item selection
+      const vendor = STATE.ui.shopVendor;  // Save vendor before closing
       STATE.ui.selectingFetchItem = null;
       STATE.ui.fetchItemSelectedIndex = 0;
       STATE.ui.questTurnInOpen = false;
       STATE.ui.completedQuests = [];
-      closeShop(STATE);
-      openVendorShop(STATE, STATE.ui.shopVendor);
+      
+      // Close the overlay
+      const overlay = document.getElementById("overlay");
+      if (overlay) overlay.style.display = "none";
+      
+      // Need to call render to refresh the game view
+      render(STATE);
+      
+      if (vendor) {
+        setTimeout(() => {
+          openVendorShop(STATE, vendor, true);  // Skip quest check when escaping
+        }, 50);
+      }
     }
   }
   // Normal quest turn-in (not selecting quest, not selecting item, not confirming)
@@ -364,10 +390,24 @@ function handleQuestTurnInControls(STATE, e) {
     if (e.key === "Enter") {
       claimQuestRewards(STATE);
     } else if (e.key === "Escape") {
+      // Save vendor before closing
+      const vendor = STATE.ui.shopVendor;
       STATE.ui.questTurnInOpen = false;
       STATE.ui.completedQuests = [];
-      closeShop(STATE);
-      openVendorShop(STATE, STATE.ui.shopVendor);
+      
+      // Close the overlay
+      const overlay = document.getElementById("overlay");
+      if (overlay) overlay.style.display = "none";
+      
+      // Need to call render to refresh the game view
+      render(STATE);
+      
+      // Open vendor shop after a small delay
+      if (vendor) {
+        setTimeout(() => {
+          openVendorShop(STATE, vendor, true);  // Skip quest check when escaping
+        }, 50);
+      }
     }
   }
   e.preventDefault();
@@ -402,27 +442,98 @@ function handleShopControls(STATE, e) {
   // Normal shop controls
   if (e.key === "Escape" || e.key.toLowerCase() === "v") {
     closeShop(STATE);
+  } else if (e.key.toLowerCase() === "a" && STATE.ui.shopMode === "turn-in") {
+    // Turn in ALL quests
+    const vendor = STATE.ui.shopVendor;
+    const completedFetchQuests = STATE.player.quests.active.filter(qId => {
+      const fetchQuest = STATE.player.quests.fetchQuests?.[qId];
+      if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+        return checkFetchQuestItem(STATE.player, fetchQuest);
+      }
+      return false;
+    });
+    const completedRegularQuests = STATE.player.quests.active.filter(qId => {
+      const progress = STATE.player.quests.progress[qId] || 0;
+      const quest = QUEST_TEMPLATES[qId];
+      return quest && progress >= quest.targetCount;
+    });
+    const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+    
+    if (allCompletedQuests.length > 0) {
+      // Close shop UI first
+      STATE.ui.shopOpen = false;
+      // Open quest turn-in for all quests
+      openQuestTurnIn(STATE, vendor, allCompletedQuests);
+      renderQuestTurnIn(STATE);
+      // Reset index
+      STATE.ui.questTurnInIndex = 0;
+    }
   } else if (e.key === "Tab") {
-    // Toggle between buy, sell, and quest modes
+    // Toggle between buy, sell, quest, and turn-in modes
     const vendor = STATE.ui.shopVendor;
     const hasQuestToOffer = VendorQuests.hasQuestToOffer(STATE, vendor);
+    
+    // Check for completed quests
+    const completedFetchQuests = STATE.player.quests.active.filter(qId => {
+      const fetchQuest = STATE.player.quests.fetchQuests?.[qId];
+      if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+        return checkFetchQuestItem(STATE.player, fetchQuest);
+      }
+      return false;
+    });
+    const completedRegularQuests = STATE.player.quests.active.filter(qId => {
+      const progress = STATE.player.quests.progress[qId] || 0;
+      const quest = QUEST_TEMPLATES[qId];
+      return quest && progress >= quest.targetCount;
+    });
+    const hasCompletedQuests = completedFetchQuests.length > 0 || completedRegularQuests.length > 0;
     
     if (STATE.ui.shopMode === "buy") {
       ShopSystem.switchShopMode(STATE, "sell");
     } else if (STATE.ui.shopMode === "sell") {
+      if (hasCompletedQuests) {
+        ShopSystem.switchShopMode(STATE, "turn-in");
+      } else if (hasQuestToOffer) {
+        ShopSystem.switchShopMode(STATE, "quest");
+      } else {
+        ShopSystem.switchShopMode(STATE, "buy");
+      }
+    } else if (STATE.ui.shopMode === "turn-in") {
       ShopSystem.switchShopMode(STATE, hasQuestToOffer ? "quest" : "buy");
     } else if (STATE.ui.shopMode === "quest") {
       ShopSystem.switchShopMode(STATE, "buy");
     }
     ShopUI.renderShop(STATE);
   } else if (e.key === "ArrowUp") {
-    if (STATE.ui.shopMode !== "quest") {
+    if (STATE.ui.shopMode !== "quest" && STATE.ui.shopMode !== "turn-in") {
       ShopSystem.navigateShop(STATE, 'up');
+      ShopUI.renderShop(STATE);
+    } else if (STATE.ui.shopMode === "turn-in") {
+      // Navigate quest selection in turn-in mode
+      STATE.ui.questTurnInIndex = Math.max(0, (STATE.ui.questTurnInIndex || 0) - 1);
       ShopUI.renderShop(STATE);
     }
   } else if (e.key === "ArrowDown") {
-    if (STATE.ui.shopMode !== "quest") {
+    if (STATE.ui.shopMode !== "quest" && STATE.ui.shopMode !== "turn-in") {
       ShopSystem.navigateShop(STATE, 'down');
+      ShopUI.renderShop(STATE);
+    } else if (STATE.ui.shopMode === "turn-in") {
+      // Navigate quest selection in turn-in mode
+      const vendor = STATE.ui.shopVendor;
+      const completedFetchQuests = STATE.player.quests.active.filter(qId => {
+        const fetchQuest = STATE.player.quests.fetchQuests?.[qId];
+        if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+          return checkFetchQuestItem(STATE.player, fetchQuest);
+        }
+        return false;
+      });
+      const completedRegularQuests = STATE.player.quests.active.filter(qId => {
+        const progress = STATE.player.quests.progress[qId] || 0;
+        const quest = QUEST_TEMPLATES[qId];
+        return quest && progress >= quest.targetCount;
+      });
+      const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+      STATE.ui.questTurnInIndex = Math.min(allCompletedQuests.length - 1, (STATE.ui.questTurnInIndex || 0) + 1);
       ShopUI.renderShop(STATE);
     }
   } else if (e.key === "Enter") {
@@ -430,6 +541,37 @@ function handleShopControls(STATE, e) {
       handleBuyFromVendor(STATE);
     } else if (STATE.ui.shopMode === "sell") {
       handleSellToVendor(STATE);
+    } else if (STATE.ui.shopMode === "turn-in") {
+      // Turn in the selected quest
+      const vendor = STATE.ui.shopVendor;
+      const completedFetchQuests = STATE.player.quests.active.filter(qId => {
+        const fetchQuest = STATE.player.quests.fetchQuests?.[qId];
+        if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+          return checkFetchQuestItem(STATE.player, fetchQuest);
+        }
+        return false;
+      });
+      const completedRegularQuests = STATE.player.quests.active.filter(qId => {
+        const progress = STATE.player.quests.progress[qId] || 0;
+        const quest = QUEST_TEMPLATES[qId];
+        return quest && progress >= quest.targetCount;
+      });
+      const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+      
+      if (allCompletedQuests.length > 0) {
+        const selectedIndex = STATE.ui.questTurnInIndex || 0;
+        const selectedQuest = allCompletedQuests[selectedIndex];
+        
+        if (selectedQuest) {
+          // Close shop UI first
+          STATE.ui.shopOpen = false;
+          // Open quest turn-in for just the selected quest
+          openQuestTurnIn(STATE, vendor, [selectedQuest]);
+          renderQuestTurnIn(STATE);
+          // Reset index for next time
+          STATE.ui.questTurnInIndex = 0;
+        }
+      }
     } else if (STATE.ui.shopMode === "quest") {
       // Accept quest from vendor
       const vendor = STATE.ui.shopVendor;

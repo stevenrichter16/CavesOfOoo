@@ -6,6 +6,8 @@ import { on } from '../events.js';
 import { esc } from '../utils.js';
 import { ShopTransactionEvents } from '../systems/shop.js';
 import { getQuestDisplay } from '../systems/vendorQuests.js';
+import { checkFetchQuestItem } from '../quests.js';
+import { QUEST_TEMPLATES } from '../config.js';
 
 // UI state (for rendering only, not game state)
 let shopUIState = {
@@ -94,6 +96,10 @@ export function renderShop(state) {
     modeText = 'SELLING';
     actionText = 'Sell';
     tabHint = 'Switch to Buy';
+  } else if (state.ui.shopMode === 'turn-in') {
+    modeText = 'TURN IN QUEST';
+    actionText = 'Turn In Quests';
+    tabHint = 'Switch Mode';
   } else if (state.ui.shopMode === 'quest') {
     modeText = 'QUEST';
     actionText = 'Accept Quest';
@@ -103,14 +109,21 @@ export function renderShop(state) {
   title.textContent = `VENDOR - ${modeText}`;
   
   // Add header with gold display
+  let navigationHint = '';
+  if (state.ui.shopMode === 'turn-in') {
+    navigationHint = '[↑↓] Select Quest | [Enter] Turn In Selected | [A] Turn In All | ';
+  } else if (state.ui.shopMode !== 'quest') {
+    navigationHint = '[↑↓] Navigate | ';
+  }
+  
   content.innerHTML = `
     <div class="shop-header" style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--dim);">
       <h3 style="margin: 0 0 10px 0; color: var(--accent);">VENDOR - ${modeText}</h3>
-      ${state.ui.shopMode !== 'quest' ? `<div style="color: var(--gold);">Your Gold: ${state.player.gold}</div>` : ''}
+      ${state.ui.shopMode !== 'quest' && state.ui.shopMode !== 'turn-in' ? `<div style="color: var(--gold);">Your Gold: ${state.player.gold}</div>` : ''}
     </div>
     <div class="shop-items"></div>
     <div class="shop-controls" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--dim); color: var(--dim);">
-      ${state.ui.shopMode !== 'quest' ? '[↑↓] Navigate | ' : ''}[Enter] ${actionText} | [Tab] ${tabHint} | [Esc/V] Exit
+      ${navigationHint}${state.ui.shopMode !== 'turn-in' ? `[Enter] ${actionText} | ` : ''}[Tab] ${tabHint} | [Esc/V] Exit
     </div>
   `;
   
@@ -121,6 +134,8 @@ export function renderShop(state) {
     itemsDiv.innerHTML = renderBuyList(state, vendor);
   } else if (state.ui.shopMode === 'sell') {
     itemsDiv.innerHTML = renderSellList(state);
+  } else if (state.ui.shopMode === 'turn-in') {
+    itemsDiv.innerHTML = renderTurnInList(state);
   } else if (state.ui.shopMode === 'quest') {
     itemsDiv.innerHTML = renderQuestOffer(state, vendor);
   }
@@ -287,6 +302,68 @@ function getItemIcon(item) {
   if (item.type === 'ring') return '💍';
   if (item.type === 'potion') return '🧪';
   return '📦';
+}
+
+/**
+ * Render turn-in list
+ */
+function renderTurnInList(state) {
+  const vendor = state.ui.shopVendor;
+  const selectedIndex = state.ui.questTurnInIndex || 0;
+  
+  // Check for completed quests
+  const completedFetchQuests = state.player.quests.active.filter(qId => {
+    const fetchQuest = state.player.quests.fetchQuests?.[qId];
+    if (fetchQuest && fetchQuest.vendorId === vendor.id) {
+      return checkFetchQuestItem(state.player, fetchQuest);
+    }
+    return false;
+  });
+  
+  const completedRegularQuests = state.player.quests.active.filter(qId => {
+    const progress = state.player.quests.progress[qId] || 0;
+    const quest = QUEST_TEMPLATES[qId];
+    return quest && progress >= quest.targetCount;
+  });
+  
+  const allCompletedQuests = [...completedFetchQuests, ...completedRegularQuests];
+  
+  if (allCompletedQuests.length === 0) {
+    return '<div style="color: var(--dim); text-align: center; padding: 20px;">No quests ready to turn in.</div>';
+  }
+  
+  let html = '<div style="padding: 10px;">';
+  html += '<div style="color: var(--xp); margin-bottom: 15px; text-align: center;">Select quest to turn in:</div>';
+  
+  allCompletedQuests.forEach((qId, index) => {
+    const isSelected = index === selectedIndex;
+    const fetchQuest = state.player.quests.fetchQuests?.[qId];
+    
+    if (fetchQuest) {
+      html += `
+        <div style="margin-bottom: 10px; padding: 10px; border: 2px solid ${isSelected ? 'var(--accent)' : 'var(--dim)'}; border-radius: 4px; ${isSelected ? 'background: rgba(255, 255, 255, 0.05);' : ''}">
+          <div style="color: var(--good);">✓ ${esc(fetchQuest.name)}</div>
+          <div style="color: var(--dim); font-size: 0.9em; margin: 5px 0;">${esc(fetchQuest.objective)}</div>
+          <div style="color: var(--accent);">Rewards: ${fetchQuest.rewards.gold}g, ${fetchQuest.rewards.xp} XP${fetchQuest.rewards.item ? `, ${esc(fetchQuest.rewards.item.item.name)}` : ''}</div>
+        </div>
+      `;
+    } else {
+      const quest = QUEST_TEMPLATES[qId];
+      if (quest) {
+        html += `
+          <div style="margin-bottom: 10px; padding: 10px; border: 2px solid ${isSelected ? 'var(--accent)' : 'var(--dim)'}; border-radius: 4px; ${isSelected ? 'background: rgba(255, 255, 255, 0.05);' : ''}">
+            <div style="color: var(--good);">✓ ${esc(quest.name)}</div>
+            <div style="color: var(--dim); font-size: 0.9em; margin: 5px 0;">${esc(quest.objective)}</div>
+            <div style="color: var(--accent);">Rewards: ${quest.rewards.gold}g, ${quest.rewards.xp} XP${quest.rewards.item ? `, ${esc(quest.rewards.item.item.name)}` : ''}</div>
+          </div>
+        `;
+      }
+    }
+  });
+  
+  html += '</div>';
+  
+  return html;
 }
 
 /**

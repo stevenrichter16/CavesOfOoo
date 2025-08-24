@@ -242,13 +242,17 @@ export function closeShop(state) {
 }
 
 /**
- * Switch shop mode (buy/sell/quest)
+ * Switch shop mode (buy/sell/quest/turn-in)
  */
 export function switchShopMode(state, newMode) {
   state.ui.shopMode = newMode;
   state.ui.shopSelectedIndex = 0;
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
+  // Reset quest turn-in index when switching modes
+  if (newMode === 'turn-in') {
+    state.ui.questTurnInIndex = 0;
+  }
 }
 
 /**
