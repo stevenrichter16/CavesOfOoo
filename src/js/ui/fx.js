@@ -8,18 +8,21 @@ on(EventType.FloatingText, ({ x, y, text, kind }) => {
   el.className = `float ${kind || ''}`;
   el.textContent = text;
   
-  // Position relative to character grid (monospace font)
-  // Approximate character width: 9.6px, line height: 17px
+  // Position relative to Canvas tile grid
+  // Canvas tile size: 16x16px
   el.style.position = 'absolute';
-  el.style.left = `${x * 9.6}px`;
-  el.style.top = `${y * 17}px`;
+  el.style.left = `${x * 16}px`;
+  el.style.top = `${y * 16}px`;
   el.style.pointerEvents = 'none';
   el.style.zIndex = '1000';
   
-  // Add to the game container
+  // Add to the particle container if it exists, otherwise fall back to game container
+  const particleContainer = document.getElementById('particle-container');
   const gameContainer = document.getElementById('game');
-  if (gameContainer && gameContainer.parentElement) {
-    gameContainer.parentElement.appendChild(el);
+  const targetContainer = particleContainer || (gameContainer && gameContainer.parentElement);
+  
+  if (targetContainer) {
+    targetContainer.appendChild(el);
     
     // Remove after animation completes
     setTimeout(() => el.remove(), 800);

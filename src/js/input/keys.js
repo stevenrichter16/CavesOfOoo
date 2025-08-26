@@ -29,6 +29,14 @@ import { applyStatusEffect, isFrozen } from '../systems/statusSystem.js';
 import { emit } from '../events.js';
 import { EventType } from '../eventTypes.js';
 import { W, H } from '../config.js';
+import { 
+  activateCursor, 
+  deactivateCursor, 
+  moveCursor, 
+  getCursorState,
+  executeCursorAction,
+  getInfoAtCursor
+} from '../systems/cursor.js';
 
 // Initialize keyboard controls
 export function initKeyboardControls() {
@@ -42,6 +50,13 @@ export function initKeyboardControls() {
         STATE.ui.shopOpen || STATE.ui.inventoryOpen)) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    
+    // Cursor controls have priority when active
+    const cursorState = getCursorState();
+    if (cursorState && cursorState.active) {
+      handleCursorControls(STATE, e);
+      return;
     }
     
     // Quest turn-in controls
@@ -89,6 +104,13 @@ function handleGameControls(STATE, e) {
   else if (k.toLowerCase() === "i") { openInventory(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "q") { displayActiveQuests(STATE); e.preventDefault(); }
+  else if (k.toLowerCase() === "x") { 
+    // Toggle cursor mode for examining
+    activateCursor('examine');
+    log(STATE, "Cursor mode activated - use arrows to move cursor, Enter to examine, Escape to exit", "note");
+    render(STATE);
+    e.preventDefault(); 
+  }
   else if (k.toLowerCase() === "v") {
     // Check if standing next to vendor
     const positions = [
@@ -151,14 +173,7 @@ function handleDebugGameControls(STATE, e, k) {
     // Debug: Test freeze
     log(STATE, "=== DEBUG: Testing Freeze ===", "magic");
     applyStatusEffect(STATE.player, "freeze", 2, 0);
-    emit(EventType.StatusEffectRegister, { 
-      type: "freeze", 
-      vs: "You",
-      toId: "player",
-      turns: 2,
-      value: 0
-    });
-    log(STATE, "Applied freeze effect for 2 turns (press F for testing)", "magic");
+    log(STATE, "Frozen for 2 turns!", "magic");
     log(STATE, `Status effects: ${JSON.stringify(STATE.player.statusEffects)}`, "note");
     log(STATE, `isFrozen result: ${isFrozen(STATE.player)}`, "note");
     render(STATE);
@@ -166,40 +181,19 @@ function handleDebugGameControls(STATE, e, k) {
   }
   else if (k.toLowerCase() === "b") {
     applyStatusEffect(STATE.player, "burn", 3, 2);
-    emit(EventType.StatusEffectRegister, { 
-      type: "burn", 
-      vs: "You",
-      toId: "player",
-      turns: 3,
-      value: 2
-    });
-    log(STATE, "Applied burn effect (press B for testing)", "magic");
+    log(STATE, "Applied burn (3 turns, 2 damage)!", "magic");
     render(STATE);
     e.preventDefault();
   }
   else if (k.toLowerCase() === "p") {
     applyStatusEffect(STATE.player, "poison", 3, 2);
-    emit(EventType.StatusEffectRegister, { 
-      type: "poison", 
-      vs: "You",
-      toId: "player",
-      turns: 3,
-      value: 2
-    });
-    log(STATE, "Applied poison effect (press P for testing)", "magic");
+    log(STATE, "Applied poison (3 turns, 2 damage)!", "magic");
     render(STATE);
     e.preventDefault();
   }
   else if (k.toLowerCase() === "e") {
-    applyStatusEffect(STATE.player, "shock", 2, 3);
-    emit(EventType.StatusEffectRegister, { 
-      type: "shock", 
-      vs: "You",
-      toId: "player",
-      turns: 2,
-      value: 3
-    });
-    log(STATE, "Applied shock effect (press E for testing)", "magic");
+    applyStatusEffect(STATE.player, "shock", 3, 4);
+    log(STATE, "Applied shock (3 turns, 4 damage)!", "magic");
     render(STATE);
     e.preventDefault();
   }
@@ -639,5 +633,66 @@ function handleSellToVendor(STATE) {
     ShopUI.renderShop(STATE);
   } else if (result.success) {
     ShopUI.renderShop(STATE);
+  }
+}
+
+function handleCursorControls(STATE, e) {
+  const k = e.key;
+  
+  // Movement
+  if (k === "ArrowUp") {
+    moveCursor(0, -1, e.shiftKey);
+    render(STATE);
+    e.preventDefault();
+  } else if (k === "ArrowDown") {
+    moveCursor(0, 1, e.shiftKey);
+    render(STATE);
+    e.preventDefault();
+  } else if (k === "ArrowLeft") {
+    moveCursor(-1, 0, e.shiftKey);
+    render(STATE);
+    e.preventDefault();
+  } else if (k === "ArrowRight") {
+    moveCursor(1, 0, e.shiftKey);
+    render(STATE);
+    e.preventDefault();
+  }
+  // Actions
+  else if (k === "Enter") {
+    executeCursorAction();
+    const info = getInfoAtCursor();
+    if (info) {
+      // Build description
+      let desc = `Tile at (${info.x}, ${info.y}): `;
+      if (info.monster) {
+        desc += `${info.monster.name} (HP: ${info.monster.hp}/${info.monster.hpMax})`;
+      } else if (info.item) {
+        desc += `${info.item.name || info.item.type}`;
+      } else if (info.tile === '#') {
+        desc += "Wall";
+      } else if (info.tile === '.') {
+        desc += "Floor";
+      } else if (info.tile === '+') {
+        desc += "Door";
+      } else {
+        desc += info.tile || "Empty";
+      }
+      if (info.distance !== null) {
+        desc += ` [${info.distance} tiles away]`;
+      }
+      log(STATE, desc, "note");
+      render(STATE); // Need to render after logging
+    } else {
+      log(STATE, "Nothing to examine here", "dim");
+      render(STATE);
+    }
+    e.preventDefault();
+  }
+  // Exit cursor mode
+  else if (k === "Escape" || k.toLowerCase() === "x") {
+    deactivateCursor();
+    log(STATE, "Cursor mode deactivated", "dim");
+    render(STATE);
+    e.preventDefault();
   }
 }

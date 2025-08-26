@@ -168,15 +168,66 @@ h1{margin:0 0 6px 0;font-size:18px;color:var(--accent)}
 
 #legend{color:var(--dim);font-size:13px}
 
-#log{border-top:1px solid #1c1f22;padding-top:8px;max-height:30vh;overflow:auto;font-size:13px}
+#log{
+  border:1px solid #1c1f22;
+  padding:12px;
+  width: 100%;
+  height:220px;
+  overflow-y:auto;
+  font-size:14px;
+  line-height:1.1;
+  background:rgba(18,20,24,0.5);
+  border-radius:6px;
+  box-shadow:inset 0 2px 8px rgba(0,0,0,0.3);
+  box-sizing: border-box;
+}
 
-/* example */
+/* Custom scrollbar for log */
+#log::-webkit-scrollbar {
+  width: 10px;
+}
+
+#log::-webkit-scrollbar-track {
+  background: rgba(28,31,34,0.3);
+  border-radius: 5px;
+}
+
+#log::-webkit-scrollbar-thumb {
+  background: #2c2f33;
+  border-radius: 5px;
+  border: 1px solid #1c1f22;
+}
+
+#log::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Log message styles */
+.log span {
+  display: inline-block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* Fade older messages */
+.log span:nth-last-child(n+10) {
+  opacity: 0.7;
+}
+
+.log span:nth-last-child(n+20) {
+  opacity: 0.5;
+}
+
+/* Message type colors */
 .log .note  { color:#8ef; }
 .log .hit   { color:#ff9; }
 .log .crit  { color:#ff6; font-weight:bold; }
 .log .miss  { color:#aaa; font-style:italic; }
 .log .good  { color:#9f9; }
 .log .flavor{ color:#0a0; opacity:.85; }
+.log .dim   { color:#666; }
 
 .good{color:var(--ok)} .bad{color:var(--danger)} .note{color:var(--accent)}
 .xp{color:var(--xp)} .magic{color:var(--magic)} .rare{color:var(--rare)}
@@ -497,11 +548,19 @@ a.button, button.button{
   50% { opacity: 0.6; }
 }
 
-/* Equipment Panel */
+/* Game Container Layout */
 #gameContainer {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+}
+
+#leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: fit-content;
+  flex: none;
 }
 
 #equipmentPanel {

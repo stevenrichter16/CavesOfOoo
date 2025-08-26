@@ -208,17 +208,27 @@ export function interactTile(state, x, y, openVendorShop = null) {
   
   // Chest opening
   else if (tile === "$") {
-    const chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
+    // Find or create chest object
+    let chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
     if (!chest) {
-      // No chest object found, but tile is $, so create one
-      const newChest = { type: "chest", x: x, y: y, opened: false };
-      items.push(newChest);
+      chest = { type: "chest", x: x, y: y, opened: false };
+      items.push(chest);
     }
     
-    const chestToOpen = chest || items.find(i => i.type === "chest" && i.x === x && i.y === y);
-    if (chestToOpen && !chestToOpen.opened) {
-      chestToOpen.opened = true;
+    if (!chest.opened) {
+      chest.opened = true;
+      
+      // IMPORTANT: Update the map tile to remove the chest graphic
       state.chunk.map[y][x] = ".";
+      
+      // Remove the chest from the items array so it won't be drawn
+      const chestIndex = items.indexOf(chest);
+      if (chestIndex !== -1) {
+        items.splice(chestIndex, 1);
+      }
+      
+      // Save chunk immediately to persist the change
+      saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
       
       // Gold chance (40%)
       if (Math.random() < 0.4) {

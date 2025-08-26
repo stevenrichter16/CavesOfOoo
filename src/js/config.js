@@ -1,6 +1,31 @@
 export const W = 48;
 export const H = 22;
 
+// Canvas rendering configuration
+export const CANVAS_CONFIG = {
+  TILE_SIZE: 16,           // Size of each tile in pixels
+  FONT_SIZE: 14,           // For ASCII mode
+  FONT_FAMILY: 'Menlo, Consolas, "Courier New", monospace',
+  RENDER_MODE: 'ASCII',    // 'ASCII' or 'SPRITE'
+  ENABLE_SMOOTH: false,    // Pixel-perfect rendering
+  BACKGROUND: '#0b0b0f',
+  FOREGROUND: '#c9ffd6',
+  
+  // Performance
+  DIRTY_RECTS: true,       // Only redraw changed areas
+  PARTICLE_LIMIT: 100,     // Max particle effects
+  ENABLE_LIGHTING: false,  // Start with lighting off
+  
+  // Grid dimensions (same as current)
+  GRID_WIDTH: W,
+  GRID_HEIGHT: H,
+  
+  // Visual settings
+  SHOW_GRID: false,        // Debug grid overlay
+  CURSOR_COLOR: 'rgba(255, 255, 255, 0.3)',
+  ANIMATION_SPEED: 200,    // ms for smooth movement
+};
+
 export const TILE = { 
   wall: "#", 
   floor: ".", 

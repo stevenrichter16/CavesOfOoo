@@ -213,23 +213,19 @@ function createSingleParticle(x, y, statusType) {
   const config = particleConfigs[statusType];
   if (!config) return;
   
-  const gameEl = document.getElementById('game');
-  if (!gameEl) return;
+  // Use the dedicated particle container
+  const particleContainer = document.getElementById('particle-container');
+  if (!particleContainer) return;
   
-  // Get the actual character dimensions from the game element
-  const testSpan = document.createElement('span');
-  testSpan.textContent = 'M';
-  testSpan.style.visibility = 'hidden';
-  testSpan.style.position = 'absolute';
-  gameEl.appendChild(testSpan);
-  const charWidth = testSpan.offsetWidth || 9.6;
-  const charHeight = testSpan.offsetHeight || 16;
-  testSpan.remove();
+  // Canvas mode only - use fixed dimensions based on canvas tile size
+  const charWidth = 16;  // CANVAS_CONFIG.TILE_SIZE
+  const charHeight = 16; // CANVAS_CONFIG.TILE_SIZE
   
   // Create particle element
   const particle = document.createElement('div');
   particle.className = `status-particle ${config.className}`;
   particle.id = `particle-${particleId++}`;
+  particle.style.position = 'absolute';
   
   // Choose random character
   const char = config.chars[Math.floor(Math.random() * config.chars.length)];
@@ -245,19 +241,8 @@ function createSingleParticle(x, y, statusType) {
   particle.style.left = `${x * charWidth + offsetX}px`;
   particle.style.top = `${y * charHeight + offsetY}px`;
   
-  // Add to game container's parent (which should be positioned)
-  const container = gameEl.parentElement;
-  if (container) {
-    if (!container.style.position || container.style.position === 'static') {
-      container.style.position = 'relative';
-    }
-    container.appendChild(particle);
-  } else {
-    if (!gameEl.style.position || gameEl.style.position === 'static') {
-      gameEl.style.position = 'relative';
-    }
-    gameEl.appendChild(particle);
-  }
+  // Add to particle container
+  particleContainer.appendChild(particle);
   
   // Remove particle after animation
   setTimeout(() => {

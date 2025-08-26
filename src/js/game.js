@@ -25,15 +25,19 @@ import { endOfTurnStatusPass } from './systems/statusSystem.js';
 import { runOnTurnEndHooks, getGearMods } from './gear/effects.js';
 import { initKeyboardControls } from './input/keys.js';
 import { renderEquipmentPanel, getStatusChar, getStatusClass } from './ui/equipment.js';
+import { CanvasRenderer } from './renderer/canvas.js';
+import { getCursorState, isValidCursorPosition } from './systems/cursor.js';
 
 // Game state
 let STATE = null;
-mountLog(document.getElementById('logger'));
+let canvasRenderer = null;
+
+mountLog(document.getElementById('log'));
 emit(EventType.Log, { text: 'CavesOfOoo booting…', cls: 'note' });
 
 export function log(state, text, cls = null) { 
-  const span = cls ? `<span class="${cls}">${esc(text)}</span>` : esc(text);
-  state.logMessages.push(span);
+  // Use the event-driven log system
+  emit(EventType.Log, { text, cls });
 }
 
 function setText(id, text) { 
@@ -231,100 +235,22 @@ export function turnEnd(state) {
   render(state);
 }
 
-// Equipment panel rendering has been moved to ui/equipment.js
+// Render using Canvas only
 export function render(state) {
-  console.log("in RENDER");
-  const { map, monsters, biome } = state.chunk;
-  const buf = map.map(r => r.slice());
+  // Add cursor state to the state object for the renderer
+  state.cursorState = getCursorState();
+  state.isValidCursorPosition = isValidCursorPosition;
   
-  // Track monster positions and tiers for coloring
-  const monsterMap = new Map();
-  
-  // Track entities with status effects
-  const statusMap = new Map();
-  
-  // Draw monsters
-  for (const m of monsters) {
-    if (m.alive && m.y >= 0 && m.y < H && m.x >= 0 && m.x < W) {
-      buf[m.y][m.x] = m.glyph;
-      monsterMap.set(`${m.x},${m.y}`, m.tier || 1);
-      
-      // Check for status effects
-      if (m.statusEffects && m.statusEffects.length > 0) {
-        const effect = m.statusEffects[0]; // Show first effect
-        statusMap.set(`${m.x},${m.y}`, effect.type);
-      }
-    }
+  if (canvasRenderer) {
+    canvasRenderer.render(state);
   }
-  
-  // Draw player
-  if (state.player.alive && state.player.y >= 0 && state.player.y < H && 
-      state.player.x >= 0 && state.player.x < W) {
-    buf[state.player.y][state.player.x] = TILE.player;
-    
-    // Check for player status effects
-    if (state.player.statusEffects && state.player.statusEffects.length > 0) {
-      console.log("in Render Check Player Status Effects");
-      const effect = state.player.statusEffects[0];
-      console.log("Effect:", effect);
-      statusMap.set(`${state.player.x},${state.player.y}`, effect.type);
-    }
-  }
-  
-  // Render with colored monsters
-  const gameEl = document.getElementById("game");
-  
-  // Handle old biome names and apply class for color palette
-  let biomeClass = biome;
-  // Convert old biome names to new ones (for backwards compatibility)
-  if (biome === "candy") biomeClass = "candy_forest";
-  else if (biome === "ice") biomeClass = "frost_caverns";
-  else if (biome === "fire") biomeClass = "volcanic_marsh";
-  else if (biome === "slime" || biome === "glimmering_meadows") biomeClass = "slime_kingdom";
-  // New biomes already have correct names
-  
-  gameEl.className = `biome-${biomeClass}`;
-  
-  let html = "";
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const char = buf[y][x];
-      const monsterTier = monsterMap.get(`${x},${y}`);
-      const statusEffect = statusMap.get(`${x},${y}`);
-      
-      if (monsterTier) {
-        // Check for special monster styling
-        const monster = monsters.find(m => m.x === x && m.y === y && m.alive);
-        const tierClass = `monster-tier-${monsterTier}`;
-        
-        if (monster) {
-          // Apply special styling for specific monsters
-          if (monster.name === "flame pup") {
-            html += `<span class="flame-pup ${tierClass}">${char}</span>`;
-          } else if (monster.name === "demon") {
-            html += `<span class="demon">${char}</span>`;
-          } else if (monster.name === "bone knight") {
-            html += `<span class="bone-knight">${char}</span>`;
-          } else if (monster.name === "wraith") {
-            html += `<span class="wraith">${char}</span>`;
-          } else if (monster.name === "shadow beast") {
-            html += `<span class="shadow-beast">${char}</span>`;
-          } else {
-            // Color monster based on tier
-            html += `<span class="${tierClass}">${char}</span>`;
-          }
-        } else {
-          html += `<span class="${tierClass}">${char}</span>`;
-        }
-      } else {
-        html += char;
-      }
-    }
-    if (y < H - 1) html += "\n";
-  }
-  gameEl.innerHTML = html;
-  
-  // Update HUD
+  // Update HUD and other DOM elements
+  updateHUD(state);
+  updateEquipmentPanel(state);
+}
+
+// Separate HUD update function for use with Canvas renderer
+function updateHUD(state) {
   const p = state.player;
   setText("hp", `HP ${p.hp}/${p.hpMax}`);
   setText("xp", `XP ${p.xp}/${p.xpNext}`);
@@ -375,6 +301,7 @@ export function render(state) {
   setText("time", `${TIMES[state.timeIndex]} / ${state.weather}`);
   
   // Display friendly biome name
+  const biome = state.chunk?.biome || "unknown";
   let biomeName = biome;
   if (biome === "candy_forest" || biome === "candy") biomeName = "Candy Forest";
   else if (biome === "slime_kingdom" || biome === "slime") biomeName = "Slime Kingdom";
@@ -454,11 +381,7 @@ export function render(state) {
     statusBar.appendChild(div);
   }
   
-  // Update log
-  const logEl = document.getElementById("log");
-  logEl.innerHTML = state.logMessages.slice(-15).join("<br/>");
-  // Auto-scroll to bottom to show most recent messages
-  logEl.scrollTop = logEl.scrollHeight;
+  // Log is now handled by the event-driven log system in log.js
   
   // Show/hide restart
   document.getElementById("restart").style.display = state.over ? "inline-block" : "none";
@@ -466,13 +389,14 @@ export function render(state) {
   // Inventory/Shop overlay
   document.getElementById("overlay").style.display = 
     (state.ui.inventoryOpen || state.ui.shopOpen) ? "flex" : "none";
-  
-  // Update equipment panel
+}
+
+// Separate equipment panel update for Canvas renderer
+function updateEquipmentPanel(state) {
   renderEquipmentPanel(state);
 }
 
 export function newWorld() {
-  console.log("in newWorld")
   const worldSeed = Math.floor(Math.random() * 2**31) >>> 0;
   const player = makePlayer();
   const state = {
@@ -481,7 +405,6 @@ export function newWorld() {
     chunk: null,
     timeIndex: rnd(TIMES.length),
     weather: choice(WEATHERS),
-    logMessages: [],
     over: false,
     ui: { 
       inventoryOpen: false, 
@@ -511,7 +434,6 @@ export function newWorld() {
     log: (text, cls) => log(state, text, cls),
     render: () => render(state)
   };
-  console.log("Right before loadOrGenChunk");
   state.FETCH_ITEMS = FETCH_ITEMS; // Set reference for PlayerMovement module
   PlayerMovement.loadOrGenChunk(state, 0, 0);
   const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
@@ -540,12 +462,20 @@ export function newWorld() {
   log(state, "Visit any vendor (V) for your reward.", "dim");
   log(state, "Press 'Q' to view active quests.", "dim");
   log(state, "════════════════════════════", "xp");
-  console.log("still in newWorld before RETURN STATE");
   return state;
 }
 
 // Initialize game
 export function initGame() {
+  // Initialize Canvas renderer
+  try {
+    canvasRenderer = new CanvasRenderer('game-canvas');
+    canvasRenderer.setEnabled(true);
+    console.log('Canvas renderer initialized successfully');
+  } catch (e) {
+    console.error('Failed to initialize Canvas renderer:', e);
+  }
+  
   // Initialize UI modules
   ShopUI.initShopUI();
   initMapUI();
@@ -600,4 +530,8 @@ window.addEventListener("DOMContentLoaded", () => {
     log(STATE, "Defeat monsters to gain XP and level up!", "note");
     render(STATE);
   });
+  
+  // Hide the DOM game element since we're using Canvas only
+  const gameEl = document.getElementById("game");
+  if (gameEl) gameEl.style.display = 'none';
 });

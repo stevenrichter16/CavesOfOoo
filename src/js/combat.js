@@ -8,10 +8,12 @@ import { updateQuestProgress } from './quests.js';
 import { getGearMods, runOnAttackHooks, runOnHitTakenHooks } from './gear/effects.js';
 
 // Helper to humanize names in logs
-const label = (e) => {
+const label = (e, state) => {
   if (e === null || e === undefined) return 'unknown';
-  if (e.isPlayer || e === 'player') return 'You';
-  return e.name || 'enemy';
+  // Check if this is the player
+  if (e === state?.player || e.isPlayer || e === 'player' || e.id === 'player') return 'You';
+  // Always use the entity's name if it has one
+  return e.name || 'something';
 };
 
 export function attack(state, attacker, defender, method = 'melee') {
@@ -72,8 +74,8 @@ export function resolveAttack(state, attacker, defender, method = 'melee') {
   const hitRoll = roll(1, 100);
   const hitChance = clamp(75 + (totalStr * 2) - (totalSpd * 3), 35, 85);
   
-  const by = label(attacker);
-  const vs = label(defender);
+  const by = label(attacker, state);
+  const vs = label(defender, state);
   
   if (hitRoll > hitChance) {
     return { hit: false, crit: false, dmg: 0, by, vs, method };
