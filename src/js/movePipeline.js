@@ -38,6 +38,37 @@ export function runPlayerMove(state, action) {
     p.x = nx;
     p.y = ny;
     
+    // Check if we're entering or leaving water
+    const prevTile = state.chunk?.map?.[from.y]?.[from.x];
+    const newTile = state.chunk?.map?.[ny]?.[nx];
+    
+    // Handle water effects
+    if (newTile === '~') {
+      // Entering or staying in water - apply/refresh water slow
+      if (!state.player.statusEffects?.find(e => e.type === 'water_slow')) {
+        // Apply water slow effect (no damage, just for tracking and speed reduction)
+        state.player.statusEffects = state.player.statusEffects || [];
+        state.player.statusEffects.push({
+          type: 'water_slow',
+          duration: 0, // Will be set to 3 when leaving water
+          damage: 0,
+          speedReduction: 2 // Reduce speed by 2 while in water
+        });
+        if (state.log) {
+          state.log(state, "You wade into the water. Your movement slows.", "note");
+        }
+      }
+    } else if (prevTile === '~' && newTile !== '~') {
+      // Leaving water - set duration to 3 turns
+      const waterSlow = state.player.statusEffects?.find(e => e.type === 'water_slow');
+      if (waterSlow) {
+        waterSlow.duration = 3;
+        if (state.log) {
+          state.log(state, "You emerge from the water, still dripping wet.", "note");
+        }
+      }
+    }
+    
     // Check for items/interactions at new position
     if (state.interactTile) {
       state.interactTile(state, nx, ny, state.openVendorShop);

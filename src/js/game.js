@@ -4,7 +4,7 @@ import { makePlayer, levelUp } from './entities.js';
 import { genChunk, findOpenSpot } from './worldGen.js';
 import { saveChunk, loadChunk, clearWorld } from './persistence.js';
 import { attack } from './combat.js';
-import { getStatusModifier, applyStatusEffect, isFrozen } from './systems/statusSystem.js';
+import { getStatusModifier, applyStatusEffect, isFrozen, processStatusEffects } from './systems/statusSystem.js';
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
@@ -249,6 +249,11 @@ export function turnEnd(state) {
   // Process status effects using the new system
   endOfTurnStatusPass(state, applyStatusDamage, applyStatusHeal);
   
+  // Also process player's water_slow effect (handled separately)
+  if (state.player.alive) {
+    processStatusEffects(state, state.player, "You");
+  }
+  
   // Run gear turn-end hooks
   if (state.player.alive) {
     runOnTurnEndHooks(state, state.player);
@@ -305,10 +310,22 @@ function updateHUD(state) {
   
   const spdBonus = getStatusModifier(p, "spd");
   const headgearSpdBonus = p.headgear ? (p.headgear.spd || 0) : 0;
+  const totalSpd = (p.spd || 0) + spdBonus + headgearSpdBonus;
   
   setText("str", `STR ${p.str}${strBonus ? `+${strBonus}` : ""} ${weaponBonus ? `[+${weaponBonus}]` : ""} ${headgearStrBonus ? `[+${headgearStrBonus}]` : ""}`);
   setText("def", `DEF ${p.def}${defBonus ? `+${defBonus}` : ""} ${armorBonus ? `[+${armorBonus}]` : ""} ${headgearDefBonus ? `[+${headgearDefBonus}]` : ""}`);
-  setText("spd", `SPD ${p.spd || 0}${spdBonus ? `+${spdBonus}` : ""} ${headgearSpdBonus ? `[+${headgearSpdBonus}]` : ""}`);
+  
+  // Show SPD with actual value in parentheses when modified
+  if (spdBonus !== 0 || headgearSpdBonus !== 0) {
+    const spdElement = document.getElementById("spd");
+    if (spdElement) {
+      const baseSpdText = `SPD ${p.spd || 0}`;
+      const modifiedSpdText = `(${totalSpd})`;
+      spdElement.innerHTML = `${baseSpdText}<span style="color: ${totalSpd < p.spd ? 'var(--danger)' : totalSpd > p.spd ? 'var(--ok)' : 'var(--fg)'}">${modifiedSpdText}</span>`;
+    }
+  } else {
+    setText("spd", `SPD ${p.spd || 0}`);
+  }
   
   // Find equipped items by ID
   const equippedWeapon = p.inventory.find(i => i.id === state.equippedWeaponId);
@@ -381,9 +398,9 @@ function updateHUD(state) {
       effectGroups[eff.type] = { count: 0, totalValue: 0, minTurns: eff.turns, maxTurns: eff.turns };
     }
     effectGroups[eff.type].count++;
-    effectGroups[eff.type].totalValue += eff.value;
-    effectGroups[eff.type].minTurns = Math.min(effectGroups[eff.type].minTurns, eff.turns);
-    effectGroups[eff.type].maxTurns = Math.max(effectGroups[eff.type].maxTurns, eff.turns);
+    effectGroups[eff.type].totalValue += (eff.value || 0);  // Handle missing value field
+    effectGroups[eff.type].minTurns = Math.min(effectGroups[eff.type].minTurns, eff.turns || 0);
+    effectGroups[eff.type].maxTurns = Math.max(effectGroups[eff.type].maxTurns, eff.turns || 0);
   }
   
   // Display grouped effects
@@ -406,17 +423,31 @@ function updateHUD(state) {
     else if (type === "poison") displayName = "poisoned";
     else if (type === "shock") displayName = "shocked";
     else if (type === "weaken") displayName = "weakened";
+    else if (type === "water_slow") displayName = "wet -SPD";
     
     // Show stack count if more than 1
     const stackText = data.count > 1 ? ` x${data.count}` : "";
-    const turnsText = data.minTurns === data.maxTurns ? 
-      `${data.minTurns}` : 
-      `${data.minTurns}-${data.maxTurns}`;
     
-    // Don't show value for freeze (it's always 0)
-    const valueText = (type === "freeze" || data.totalValue === 0) ? "" : ` +${data.totalValue}`;
+    // Handle turns display for water_slow differently
+    let turnsDisplay = "";
+    if (type === "water_slow") {
+      // Check if we're in water (duration 0) or out of water (duration > 0)
+      const waterEffect = p.statusEffects.find(e => e.type === 'water_slow');
+      if (waterEffect && waterEffect.duration > 0) {
+        turnsDisplay = ` (${waterEffect.duration}t)`;
+      }
+      // No turn display when in water (duration 0)
+    } else {
+      const turnsText = data.minTurns === data.maxTurns ? 
+        `${data.minTurns}` : 
+        `${data.minTurns}-${data.maxTurns}`;
+      turnsDisplay = ` (${turnsText}t)`;
+    }
     
-    div.textContent = `${displayName}${stackText}${valueText} (${turnsText}t)`;
+    // Don't show value for freeze or water_slow (they don't do damage)
+    const valueText = (type === "freeze" || type === "water_slow" || data.totalValue === 0) ? "" : ` +${data.totalValue}`;
+    
+    div.textContent = `${displayName}${stackText}${valueText}${turnsDisplay}`;
     statusBar.appendChild(div);
   }
   

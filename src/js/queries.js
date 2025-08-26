@@ -27,6 +27,7 @@ export function isPassable(state, x, y) {
   // Check map tile
   const tile = state.chunk?.map?.[y]?.[x];
   if (tile === '#' || tile === '+') return false; // walls and doors block
+  // Water is passable but will apply slow effect
   
   // Check for entities
   if (entityAt(state, x, y)) return false;

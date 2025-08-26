@@ -324,6 +324,9 @@ export class CanvasRenderer {
       case '★':
         color = '#FFD700'; // Gold
         break;
+      case '~': // Water
+        color = '#4682B4'; // Steel blue
+        break;
       default:
         color = CANVAS_CONFIG.FOREGROUND;
     }

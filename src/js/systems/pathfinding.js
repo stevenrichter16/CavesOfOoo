@@ -21,7 +21,8 @@ export function isWalkable(state, x, y) {
   
   // Check map tile
   const tile = state.chunk.map[y][x];
-  if (tile === '#' || tile === ' ') return false;
+  if (tile === '#' || tile === ' ') return false; // Walls and empty tiles block
+  // Water is walkable but slower
   
   // Check for monsters (except target)
   const monster = state.chunk.monsters?.find(m => 

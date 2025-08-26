@@ -14,6 +14,100 @@ export function generateRooms(sr, count = 5) {
   return rooms;
 }
 
+export function addWaterFeature(map, sr) {
+  const waterType = sr.next();
+  
+  if (waterType < 0.4) {
+    // Create a pond
+    const centerX = sr.between(5, W - 5);
+    const centerY = sr.between(5, H - 5);
+    const radiusX = sr.between(2, 5);
+    const radiusY = sr.between(2, 4);
+    
+    for (let y = Math.max(1, centerY - radiusY); y < Math.min(H - 1, centerY + radiusY); y++) {
+      for (let x = Math.max(1, centerX - radiusX); x < Math.min(W - 1, centerX + radiusX); x++) {
+        const distX = Math.abs(x - centerX) / radiusX;
+        const distY = Math.abs(y - centerY) / radiusY;
+        const dist = Math.sqrt(distX * distX + distY * distY);
+        
+        if (dist < 1.0) {
+          // Make it water with some randomness for natural edges
+          if (dist < 0.7 || sr.next() < 0.6) {
+            map[y][x] = "~";
+          }
+        }
+      }
+    }
+  } else if (waterType < 0.7) {
+    // Create a creek/river running across the map
+    let startSide = sr.int(4);
+    let x, y;
+    
+    // Pick starting position on edge
+    if (startSide === 0) { // Top
+      x = sr.between(3, W - 3);
+      y = 0;
+    } else if (startSide === 1) { // Right
+      x = W - 1;
+      y = sr.between(3, H - 3);
+    } else if (startSide === 2) { // Bottom
+      x = sr.between(3, W - 3);
+      y = H - 1;
+    } else { // Left
+      x = 0;
+      y = sr.between(3, H - 3);
+    }
+    
+    // Meander across the map
+    let steps = 0;
+    while (x > 0 && x < W - 1 && y > 0 && y < H - 1 && steps < 100) {
+      // Carve water and adjacent tiles for width
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+            if (Math.abs(dx) + Math.abs(dy) <= 1) { // Main creek
+              map[ny][nx] = "~";
+            } else if (sr.next() < 0.3) { // Occasional wider spots
+              map[ny][nx] = "~";
+            }
+          }
+        }
+      }
+      
+      // Move generally toward opposite side with some randomness
+      if (startSide === 0 || startSide === 2) { // Started top/bottom, move horizontally
+        x += sr.next() < 0.5 ? -1 : 1;
+        y += sr.next() < 0.7 ? (startSide === 0 ? 1 : -1) : 0;
+      } else { // Started left/right, move vertically
+        y += sr.next() < 0.5 ? -1 : 1;
+        x += sr.next() < 0.7 ? (startSide === 3 ? 1 : -1) : 0;
+      }
+      
+      steps++;
+    }
+  } else {
+    // Create scattered water pools
+    const poolCount = sr.between(3, 6);
+    for (let i = 0; i < poolCount; i++) {
+      const x = sr.between(2, W - 2);
+      const y = sr.between(2, H - 2);
+      const size = sr.between(1, 3);
+      
+      for (let dy = -size; dy <= size; dy++) {
+        for (let dx = -size; dx <= size; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+            if (Math.abs(dx) + Math.abs(dy) <= size) {
+              map[ny][nx] = "~";
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 export function carveRoom(map, room) {
   for (let y = room.y; y < room.y + room.h; y++) {
     for (let x = room.x; x < room.x + room.w; x++) {
@@ -258,33 +352,75 @@ export function genChunk(seed, cx, cy) {
   const distance = Math.abs(cx) + Math.abs(cy);
   const zoneDanger = Math.floor(distance / 4); // Every 4 chunks = new danger zone
   
-  // Generate base map structure
+  // Generate base map structure - start with more floor tiles
   const map = Array.from({ length: H }, () => Array.from({ length: W }, () => "#"));
   
-  // Generate rooms and corridors
-  const rooms = generateRooms(sr, sr.between(3, 7));
-  rooms.forEach(room => carveRoom(map, room));
+  // Generate larger rooms for more open space
+  const rooms = generateRooms(sr, sr.between(5, 9));
+  rooms.forEach(room => {
+    // Make rooms larger
+    room.w = Math.min(room.w + sr.between(2, 4), W - room.x - 1);
+    room.h = Math.min(room.h + sr.between(1, 3), H - room.y - 1);
+    carveRoom(map, room);
+  });
   
-  // Connect rooms
+  // Connect rooms with wider corridors
   for (let i = 0; i < rooms.length - 1; i++) {
     const r1 = rooms[i], r2 = rooms[i + 1];
     const x1 = clamp(Math.floor(r1.x + r1.w / 2), 0, W - 1);
     const y1 = clamp(Math.floor(r1.y + r1.h / 2), 0, H - 1);
     const x2 = clamp(Math.floor(r2.x + r2.w / 2), 0, W - 1);
     const y2 = clamp(Math.floor(r2.y + r2.h / 2), 0, H - 1);
+    
+    // Carve main corridor
     carveCorridor(map, x1, y1, x2, y2);
+    // Make corridors wider by carving adjacent tiles
+    carveCorridor(map, x1 + 1, y1, x2 + 1, y2);
+    carveCorridor(map, x1, y1 + 1, x2, y2 + 1);
   }
   
-  // Add some random paths for variety
-  for (let i = 0; i < sr.between(5, 10); i++) {
+  // Add more random paths for variety and openness
+  for (let i = 0; i < sr.between(8, 15); i++) {
     const x = sr.int(W), y = sr.int(H);
-    const steps = sr.between(10, 30);
+    const steps = sr.between(15, 40);
     let cx = x, cy = y;
     for (let s = 0; s < steps; s++) {
-      if (cx >= 0 && cx < W && cy >= 0 && cy < H) map[cy][cx] = ".";
+      // Carve a wider path
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+            if (sr.next() < 0.7) map[ny][nx] = "."; // 70% chance to carve each adjacent tile
+          }
+        }
+      }
       const dir = sr.pick([[1, 0], [-1, 0], [0, 1], [0, -1]]);
       cx = clamp(cx + dir[0], 0, W - 1);
       cy = clamp(cy + dir[1], 0, H - 1);
+    }
+  }
+  
+  // Add water features (40% chance per chunk)
+  if (sr.next() < 0.4) {
+    addWaterFeature(map, sr);
+  }
+  
+  // Clear out some random walls to make it more open
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (map[y][x] === "#") {
+        // Count adjacent floors
+        let floorCount = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (map[y + dy][x + dx] === ".") floorCount++;
+          }
+        }
+        // If surrounded by many floors, remove this wall
+        if (floorCount >= 5) {
+          map[y][x] = ".";
+        }
+      }
     }
   }
   

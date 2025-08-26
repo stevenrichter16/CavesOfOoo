@@ -182,6 +182,15 @@ export function getStatusModifier(entity, stat) {
     // Blind effect reduces accuracy (affects SPD for dodge)
     if (stat === "spd" && effect === "blind") mod -= 3;
   }
+  
+  // Also check for water_slow in entity's statusEffects array
+  if (stat === "spd" && entity.statusEffects) {
+    const waterSlow = entity.statusEffects.find(e => e.type === 'water_slow');
+    if (waterSlow) {
+      mod -= (waterSlow.speedReduction || 2); // Reduce SPD by 2 (or configured amount)
+    }
+  }
+  
   return mod;
 }
 
@@ -199,6 +208,31 @@ export function clearStatusEffects(entityId) {
  * This is called by monsters.js and will be removed after full migration
  */
 export function processStatusEffects(state, entity, label = "") {
+  // Process water_slow effect separately (doesn't use the new system)
+  if (entity.statusEffects) {
+    for (let i = entity.statusEffects.length - 1; i >= 0; i--) {
+      const effect = entity.statusEffects[i];
+      if (effect.type === 'water_slow') {
+        // Check if still in water
+        const tile = state.chunk?.map?.[entity.y]?.[entity.x];
+        if (tile === '~') {
+          // Still in water, keep duration at 0
+          effect.duration = 0;
+        } else if (effect.duration > 0) {
+          // Out of water, decrement duration
+          effect.duration--;
+          if (effect.duration === 0) {
+            // Effect expired
+            entity.statusEffects.splice(i, 1);
+            if (entity === state.player && state.log) {
+              state.log(state, "You've dried off and can move normally again.", "note");
+            }
+          }
+        }
+      }
+    }
+  }
+  
   // Get entity ID
   const entityId = entity.id || (entity === state.player ? 'player' : `monster_${entity.x}_${entity.y}`);
   
