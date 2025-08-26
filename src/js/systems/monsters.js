@@ -66,6 +66,35 @@ export function processMonsterTurns(state) {
 }
 
 /**
+ * Check and apply water effects to a monster
+ */
+function checkMonsterWaterEffect(state, monster, oldX, oldY) {
+  const prevTile = state.chunk?.map?.[oldY]?.[oldX];
+  const newTile = state.chunk?.map?.[monster.y]?.[monster.x];
+  
+  // Handle water effects
+  if (newTile === '~') {
+    // Entering or staying in water - apply/refresh water slow
+    if (!monster.statusEffects?.find(e => e.type === 'water_slow')) {
+      monster.statusEffects = monster.statusEffects || [];
+      monster.statusEffects.push({
+        type: 'water_slow',
+        duration: 0, // Will be set to 3 when leaving water
+        damage: 0,
+        speedReduction: 2 // Reduce speed by 2 while in water
+      });
+      // Monsters don't get log messages for getting wet
+    }
+  } else if (prevTile === '~' && newTile !== '~') {
+    // Leaving water - set duration to 3 turns
+    const waterSlow = monster.statusEffects?.find(e => e.type === 'water_slow');
+    if (waterSlow) {
+      waterSlow.duration = 3;
+    }
+  }
+}
+
+/**
  * Process monster movement based on AI type
  */
 function processMonsterMovement(state, monster, dx, dy, distance) {
@@ -99,6 +128,8 @@ function processMonsterMovement(state, monster, dx, dy, distance) {
  * Move monster toward player
  */
 function moveTowardPlayer(state, monster, dx, dy) {
+  const oldX = monster.x;
+  const oldY = monster.y;
   const moveX = Math.sign(dx);
   const moveY = Math.sign(dy);
   
@@ -110,12 +141,19 @@ function moveTowardPlayer(state, monster, dx, dy) {
   } else if (moveY && newY >= 0 && newY < H && !isBlocked(state, monster.x, newY)) {
     monster.y = newY;
   }
+  
+  // Check for water effects if monster moved
+  if (monster.x !== oldX || monster.y !== oldY) {
+    checkMonsterWaterEffect(state, monster, oldX, oldY);
+  }
 }
 
 /**
  * Smart movement for boss-type monsters
  */
 function moveSmartly(state, monster, dx, dy) {
+  const oldX = monster.x;
+  const oldY = monster.y;
   const moveX = Math.sign(dx);
   const moveY = Math.sign(dy);
   
@@ -131,12 +169,19 @@ function moveSmartly(state, monster, dx, dy) {
   } else if (newY >= 0 && newY < H && !isBlocked(state, monster.x, newY)) {
     monster.y = newY;
   }
+  
+  // Check for water effects if monster moved
+  if (monster.x !== oldX || monster.y !== oldY) {
+    checkMonsterWaterEffect(state, monster, oldX, oldY);
+  }
 }
 
 /**
  * Random movement for wandering monsters
  */
 function moveRandomly(state, monster) {
+  const oldX = monster.x;
+  const oldY = monster.y;
   const dir = choice([[1, 0], [-1, 0], [0, 1], [0, -1], [0, 0]]);
   const newX = monster.x + dir[0];
   const newY = monster.y + dir[1];
@@ -145,12 +190,19 @@ function moveRandomly(state, monster) {
     monster.x = newX;
     monster.y = newY;
   }
+  
+  // Check for water effects if monster moved
+  if (monster.x !== oldX || monster.y !== oldY) {
+    checkMonsterWaterEffect(state, monster, oldX, oldY);
+  }
 }
 
 /**
  * Move monster away from player
  */
 function moveAwayFromPlayer(state, monster, dx, dy) {
+  const oldX = monster.x;
+  const oldY = monster.y;
   const moveX = -Math.sign(dx);
   const moveY = -Math.sign(dy);
   
@@ -160,6 +212,11 @@ function moveAwayFromPlayer(state, monster, dx, dy) {
   if (newX >= 0 && newX < W && newY >= 0 && newY < H && !isBlocked(state, newX, newY)) {
     monster.x = newX;
     monster.y = newY;
+  }
+  
+  // Check for water effects if monster moved
+  if (monster.x !== oldX || monster.y !== oldY) {
+    checkMonsterWaterEffect(state, monster, oldX, oldY);
   }
 }
 

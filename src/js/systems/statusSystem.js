@@ -122,21 +122,40 @@ export function applyStatusEffect(entity, type, turns, value = 0) {
   // Get entity ID
   const entityId = entity.id || (entity === window.STATE?.player ? 'player' : `monster_${entity.x}_${entity.y}`);
   
+  // Check for status effect interactions
+  let modifiedValue = value;
+  let modifiedTurns = turns;
+  
+  // Wet amplifies shock damage and duration
+  if (type === 'shock' && entity.statusEffects) {
+    const isWet = entity.statusEffects.find(e => e.type === 'water_slow');
+    if (isWet) {
+      modifiedValue = Math.ceil(value * 1.5); // 1.5x shock damage when wet (4 -> 6)
+      modifiedTurns = Math.ceil(turns * 1.5); // 1.5x duration when wet (2 -> 3)
+      
+      // Log the amplified effect
+      if (window.STATE?.log) {
+        const entityName = entity === window.STATE.player ? "You" : entity.name || "Enemy";
+        window.STATE.log(window.STATE, `${entityName} ${entityName === "You" ? "are" : "is"} wet! Shock damage amplified!`, "magic");
+      }
+    }
+  }
+  
   // Check if effect already exists
   const existingEffects = Status.get(entityId);
   const existingEffect = existingEffects?.[type];
   
   if (existingEffect) {
     // Stack the effect - add turns and value
-    existingEffect.turns += turns;
-    existingEffect.value = Math.max(existingEffect.value, value); // Use higher value
+    existingEffect.turns += modifiedTurns;
+    existingEffect.value = Math.max(existingEffect.value, modifiedValue); // Use higher value
   } else {
     // Register new effect
     statusEffectRegister({
       toId: entityId,
       effect: type,
-      value: value,
-      turns: turns,
+      value: modifiedValue,
+      turns: modifiedTurns,
       sourceId: null
     });
   }
@@ -148,11 +167,11 @@ export function applyStatusEffect(entity, type, turns, value = 0) {
   const arrayEffect = entity.statusEffects.find(e => e.type === type);
   if (arrayEffect) {
     // Update existing effect
-    arrayEffect.turns += turns;
-    arrayEffect.value = Math.max(arrayEffect.value, value);
+    arrayEffect.turns += modifiedTurns;
+    arrayEffect.value = Math.max(arrayEffect.value, modifiedValue);
   } else {
     // Add new effect
-    entity.statusEffects.push({ type, turns, value });
+    entity.statusEffects.push({ type, turns: modifiedTurns, value: modifiedValue });
   }
 }
 
