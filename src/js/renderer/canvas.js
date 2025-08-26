@@ -189,6 +189,11 @@ export class CanvasRenderer {
       this.drawTile(player.x, player.y, TILE.player, '#ffd27f', bgColor);
     }
     
+    // Draw movement path if active
+    if (gameState.movementPath && gameState.movementPath.length > 1) {
+      this.drawPath(gameState.movementPath, gameState.movementTarget);
+    }
+    
     // Draw cursor if active
     this.drawCursor(gameState);
     
@@ -408,6 +413,59 @@ export class CanvasRenderer {
     };
     
     return effectColors[effectType] || null;
+  }
+  
+  /**
+   * Draw path for auto-movement
+   */
+  drawPath(path, targetInfo) {
+    if (!path || path.length < 2) return;
+    
+    this.ctx.save();
+    this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)'; // Semi-transparent gold
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([4, 4]); // Dashed line
+    
+    // Draw line connecting path points
+    this.ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const x = path[i].x * this.tileSize + this.tileSize / 2;
+      const y = path[i].y * this.tileSize + this.tileSize / 2;
+      
+      if (i === 0) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+      
+      // Draw a small circle at each waypoint
+      if (i > 0 && i < path.length - 1) {
+        this.ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+        this.ctx.fillRect(
+          path[i].x * this.tileSize + 6,
+          path[i].y * this.tileSize + 6,
+          4, 4
+        );
+      }
+    }
+    this.ctx.stroke();
+    this.ctx.setLineDash([]); // Reset line dash
+    
+    // Highlight the target tile
+    const target = path[path.length - 1];
+    // Use red for attack targets, blue for movement targets
+    const targetColor = targetInfo && targetInfo.isAttack ? 
+      'rgba(255, 0, 0, 0.5)' : 'rgba(0, 150, 255, 0.5)';
+    this.ctx.strokeStyle = targetColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(
+      target.x * this.tileSize + 1,
+      target.y * this.tileSize + 1,
+      this.tileSize - 2,
+      this.tileSize - 2
+    );
+    
+    this.ctx.restore();
   }
   
   /**

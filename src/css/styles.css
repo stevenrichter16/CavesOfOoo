@@ -925,3 +925,49 @@ a.button, button.button{
   font-weight: bold;
 }
 
+/* Cursor Dropdown Menu */
+.cursor-dropdown {
+  background: #121418;
+  border: 1px solid #2c2f33;
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  min-width: 120px;
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  color: var(--fg);
+}
+
+.dropdown-item {
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover,
+.dropdown-item.hover,
+.dropdown-item.selected {
+  background: #2a2d32;
+  color: var(--accent);
+}
+
+.dropdown-item.selected {
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
+.dropdown-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.dropdown-icon {
+  width: 16px;
+  text-align: center;
+}
+

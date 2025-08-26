@@ -199,8 +199,22 @@ export function executeCursorAction() {
     }
   }
   
-  // In examine mode, we'll emit an event for other systems to handle
+  // In examine mode, check what's at the cursor position
   if (mode === 'examine') {
+    const info = getInfoAtCursor();
+    
+    // If there's a monster, return special action
+    if (info && info.monster) {
+      emit(EventType.CursorTargetEnemy, { 
+        x, 
+        y, 
+        monster: info.monster,
+        distance: info.distance
+      });
+      return true;
+    }
+    
+    // Otherwise, just examine the tile
     emit(EventType.ExamineTile, { x, y });
     return true;
   }

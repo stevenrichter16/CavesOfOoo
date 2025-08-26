@@ -93,7 +93,27 @@ export function initKeyboardControls() {
 function handleGameControls(STATE, e) {
   const k = e.key;
 
-  // Movement
+  // Check if following movement path
+  if (STATE.movementPath && STATE.movementPath.length > 1) {
+    // Escape or any movement key cancels the automatic path
+    if (k === "Escape" || k === "ArrowUp" || k === "w" || k === "ArrowDown" || k === "s" || 
+        k === "ArrowLeft" || k === "a" || k === "ArrowRight" || k === "d") {
+      STATE.movementPath = null;
+      STATE.movementTarget = null;
+      log(STATE, "Path cancelled", "dim");
+      render(STATE);
+      
+      // If it was a movement key, also execute that movement
+      if (k !== "Escape") {
+        // Continue to process the movement key normally below
+      } else {
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+
+  // Normal movement
   if (k === "ArrowUp" || k === "w") { handlePlayerMove(STATE, 0, -1); e.preventDefault(); }
   else if (k === "ArrowDown" || k === "s") { handlePlayerMove(STATE, 0, 1); e.preventDefault(); }
   else if (k === "ArrowLeft" || k === "a") { handlePlayerMove(STATE, -1, 0); e.preventDefault(); }
@@ -636,54 +656,155 @@ function handleSellToVendor(STATE) {
   }
 }
 
-function handleCursorControls(STATE, e) {
+async function handleCursorControls(STATE, e) {
   const k = e.key;
   
-  // Movement
-  if (k === "ArrowUp") {
+  // Check if dropdown is open first
+  const { isDropdownOpen } = await import('../ui/dropdown.js');
+  if (isDropdownOpen()) {
+    // Let dropdown handle the input
+    return;
+  }
+  
+  // Movement (arrows and WASD)
+  if (k === "ArrowUp" || k === "w" || k === "W") {
     moveCursor(0, -1, e.shiftKey);
     render(STATE);
     e.preventDefault();
-  } else if (k === "ArrowDown") {
+  } else if (k === "ArrowDown" || k === "s" || k === "S") {
     moveCursor(0, 1, e.shiftKey);
     render(STATE);
     e.preventDefault();
-  } else if (k === "ArrowLeft") {
+  } else if (k === "ArrowLeft" || k === "a" || k === "A") {
     moveCursor(-1, 0, e.shiftKey);
     render(STATE);
     e.preventDefault();
-  } else if (k === "ArrowRight") {
+  } else if (k === "ArrowRight" || k === "d" || k === "D") {
     moveCursor(1, 0, e.shiftKey);
     render(STATE);
     e.preventDefault();
   }
   // Actions
   else if (k === "Enter") {
-    executeCursorAction();
     const info = getInfoAtCursor();
+    
     if (info) {
-      // Build description
-      let desc = `Tile at (${info.x}, ${info.y}): `;
-      if (info.monster) {
-        desc += `${info.monster.name} (HP: ${info.monster.hp}/${info.monster.hpMax})`;
-      } else if (info.item) {
-        desc += `${info.item.name || info.item.type}`;
-      } else if (info.tile === '#') {
-        desc += "Wall";
-      } else if (info.tile === '.') {
-        desc += "Floor";
-      } else if (info.tile === '+') {
-        desc += "Door";
-      } else {
-        desc += info.tile || "Empty";
-      }
-      if (info.distance !== null) {
-        desc += ` [${info.distance} tiles away]`;
-      }
-      log(STATE, desc, "note");
-      render(STATE); // Need to render after logging
+      // Show dropdown menu for any tile
+      import('../ui/dropdown.js').then(({ createDropdown }) => {
+        import('../systems/pathfinding.js').then(({ findPath, isWalkable }) => {
+          const menuOptions = [];
+          
+          // Check if clicking on a monster
+          if (info.monster) {
+            const attackPath = findPath(
+              STATE, 
+              STATE.player.x, 
+              STATE.player.y,
+              info.x,
+              info.y,
+              { allowAdjacent: true }
+            );
+            
+            menuOptions.push({
+              label: 'Attack',
+              icon: '⚔',
+              disabled: !attackPath || attackPath.length <= 1,
+              action: () => {
+                deactivateCursor();
+                STATE.movementPath = attackPath;
+                STATE.movementTarget = { x: info.x, y: info.y, isAttack: true };
+                log(STATE, `Moving to attack ${info.monster.name}...`, "note");
+                render(STATE);
+                // Start automatic movement
+                setTimeout(() => {
+                  if (STATE.movementPath && STATE.movementPath.length > 1) {
+                    handlePlayerMove(STATE, 0, 0);
+                  }
+                }, 100);
+              }
+            });
+            
+            menuOptions.push({
+              label: 'Inspect',
+              icon: '👁',
+              action: () => {
+                let desc = `${info.monster.name}: HP ${info.monster.hp}/${info.monster.hpMax}`;
+                if (info.distance) {
+                  desc += ` (${info.distance} tiles away)`;
+                }
+                log(STATE, desc, "note");
+                render(STATE);
+              }
+            });
+          } else {
+            // For non-monster tiles, check if we can move there
+            const movePath = findPath(
+              STATE,
+              STATE.player.x,
+              STATE.player.y,
+              info.x,
+              info.y
+            );
+            
+            // Only show Move option for walkable tiles
+            if (info.tile !== '#' && info.tile !== ' ') {
+              menuOptions.push({
+                label: 'Move',
+                icon: '→',
+                disabled: !movePath || movePath.length <= 1,
+                action: () => {
+                  deactivateCursor();
+                  STATE.movementPath = movePath;
+                  STATE.movementTarget = { x: info.x, y: info.y, isAttack: false };
+                  log(STATE, `Moving to (${info.x}, ${info.y})...`, "note");
+                  render(STATE);
+                  // Start automatic movement
+                  setTimeout(() => {
+                    if (STATE.movementPath && STATE.movementPath.length > 1) {
+                      handlePlayerMove(STATE, 0, 0);
+                    }
+                  }, 100);
+                }
+              });
+            }
+            
+            menuOptions.push({
+              label: 'Inspect',
+              icon: '👁',
+              action: () => {
+                let desc = `Tile at (${info.x}, ${info.y}): `;
+                if (info.item) {
+                  desc += `${info.item.name || info.item.type}`;
+                } else if (info.tile === '#') {
+                  desc += "Wall";
+                } else if (info.tile === '.') {
+                  desc += "Floor";
+                } else if (info.tile === '+') {
+                  desc += "Door";
+                } else if (info.tile === 'V') {
+                  desc += "Vendor";
+                } else if (info.tile === '$') {
+                  desc += "Chest";
+                } else {
+                  desc += info.tile || "Empty";
+                }
+                if (info.distance !== null) {
+                  desc += ` [${info.distance} tiles away]`;
+                }
+                log(STATE, desc, "note");
+                render(STATE);
+              }
+            });
+          }
+          
+          // Only show dropdown if we have options
+          if (menuOptions.length > 0) {
+            createDropdown(info.x, info.y, menuOptions, STATE);
+          }
+        });
+      });
     } else {
-      log(STATE, "Nothing to examine here", "dim");
+      log(STATE, "Nothing here", "dim");
       render(STATE);
     }
     e.preventDefault();

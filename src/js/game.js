@@ -138,6 +138,45 @@ export function interactTile(state, x, y) {
 export function handlePlayerMove(state, dx, dy) {
   if (state.over) return;
   
+  // Check if following a movement path
+  if (state.movementPath && state.movementPath.length > 1) {
+    // Get next step in path
+    const nextStep = state.movementPath[1];
+    dx = nextStep.x - state.player.x;
+    dy = nextStep.y - state.player.y;
+    
+    // Remove first step (current position)
+    state.movementPath.shift();
+    
+    // Check if we've reached the target
+    if (state.movementPath.length === 1) {
+      // We're at or adjacent to target, clear the path
+      state.movementPath = null;
+      const target = state.movementTarget;
+      state.movementTarget = null;
+      
+      // If this was an attack target, check if monster is still there
+      if (target && target.isAttack) {
+        const monster = state.chunk.monsters?.find(m => 
+          m.x === target.x && m.y === target.y && m.alive
+        );
+        
+        if (!monster) {
+          log(state, "Target is no longer there", "dim");
+        }
+      } else if (target) {
+        log(state, `Arrived at (${target.x}, ${target.y})`, "note");
+      }
+    } else if (state.movementPath.length > 1) {
+      // Schedule next automatic step
+      setTimeout(() => {
+        if (state.movementPath && state.movementPath.length > 1) {
+          handlePlayerMove(state, 0, 0);
+        }
+      }, 150); // 150ms between moves for smooth animation
+    }
+  }
+  
   // Set up state references for movement system
   state.FETCH_ITEMS = FETCH_ITEMS;
   state.openVendorShop = openVendorShop; // Pass vendor shop function

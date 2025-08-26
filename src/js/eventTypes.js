@@ -47,4 +47,18 @@ export const EventType = {
   GearEffectTriggered: 'gearEffectTriggered',
   Equipped: 'equipped',
   Unequipped: 'unequipped',
+  
+  // Shop events
+  VendorInteraction: 'vendorInteraction',
+  DoorOpened: 'doorOpened',
+  WallCollision: 'wallCollision',
+  MovementBlocked: 'movementBlocked',
+  
+  // Cursor events
+  CursorActivated: 'cursorActivated',
+  CursorDeactivated: 'cursorDeactivated',
+  CursorMoved: 'cursorMoved',
+  CursorAction: 'cursorAction',
+  ExamineTile: 'examineTile',
+  CursorTargetEnemy: 'cursorTargetEnemy',
 };
