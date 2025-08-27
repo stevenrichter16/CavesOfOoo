@@ -6,6 +6,7 @@ import { getStatusModifier, applyStatusEffect } from './systems/statusSystem.js'
 import { levelUp } from './entities.js';
 import { updateQuestProgress } from './quests.js';
 import { getGearMods, runOnAttackHooks, runOnHitTakenHooks } from './gear/effects.js';
+import { runPreDamage } from './engine/adapters/cavesOfOoo.js';
 
 // Helper to humanize names in logs
 const label = (e, state) => {
@@ -124,7 +125,31 @@ export function applyAttack(state, attacker, defender, result) {
     });
     return 'miss';
   }
-  
+
+  // ----------------------------------------------------
+  // NEW: decide damage type, then let the engine adjust it
+  // ----------------------------------------------------
+  let damageType = 'physical';
+
+  // If your result already carries an element/type, prefer that:
+  if (result.element) {
+    damageType = result.element;
+  } else {
+    // else try attacker weapon or attacker tags
+    if ((attacker === state.player || attacker.isPlayer) && state.player?.weapon?.element) {
+      damageType = state.player.weapon.element; // e.g., 'electric'
+    } else if (attacker?.weapon?.element) {
+      damageType = attacker.weapon.element;
+    } else if (attacker?.element) {
+      damageType = attacker.element;
+    }
+  }
+
+  // Let rules mutate incoming damage (e.g., Wet + Electric => lethal for the test)
+  const adjusted = runPreDamage(state, defender, { amount: result.dmg, type: damageType });
+  result.dmg = adjusted.amount;
+  // ----------------------------------------------------
+
   // Apply damage
   defender.hp = Math.max(0, (defender.hp || 0) - result.dmg);
   

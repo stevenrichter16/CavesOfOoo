@@ -111,20 +111,20 @@ export function addWaterFeature(map, sr) {
 export function carveRoom(map, room) {
   for (let y = room.y; y < room.y + room.h; y++) {
     for (let x = room.x; x < room.x + room.w; x++) {
-      if (y >= 0 && y < H && x >= 0 && x < W) map[y][x] = ".";
+      if (y >= 0 && y < H && x >= 0 && x < W) map[y][x] = "~";
     }
   }
 }
 
 export function carveCorridor(map, x1, y1, x2, y2) {
   while (x1 !== x2 || y1 !== y2) {
-    if (y1 >= 0 && y1 < H && x1 >= 0 && x1 < W) map[y1][x1] = ".";
+    if (y1 >= 0 && y1 < H && x1 >= 0 && x1 < W) map[y1][x1] = "~";
     if (x1 < x2) x1++;
     else if (x1 > x2) x1--;
     else if (y1 < y2) y1++;
     else if (y1 > y2) y1--;
   }
-  if (y2 >= 0 && y2 < H && x2 >= 0 && x2 < W) map[y2][x2] = ".";
+  if (y2 >= 0 && y2 < H && x2 >= 0 && x2 < W) map[y2][x2] = "~";
 }
 
 export function ensureEdgeExits(map, sr) {

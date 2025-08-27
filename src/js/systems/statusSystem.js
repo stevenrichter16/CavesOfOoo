@@ -128,16 +128,20 @@ export function applyStatusEffect(entity, type, turns, value = 0) {
   
   // Wet amplifies shock damage and duration
   if (type === 'shock' && entity.statusEffects) {
-    const isWet = entity.statusEffects.find(e => e.type === 'water_slow');
+    const isWet = entity.statusEffects.find(e => e.type === 'water_slow' || e.type === 'wet');
     if (isWet) {
-      modifiedValue = Math.ceil(value * 1.5); // 1.5x shock damage when wet (4 -> 6)
-      modifiedTurns = Math.ceil(turns * 1.5); // 1.5x duration when wet (2 -> 3)
-      
-      // Log the amplified effect
+      // Instant kill when wet + shocked
       if (window.STATE?.log) {
         const entityName = entity === window.STATE.player ? "You" : entity.name || "Enemy";
-        window.STATE.log(window.STATE, `${entityName} ${entityName === "You" ? "are" : "is"} wet! Shock damage amplified!`, "magic");
+        //window.STATE.log(window.STATE, "⚡💀 ELECTROCUTED! Being wet and shocked is lethal! 💀⚡", "bad");
       }
+      // Set HP to 0 immediately
+      // entity.hp = 0;
+      // entity.alive = false;
+      // if (entity === window.STATE?.player) {
+      //   window.STATE.over = true;
+      // }
+      // return; // Don't add the status effect since they're dead
     }
   }
   

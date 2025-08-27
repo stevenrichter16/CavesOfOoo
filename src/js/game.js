@@ -4,7 +4,7 @@ import { makePlayer, levelUp } from './entities.js';
 import { genChunk, findOpenSpot } from './worldGen.js';
 import { saveChunk, loadChunk, clearWorld } from './persistence.js';
 import { attack } from './combat.js';
-import { getStatusModifier, applyStatusEffect, isFrozen, processStatusEffects } from './systems/statusSystem.js';
+import { getStatusModifier, isFrozen, processStatusEffects } from './systems/statusSystem.js';
 import { openInventory, closeInventory, renderInventory, useInventoryItem, dropInventoryItem } from './inventory.js';
 import { initMapCursor, renderWorldMap, handleMapNavigation } from './worldMap.js';
 import { turnInQuest, hasQuest, getQuestStatus, giveQuest, displayActiveQuests, checkFetchQuestItem, turnInFetchQuest, turnInFetchQuestWithItem } from './quests.js';
@@ -27,10 +27,16 @@ import { initKeyboardControls } from './input/keys.js';
 import { renderEquipmentPanel, getStatusChar, getStatusClass } from './ui/equipment.js';
 import { CanvasRenderer } from './renderer/canvas.js';
 import { getCursorState, isValidCursorPosition } from './systems/cursor.js';
+import { runTickForEntity, runPreDamage } from './engine/adapters/cavesOfOoo.js';
+import './engine/materials.js';          // ensure defaults loaded
+import './engine/universalRules.js';     // (empty for now, fine to keep)
+import './engine/testRules.instantKillWetElectric.js'; // our test rule
+import { applyStatusEffect } from './systems/statusSystem.js';
 
 // Game state
 let STATE = null;
 let canvasRenderer = null;
+
 
 mountLog(document.getElementById('log'));
 emit(EventType.Log, { text: 'CavesOfOoo booting…', cls: 'note' });
@@ -186,6 +192,24 @@ export function handlePlayerMove(state, dx, dy) {
   
   // If action was consumed (move attempted), run enemy turn
   if (consumed) {
+    const tile = state.chunk?.map?.[state.player.y]?.[state.player.x];
+    if (tile === '~') {
+      // Give Wet with a decent quantity so conductivity is "on"
+      applyStatusEffect(state.player, 'wet', /*turns*/ 10, /*value*/ 1);
+      const wet = state.player.statusEffects?.find(s => s.type === 'wet');
+      if (wet) wet.quantity = Math.max(wet.quantity || 0, 40);
+      log(state, 'Your boots splash. You are Wet.', 'note');
+      
+      // Check for existing shock - instant death if wet + shocked
+      const hasShock = state.player.statusEffects?.find(s => s.type === 'shock');
+      if (hasShock) {
+        log(state, "⚡💀 ELECTROCUTED! Stepping into water while shocked is lethal! 💀⚡", "bad");
+        state.player.hp = 0;
+        state.player.alive = false;
+        state.over = true;
+      }
+    }
+
     processMonsterTurns(state);
     turnEnd(state);
   }
@@ -210,6 +234,19 @@ function applyStatusDamage(entityId, amount, source) {
   
   if (!entity) return;
   
+  // For shock damage, run through the engine's predamage phase
+  // This allows the wet + electric instant kill rule to trigger
+  if (source === 'shock') {
+    const modifiedDamage = runPreDamage(STATE, entity, { amount, type: 'electric' });
+    amount = modifiedDamage.amount;
+    
+    // Check if this is instant kill territory
+    if (amount >= 99999) {
+      log(STATE, "⚡💀 ELECTROCUTED! Being wet and shocked is lethal! 💀⚡", "bad");
+    }
+  }
+  
+  // Apply the damage (potentially modified by engine)
   entity.hp = Math.max(0, entity.hp - amount);
   emit(EventType.TookDamage, { id: entityId, amount: -amount, source });
   
@@ -275,7 +312,10 @@ export function turnEnd(state) {
       log(state, choice(quotes), "note");
     }
   }
-  
+
+  if (state.player.alive) {
+    runTickForEntity(state, state.player);
+  }
   render(state);
 }
 
@@ -424,6 +464,7 @@ function updateHUD(state) {
     else if (type === "shock") displayName = "shocked";
     else if (type === "weaken") displayName = "weakened";
     else if (type === "water_slow") displayName = "wet -SPD";
+    else if (type === "wet") displayName = "WET (conductive!)";
     
     // Show stack count if more than 1
     const stackText = data.count > 1 ? ` x${data.count}` : "";
@@ -570,6 +611,10 @@ export function initGame() {
   STATE = newWorld();
   window.STATE = STATE; // Make available for particle system
   render(STATE);
+
+  STATE.applyStatus = (entity, type, turns = 10, value = 1) => {
+    applyStatusEffect(entity, type, turns, value);
+  };
   
   // Initialize keyboard controls
   initKeyboardControls();

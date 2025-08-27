@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch Chrome against localhost",
+      "url": "http://localhost:8000",
+      "webRoot": "${workspaceFolder}/src",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "/src/*": "${workspaceFolder}/src/*"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Open index.html",
+      "file": "${workspaceFolder}/src/index.html",
+      "webRoot": "${workspaceFolder}/src",
+      "sourceMaps": true
+    },
+    {
+      "type": "firefox",
+      "request": "launch",
+      "name": "Launch Firefox against localhost",
+      "url": "http://localhost:8000",
+      "webRoot": "${workspaceFolder}/src",
+      "pathMappings": [
+        {
+          "url": "http://localhost:8000/js",
+          "path": "${workspaceFolder}/src/js"
+        }
+      ]
+    }
+  ]
+}
