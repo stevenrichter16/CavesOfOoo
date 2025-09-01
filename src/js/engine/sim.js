@@ -1,7 +1,7 @@
 // src/engine/sim.js
 import { getRulesForPhase } from './rules.js';
 
-export const PHASE_ORDER = ['preturn','apply','predamage','damage','postdamage','tick','cleanup'];
+export const PHASE_ORDER = ['preturn','movement','apply','predamage','damage','postdamage','tick','cleanup'];
 
 /**
  * ctx: {

@@ -27,12 +27,13 @@ import { initKeyboardControls } from '../input/keys.js';
 import { renderEquipmentPanel, getStatusChar, getStatusClass } from '../ui/equipment.js';
 import { CanvasRenderer } from '../renderer/canvas.js';
 import { getCursorState, isValidCursorPosition } from '../movement/cursor.js';
-import { runTickForEntity, runPreDamage } from '../engine/adapters/cavesOfOoo.js';
+import { runTickForEntity, runPreDamage, runMovementForEntity } from '../engine/adapters/cavesOfOoo.js';
 import '../engine/materials.js';          // ensure defaults loaded
 import '../engine/statusDefinitions.js';  // register all status definitions
 import '../engine/statusRules.js';        // load status interaction rules
 import '../engine/universalRules.js';     // (empty for now, fine to keep)
 import '../engine/testRules.instantKillWetElectric.js'; // our test rule
+import '../engine/candyDustRule.js';      // candy dust explosion rules
 import { applyStatusEffect } from '../combat/statusSystem.js';
 
 // Game state
@@ -192,11 +193,17 @@ export function handlePlayerMove(state, dx, dy) {
   // Process movement through the movement system
   const consumed = PlayerMovement.handlePlayerMove(state, dx, dy);
   
-  // If action was consumed (move attempted), run enemy turn
+  // If action was consumed (move attempted), run enemy turn  
   if (consumed) {
-    const tile = state.chunk?.map?.[state.player.y]?.[state.player.x];
+    // Store old position for movement event
+    const oldX = state.player.x - dx;
+    const oldY = state.player.y - dy;
     
-    // Water tile effects
+    // Run movement phase rules (handles candy dust explosions, etc.)
+    runMovementForEntity(state, state.player, oldX, oldY, state.player.x, state.player.y);
+    
+    // Handle water tile effects (keep this for now as it's not in rules yet)
+    const tile = state.chunk?.map?.[state.player.y]?.[state.player.x];
     if (tile === '~') {
       console.log(`[GAME] Player entered water tile`);
       const playerId = getEntityId(state.player);
@@ -218,97 +225,6 @@ export function handlePlayerMove(state, dx, dy) {
       if (effects && effects['wet']) {
         effects['wet'].quantity = Math.max(effects['wet'].quantity || 0, 40);
         console.log(`[GAME] Set wet quantity to ${effects['wet'].quantity}`);
-      }
-    }
-    
-    // Candy dust explosion when burning entity steps on it
-    if (tile === '%') {
-      console.log('[CANDY DUST] Player stepped on candy dust tile');
-      const playerId = getEntityId(state.player);
-      const effects = Status.get(playerId);
-      console.log('[CANDY DUST] Player status effects:', effects);
-      const isBurning = effects && (effects['burn'] || effects['burning']);
-      console.log('[CANDY DUST] Is player burning?', isBurning);
-      
-      if (isBurning) {
-        // Trigger explosion!
-        console.log('[CANDY DUST] About to log explosion, state.log exists?', typeof state.log);
-        if (state.log) {
-          state.log('💥 KABOOM! The candy dust ignites explosively!', 'danger');
-          state.log('You are caught in the blast!', 'bad');
-        } else {
-          // Fallback to global log function
-          log(state, '💥 KABOOM! The candy dust ignites explosively!', 'danger');
-          log(state, 'You are caught in the blast!', 'bad');
-        }
-        
-        // Apply explosion damage
-        const explosionDamage = 15;
-        state.player.hp -= explosionDamage;
-        
-        // Visual effects
-        emit('FloatingText', {
-          x: state.player.x,
-          y: state.player.y,
-          text: `💥 ${explosionDamage}`,
-          kind: 'explosion'
-        });
-        
-        // Trigger explosion animation
-        emit('explosion', {
-          x: state.player.x,
-          y: state.player.y
-        });
-        
-        // Check if player died
-        if (state.player.hp <= 0) {
-          state.player.alive = false;
-          state.over = true;
-          if (state.log) {
-            state.log('You were blown to smithereens by the candy dust explosion!', 'bad');
-          } else {
-            log(state, 'You were blown to smithereens by the candy dust explosion!', 'bad');
-          }
-        }
-        
-        // Apply splash damage to nearby monsters
-        const explosionRadius = 2;
-        if (state.chunk?.monsters) {
-          state.chunk.monsters.forEach(monster => {
-            if (!monster.alive) return;
-            
-            const dx = Math.abs(monster.x - state.player.x);
-            const dy = Math.abs(monster.y - state.player.y);
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance <= explosionRadius && distance > 0) {
-              const splashDamage = Math.floor(explosionDamage * (1 - distance / (explosionRadius + 1)));
-              monster.hp -= splashDamage;
-              
-              if (state.log) {
-                state.log(`${monster.name} takes ${splashDamage} explosion damage!`, 'note');
-              } else {
-                log(state, `${monster.name} takes ${splashDamage} explosion damage!`, 'note');
-              }
-              
-              if (monster.hp <= 0) {
-                monster.alive = false;
-                if (state.log) {
-                  state.log(`${monster.name} was killed by the explosion!`, 'good');
-                } else {
-                  log(state, `${monster.name} was killed by the explosion!`, 'good');
-                }
-                
-                // Add XP for kill
-                state.player.xp += monster.xpValue || 10;
-                state.player.kills++;
-              }
-            }
-          });
-        }
-        
-        // Remove the candy dust pile (it exploded)
-        state.chunk.map[state.player.y][state.player.x] = '.';
       }
     }
 

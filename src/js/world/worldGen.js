@@ -405,15 +405,95 @@ export function genChunk(seed, cx, cy) {
     addWaterFeature(map, sr);
   }
   
-  // Add candy dust piles (80% chance per chunk for easier testing)
-  if (sr.next() < 0.8) {
-    const dustCount = sr.between(8, 15); // Increased from 2-5 to 8-15 for easier testing
-    for (let i = 0; i < dustCount; i++) {
+  // Add candy dust piles - LONG CHAINS for testing chain reactions
+  if (sr.next() < 1.0) {
+    // Create 2-3 LONG CHAINS of candy dust
+    const chainCount = sr.between(2, 3);
+    
+    for (let c = 0; c < chainCount; c++) {
+      // Pick a random starting point
+      const startX = sr.between(3, W - 3);
+      const startY = sr.between(3, H - 3);
+      
+      // Create a chain of 10-15 connected candy dust tiles
+      const chainLength = sr.between(10, 15);
+      let currentX = startX;
+      let currentY = startY;
+      const placedPositions = [];
+      
+      // Place first candy dust
+      if (map[currentY][currentX] === '.') {
+        map[currentY][currentX] = '%';
+        placedPositions.push({x: currentX, y: currentY});
+      }
+      
+      // Build a continuous chain
+      for (let i = 1; i < chainLength; i++) {
+        // Try to find a valid adjacent position
+        const dirs = [[0,1], [1,0], [0,-1], [-1,0]]; // Only orthogonal for cleaner chains
+        let placed = false;
+        
+        // Shuffle directions for variety
+        for (let j = dirs.length - 1; j > 0; j--) {
+          const k = sr.int(j + 1);
+          [dirs[j], dirs[k]] = [dirs[k], dirs[j]];
+        }
+        
+        // Try each direction until we find a valid spot
+        for (const [dx, dy] of dirs) {
+          const newX = currentX + dx;
+          const newY = currentY + dy;
+          
+          // Check if valid and empty
+          if (newX >= 1 && newX < W-1 && newY >= 1 && newY < H-1 && map[newY][newX] === '.') {
+            map[newY][newX] = '%';
+            placedPositions.push({x: newX, y: newY});
+            currentX = newX;
+            currentY = newY;
+            placed = true;
+            break;
+          }
+        }
+        
+        // If we couldn't extend the chain, try from a different position in the chain
+        if (!placed && placedPositions.length > 1) {
+          const backtrack = sr.pick(placedPositions);
+          currentX = backtrack.x;
+          currentY = backtrack.y;
+          i--; // Try again from this position
+        }
+      }
+    }
+    
+    // Create some branching chains for more interesting reactions
+    const branchCount = sr.between(2, 4);
+    for (let b = 0; b < branchCount; b++) {
+      // Create a cross or T-shaped formation
+      const centerX = sr.between(8, W - 8);
+      const centerY = sr.between(5, H - 5);
+      
+      // Horizontal line
+      for (let x = centerX - 5; x <= centerX + 5; x++) {
+        if (x >= 0 && x < W && map[centerY][x] === '.') {
+          map[centerY][x] = '%';
+        }
+      }
+      
+      // Vertical line  
+      for (let y = centerY - 3; y <= centerY + 3; y++) {
+        if (y >= 0 && y < H && map[y][centerX] === '.') {
+          map[y][centerX] = '%';
+        }
+      }
+    }
+    
+    // Add a few scattered piles to connect chains
+    const scatteredCount = sr.between(8, 12);
+    for (let i = 0; i < scatteredCount; i++) {
       const x = sr.between(2, W - 2);
       const y = sr.between(2, H - 2);
-      // Only place on floor tiles
       if (map[y][x] === '.') {
-        map[y][x] = '%'; // Candy dust pile
+        map[y][x] = '%';
       }
     }
   }

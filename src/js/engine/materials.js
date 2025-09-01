@@ -45,7 +45,7 @@ registerMaterial({
   tags: ['powder', 'flammable', 'explosive', 'sweet'],
   props: { 
     explosionDamage: 15,
-    explosionRadius: 2,
+    explosionRadius: 3,  // Increased from 2 to 3 for larger blast radius
     ignitionThreshold: 1,  // Ignites immediately on contact with fire
     volatility: 'high'
   }

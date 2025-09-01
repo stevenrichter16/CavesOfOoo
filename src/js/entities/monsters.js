@@ -8,6 +8,7 @@ import { isBlocked } from '../utils/queries.js';
 import { isFrozen, processStatusEffects, applyStatusEffect, Status, getEntityId } from '../combat/statusSystem.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { runMovementForEntity } from '../engine/adapters/cavesOfOoo.js';
 
 /**
  * Process all monster turns
@@ -113,95 +114,8 @@ function checkMonsterWaterEffect(state, monster, oldX, oldY) {
     // Note: wet status will naturally tick down on its own
   }
   
-  // Handle candy dust explosion when burning monster steps on it
-  if (newTile === '%') {
-    const monsterId = getEntityId(monster);
-    const effects = Status.get(monsterId);
-    const isBurning = effects && (effects['burn'] || effects['burning']);
-    
-    if (isBurning) {
-      // Trigger explosion!
-      if (state.log) {
-        state.log(`💥 ${monster.name} triggers a candy dust explosion!`, 'danger');
-      }
-      
-      // Apply explosion damage to the monster
-      const explosionDamage = 15;
-      monster.hp -= explosionDamage;
-      
-      // Trigger explosion animation
-      emit('explosion', {
-        x: monster.x,
-        y: monster.y
-      });
-      
-      // Check if monster died
-      if (monster.hp <= 0) {
-        monster.alive = false;
-        if (state.log) {
-          state.log(`${monster.name} was obliterated by its own explosion!`, 'good');
-        }
-        // Award XP for kill (player gets credit for clever trap)
-        state.player.xp += monster.xpValue || 10;
-        state.player.kills++;
-      }
-      
-      // Apply splash damage to player and other monsters
-      const explosionRadius = 2;
-      
-      // Damage player if in range
-      const pdx = Math.abs(state.player.x - monster.x);
-      const pdy = Math.abs(state.player.y - monster.y);
-      const playerDist = Math.sqrt(pdx * pdx + pdy * pdy);
-      
-      if (playerDist <= explosionRadius) {
-        const playerDamage = Math.floor(explosionDamage * (1 - playerDist / (explosionRadius + 1)));
-        state.player.hp -= playerDamage;
-        
-        if (state.log) {
-          state.log(`You take ${playerDamage} damage from the explosion!`, 'bad');
-        }
-        
-        if (state.player.hp <= 0) {
-          state.player.alive = false;
-          state.over = true;
-          if (state.log) {
-            state.log(`You were killed by the explosion!`, 'bad');
-          }
-        }
-      }
-      
-      // Damage other monsters in range
-      state.chunk.monsters.forEach(other => {
-        if (!other.alive || other === monster) return;
-        
-        const dx = Math.abs(other.x - monster.x);
-        const dy = Math.abs(other.y - monster.y);
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance <= explosionRadius) {
-          const splashDamage = Math.floor(explosionDamage * (1 - distance / (explosionRadius + 1)));
-          other.hp -= splashDamage;
-          
-          if (state.log) {
-            state.log(`${other.name} takes ${splashDamage} explosion damage!`, 'note');
-          }
-          
-          if (other.hp <= 0) {
-            other.alive = false;
-            if (state.log) {
-              state.log(`${other.name} was killed by the explosion!`, 'good');
-            }
-            state.player.xp += other.xpValue || 10;
-            state.player.kills++;
-          }
-        }
-      });
-      
-      // Remove the candy dust pile (it exploded)
-      state.chunk.map[monster.y][monster.x] = '.';
-    }
-  }
+  // Run movement phase rules for the monster (handles candy dust explosions, etc.)
+  runMovementForEntity(state, monster, oldX, oldY, monster.x, monster.y);
 }
 
 /**
@@ -453,6 +367,8 @@ function executeMonsterAbility(state, monster) {
     state.player.alive = false;
     state.over = true;
     log(state, `You were defeated by ${monster.name}'s ${ability.type}!`, "bad");
+    // Emit EntityDied event to clean up particles
+    emit(EventType.EntityDied, { id: 'player', name: 'You', cause: `${monster.name}'s ${ability.type}` });
   }
 }
 

@@ -151,6 +151,17 @@ export function initParticles() {
         console.log('Cleared particles for dead entity:', key);
       }
     }
+    
+    // Also clear any existing particle elements if player died
+    if (entityId === 'player') {
+      // Clear all active particle generation immediately
+      activeEffects.forEach(interval => clearInterval(interval));
+      activeEffects.clear();
+      
+      // Remove any lingering particle elements
+      document.querySelectorAll('.status-particle').forEach(p => p.remove());
+      console.log('Cleared all particles due to player death');
+    }
   });
 }
 
