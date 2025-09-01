@@ -1,6 +1,6 @@
 // particles.js - ASCII particle effects for status effects
-import { on } from '../events.js';
-import { EventType } from '../eventTypes.js';
+import { on } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
 
 // Particle configurations for each status effect
 const particleConfigs = {
@@ -80,6 +80,13 @@ const particleConfigs = {
     spread: 10,
     className: 'particle-bleed',
     duration: 1000
+  },
+  explosion: {
+    chars: ['💥', '*', '✦', '◉', '○', '·', '•', '▪'],
+    rate: 20,  // Very high rate for burst effect
+    spread: 40,  // Wide spread
+    className: 'particle-explosion',
+    duration: 600
   }
 };
 
@@ -88,6 +95,12 @@ let activeEffects = new Map(); // Track active particle intervals
 
 export function initParticles() {
   console.log('Particle system initialized');
+  
+  // Listen for explosion events
+  on('explosion', ({ x, y }) => {
+    console.log('Explosion event received at', x, y);
+    createExplosionBurst(x, y);
+  });
   
   // Listen for status effect events
   on(EventType.StatusEffectRegister, ({ toId, type, vs, turns }) => {
@@ -250,6 +263,81 @@ function createSingleParticle(x, y, statusType) {
       particle.remove();
     }
   }, config.duration);
+}
+
+// Create explosion burst effect
+function createExplosionBurst(x, y) {
+  const config = particleConfigs.explosion;
+  
+  // Create center explosion emoji
+  const centerParticle = document.createElement('div');
+  centerParticle.className = 'explosion-center';
+  centerParticle.textContent = '💥';
+  centerParticle.style.position = 'absolute';
+  centerParticle.style.left = `${x * 16 - 8}px`; // Center it
+  centerParticle.style.top = `${y * 16 - 8}px`;
+  centerParticle.style.fontSize = '32px';
+  centerParticle.style.zIndex = '1001';
+  centerParticle.style.pointerEvents = 'none';
+  centerParticle.style.animation = 'explosion-grow 0.3s ease-out';
+  
+  const particleContainer = document.getElementById('particle-container');
+  if (particleContainer) {
+    particleContainer.appendChild(centerParticle);
+    setTimeout(() => centerParticle.remove(), 300);
+  }
+  
+  // Create burst of particles in a circle
+  const particleCount = 16;
+  for (let i = 0; i < particleCount; i++) {
+    const angle = (i / particleCount) * Math.PI * 2;
+    const distance = 20 + Math.random() * 20;
+    const vx = Math.cos(angle) * distance;
+    const vy = Math.sin(angle) * distance;
+    
+    setTimeout(() => {
+      const particle = document.createElement('div');
+      particle.className = `status-particle particle-explosion`;
+      particle.id = `particle-${particleId++}`;
+      particle.style.position = 'absolute';
+      
+      // Random explosion debris character
+      const char = config.chars[Math.floor(Math.random() * config.chars.length)];
+      particle.textContent = char;
+      
+      // Starting position
+      particle.style.left = `${x * 16}px`;
+      particle.style.top = `${y * 16}px`;
+      
+      // Set velocity as CSS variables for animation
+      particle.style.setProperty('--vx', `${vx}px`);
+      particle.style.setProperty('--vy', `${vy}px`);
+      particle.style.animation = 'explosion-particle 0.6s ease-out forwards';
+      
+      if (particleContainer) {
+        particleContainer.appendChild(particle);
+        setTimeout(() => particle.remove(), 600);
+      }
+    }, i * 10); // Stagger particle creation
+  }
+  
+  // Create shockwave ring
+  const shockwave = document.createElement('div');
+  shockwave.className = 'explosion-shockwave';
+  shockwave.style.position = 'absolute';
+  shockwave.style.left = `${x * 16 - 30}px`;
+  shockwave.style.top = `${y * 16 - 30}px`;
+  shockwave.style.width = '60px';
+  shockwave.style.height = '60px';
+  shockwave.style.border = '2px solid orange';
+  shockwave.style.borderRadius = '50%';
+  shockwave.style.pointerEvents = 'none';
+  shockwave.style.animation = 'shockwave 0.5s ease-out forwards';
+  
+  if (particleContainer) {
+    particleContainer.appendChild(shockwave);
+    setTimeout(() => shockwave.remove(), 500);
+  }
 }
 
 // Clean up all active effects

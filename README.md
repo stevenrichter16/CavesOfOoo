@@ -17,11 +17,13 @@ CavesOfOoo/
         ├── utils.js       # Utility functions and RNG
         ├── persistence.js # Save/load functionality
         ├── entities.js    # Player and monster creation
-        ├── statusEffects.js # Status effect system
         ├── worldGen.js    # Dungeon generation
         ├── combat.js      # Combat system
         ├── inventory.js   # Inventory management
-        └── game.js        # Main game logic and initialization
+        ├── game.js        # Main game logic and initialization
+        ├── systems/
+        │   └── statusSystem.js # Status effect management system
+        └── engine/        # Rule-based interaction engine
 ```
 
 ## How to Run

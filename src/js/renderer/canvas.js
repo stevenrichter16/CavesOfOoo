@@ -1,7 +1,8 @@
 // renderer/canvas.js - HTML5 Canvas renderer for CavesOfOoo
 // This module handles all canvas-based rendering, replacing DOM manipulation
 
-import { CANVAS_CONFIG, TILE } from '../config.js';
+import { CANVAS_CONFIG, TILE } from '../core/config.js';
+import { getStatusEffectsAsArray } from '../combat/statusSystem.js';
 
 export class CanvasRenderer {
   constructor(containerId) {
@@ -170,8 +171,9 @@ export class CanvasRenderer {
           
           // Check for status effects
           let bgColor = null;
-          if (monster.statusEffects && monster.statusEffects.length > 0) {
-            bgColor = this.getStatusEffectBgColor(monster.statusEffects[0].type);
+          const monsterEffects = getStatusEffectsAsArray(monster);
+          if (monsterEffects.length > 0) {
+            bgColor = this.getStatusEffectBgColor(monsterEffects[0].type);
           }
           
           this.drawTile(monster.x, monster.y, monster.glyph, color, bgColor);
@@ -182,8 +184,9 @@ export class CanvasRenderer {
     // Draw player
     if (player && player.alive) {
       let bgColor = null;
-      if (player.statusEffects && player.statusEffects.length > 0) {
-        bgColor = this.getStatusEffectBgColor(player.statusEffects[0].type);
+      const playerEffects = getStatusEffectsAsArray(player);
+      if (playerEffects.length > 0) {
+        bgColor = this.getStatusEffectBgColor(playerEffects[0].type);
       }
       
       this.drawTile(player.x, player.y, TILE.player, '#ffd27f', bgColor);

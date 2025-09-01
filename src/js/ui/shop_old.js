@@ -1,9 +1,9 @@
 // ui/shop.js - Shop UI module
-import { on, emit } from '../events.js';
-import { EventType } from '../eventTypes.js';
-import { esc } from '../utils.js';
-import { WEAPONS, ARMORS, HEADGEAR, POTIONS, FETCH_ITEMS, QUEST_TEMPLATES } from '../config.js';
-import { checkFetchQuestItem } from '../quests.js';
+import { on, emit } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
+import { esc } from '../utils/utils.js';
+import { WEAPONS, ARMORS, HEADGEAR, POTIONS, FETCH_ITEMS, QUEST_TEMPLATES } from '../core/config.js';
+import { checkFetchQuestItem } from '../quests/quests.js';
 
 // Shop state
 let shopState = {

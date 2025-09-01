@@ -21,10 +21,10 @@ export function getRulesForPhase(phase /** @type {Phase} */) {
 
 /* ---------- Predicates (P) ---------- */
 export const P = {
-  hasStatus: (id) => (ctx) => ctx.entity.statuses?.some(s => s.id === id),
+  hasStatus: (id) => (ctx) => ctx.entity.statuses?.some(s => s.id === id) || false,
   hasAnyTag: (tag) => (ctx) =>
     (ctx.entity.statuses?.some(s => s.tags?.includes(tag)) ||
-     ctx.entity.materials?.some(m => m.tags?.includes(tag))),
+     ctx.entity.materials?.some(m => m.tags?.includes(tag))) || false,
   dmgTypeIs: (type) => (ctx) => ctx.event?.damage?.type === type,
   exposedToFire: () => (ctx) =>
     P.hasStatus('burning')(ctx) || (ctx.env?.temperatureC ?? 0) >= (ctx.env?.autoIgniteAtC ?? 800),

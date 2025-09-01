@@ -1,6 +1,6 @@
 // ui/fx.js - Visual effects module (DOM-based)
-import { on } from '../events.js';
-import { EventType } from '../eventTypes.js';
+import { on } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
 
 // Subscribe to floating text events
 on(EventType.FloatingText, ({ x, y, text, kind }) => {

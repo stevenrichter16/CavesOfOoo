@@ -8,13 +8,15 @@ const STATUSES  = new Map();
 
 // --- Registry API ---
 export function registerMaterial(mat /** @type {Entry} */) {
-  MATERIALS.set(mat.id, { id: mat.id, tags: mat.tags ?? [], props: { ...(mat.props || {}) } });
+  console.log(`[ENGINE] Registered material '${mat.id}' with tags: [${(mat.tags || []).join(', ')}]`);
+  MATERIALS.set(mat.id, { id: mat.id, tags: [...(mat.tags ?? [])], props: { ...(mat.props || {}) } });
 }
 export function getMaterial(id) { return MATERIALS.get(id); }
 export function allMaterials() { return [...MATERIALS.values()]; }
 
 export function registerStatus(st /** @type {Entry} */) {
-  STATUSES.set(st.id, { id: st.id, tags: st.tags ?? [], props: { ...(st.props || {}) } });
+  console.log(`[ENGINE] Registered status '${st.id}' with tags: [${(st.tags || []).join(', ')}]`);
+  STATUSES.set(st.id, { id: st.id, tags: [...(st.tags ?? [])], props: { ...(st.props || {}) } });
 }
 export function getStatus(id) { return STATUSES.get(id); }
 export function allStatuses() { return [...STATUSES.values()]; }
@@ -37,16 +39,17 @@ registerMaterial({
   props: { conductivityAmp: 1.2 }
 });
 
-// Status: wet (IMPORTANT: carries 'conductive' tag)
-registerStatus({
-  id: 'wet',
-  tags: ['coated', 'conductive', 'extinguisher'],
-  props: { quantity: 20, extinguishingPower: 20, conductivityAmp: 1.5 }
+// Material: candy dust (explosive when exposed to fire)
+registerMaterial({
+  id: 'candy_dust',
+  tags: ['powder', 'flammable', 'explosive', 'sweet'],
+  props: { 
+    explosionDamage: 15,
+    explosionRadius: 2,
+    ignitionThreshold: 1,  // Ignites immediately on contact with fire
+    volatility: 'high'
+  }
 });
 
-// Status: burning (not used in the instant-kill test, but handy later)
-registerStatus({
-  id: 'burning',
-  tags: ['fire', 'dot'],
-  props: { intensity: 1, temperatureC: 600 }
-});
+// Note: Status definitions have been moved to statusDefinitions.js
+// to avoid duplicates and keep all status registrations in one place

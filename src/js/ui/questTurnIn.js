@@ -1,11 +1,11 @@
 // ui/questTurnIn.js - Quest turn-in UI rendering
 // Pure UI module for displaying quest completion interface
 
-import { QUEST_TEMPLATES } from '../config.js';
-import { checkFetchQuestItem } from '../quests.js';
-import { esc } from '../utils.js';
-import { on } from '../events.js';
-import { getMatchingItemsForQuest, isItemEquipped } from '../systems/questTurnIn.js';
+import { QUEST_TEMPLATES } from '../core/config.js';
+import { checkFetchQuestItem } from '../quests/quests.js';
+import { esc } from '../utils/utils.js';
+import { on } from '../utils/events.js';
+import { getMatchingItemsForQuest, isItemEquipped } from '../quests/questTurnIn.js';
 
 /**
  * Initialize quest turn-in UI event listeners

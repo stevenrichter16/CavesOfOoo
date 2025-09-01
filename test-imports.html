@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Import Test</title>
+</head>
+<body>
+    <h1>Testing Imports...</h1>
+    <div id="status"></div>
+    <script type="module">
+        const status = document.getElementById('status');
+        
+        async function testImport(path) {
+            try {
+                await import(path);
+                return { path, success: true };
+            } catch (error) {
+                return { path, success: false, error: error.message };
+            }
+        }
+        
+        async function testAllImports() {
+            const results = [];
+            
+            // Test main game file
+            const gameResult = await testImport('./src/js/core/game.js');
+            results.push(gameResult);
+            
+            // Display results
+            const failed = results.filter(r => !r.success);
+            if (failed.length === 0) {
+                status.innerHTML = '<h2 style="color: green;">✅ All imports successful!</h2>';
+            } else {
+                status.innerHTML = '<h2 style="color: red;">❌ Import errors:</h2>' +
+                    failed.map(f => `<p>${f.path}: ${f.error}</p>`).join('');
+            }
+            
+            console.log('Import test results:', results);
+        }
+        
+        testAllImports();
+    </script>
+</body>
+</html>

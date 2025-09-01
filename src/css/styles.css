@@ -971,3 +971,54 @@ a.button, button.button{
   text-align: center;
 }
 
+/* Explosion animations */
+@keyframes explosion-grow {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes explosion-particle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--vx), var(--vy)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes shockwave {
+  0% {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.particle-explosion {
+  color: #ff6600;
+  font-weight: bold;
+  text-shadow: 0 0 4px #ff3300;
+}
+
+.explosion-center {
+  transform-origin: center;
+}
+
+.explosion-shockwave {
+  transform-origin: center;
+}
+

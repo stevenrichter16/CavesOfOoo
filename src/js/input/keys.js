@@ -14,21 +14,23 @@ import {
   renderQuestTurnIn,
   renderQuestTurnInConfirm,
   closeShop
-} from '../game.js';
-import { openQuestTurnIn } from '../systems/questTurnIn.js';
-import * as ShopSystem from '../systems/shop.js';
+} from '../core/game.js';
+import { openQuestTurnIn } from '../quests/questTurnIn.js';
+import * as ShopSystem from '../items/shop.js';
 import * as ShopUI from '../ui/shop.js';
-import * as VendorQuests from '../systems/vendorQuests.js';
-import { saveChunk } from '../persistence.js';
-import { openInventory, closeInventory, useInventoryItem, dropInventoryItem, renderInventory } from '../inventory.js';
-import { handleMapNavigation } from '../worldMap.js';
+import * as VendorQuests from '../quests/vendorQuests.js';
+import { saveChunk } from '../utils/persistence.js';
+import { openInventory, closeInventory, useInventoryItem, dropInventoryItem, renderInventory } from '../items/inventory.js';
+import { handleMapNavigation } from '../world/worldMap.js';
 import { openMap, closeMap, renderMap } from '../ui/map.js';
-import { displayActiveQuests, hasQuest, giveQuest, checkFetchQuestItem } from '../quests.js';
-import { QUEST_TEMPLATES } from '../config.js';
-import { applyStatusEffect, isFrozen } from '../systems/statusSystem.js';
-import { emit } from '../events.js';
-import { EventType } from '../eventTypes.js';
-import { W, H } from '../config.js';
+import { displayActiveQuests, hasQuest, giveQuest, checkFetchQuestItem } from '../quests/quests.js';
+import { QUEST_TEMPLATES } from '../core/config.js';
+import { applyStatusEffect, isFrozen, Status } from '../combat/statusSystem.js';
+import { tagsForStatus } from '../engine/adapters/cavesOfOoo.js';
+import { PHASE_ORDER } from '../engine/sim.js';
+import { emit } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
+import { W, H } from '../core/config.js';
 import { 
   activateCursor, 
   deactivateCursor, 
@@ -36,7 +38,48 @@ import {
   getCursorState,
   executeCursorAction,
   getInfoAtCursor
-} from '../systems/cursor.js';
+} from '../movement/cursor.js';
+
+// Helper function to show cursor info
+function showCursorInfo(STATE) {
+  const cursorState = getCursorState();
+  if (!cursorState.active) return;
+  
+  const info = getInfoAtCursor();
+  if (info && info.monster) {
+    let quickInfo = `Examining: ${info.monster.name} (${info.monster.hp}/${info.monster.hpMax} HP)`;
+    
+    // Add status effects
+    if (info.monster.statuses && info.monster.statuses.length > 0) {
+      const statusNames = info.monster.statuses.map(s => {
+        let text = s.name;
+        if (s.turns > 0) text += ` ${s.turns}t`;
+        return text;
+      });
+      quickInfo += ` [${statusNames.join(', ')}]`;
+    } else {
+      quickInfo += ' [Healthy]';
+    }
+    
+    log(STATE, quickInfo, "dim");
+  } else if (info && info.item) {
+    log(STATE, `Item: ${info.item.name}`, "dim");
+  } else if (info) {
+    // Just show tile type
+    const tileDesc = 
+      info.tile === '.' ? 'Floor' :
+      info.tile === '#' ? 'Wall' :
+      info.tile === '~' ? 'Water' :
+      info.tile === '>' ? 'Stairs down' :
+      info.tile === '<' ? 'Stairs up' :
+      info.tile === '%' ? 'Plant' :
+      info.tile === 'V' ? 'Vendor' :
+      info.tile === 'A' ? 'Artifact' :
+      info.tile === '!' ? 'Shrine' :
+      'Unknown';
+    log(STATE, `Tile: ${tileDesc}`, "dim");
+  }
+}
 
 // Initialize keyboard controls
 export function initKeyboardControls() {
@@ -128,6 +171,7 @@ function handleGameControls(STATE, e) {
     // Toggle cursor mode for examining
     activateCursor('examine');
     log(STATE, "Cursor mode activated - use arrows to move cursor, Enter to examine, Escape to exit", "note");
+    showCursorInfo(STATE); // Show info about what's under the cursor immediately
     render(STATE);
     e.preventDefault(); 
   }
@@ -168,7 +212,6 @@ function handleGameControls(STATE, e) {
   
   // Debug controls (always enabled for now, can add a debug flag later)
   handleDebugGameControls(STATE, e, k);
-  return;
 }
 
 function handleDebugGameControls(STATE, e, k) {
@@ -200,6 +243,8 @@ function handleDebugGameControls(STATE, e, k) {
     e.preventDefault();
   }
   else if (k.toLowerCase() === "b") {
+    console.log("[KEYS] 'b' pressed - applying burn status");
+    console.log("[KEYS] STATE.player:", STATE.player);
     applyStatusEffect(STATE.player, "burn", 3, 2);
     log(STATE, "Applied burn (3 turns, 2 damage)!", "magic");
     render(STATE);
@@ -215,6 +260,146 @@ function handleDebugGameControls(STATE, e, k) {
     applyStatusEffect(STATE.player, "shock", 3, 4);
     log(STATE, "Applied shock (3 turns, 4 damage)!", "magic");
     render(STATE);
+    e.preventDefault();
+  }
+  
+  // ===== ENGINE TEST COMMANDS =====
+  else if (k === "T") {
+    // Test menu
+    log(STATE, "════ ENGINE TEST COMMANDS ════", "magic");
+    log(STATE, "1: Fire+Water interaction test", "note");
+    log(STATE, "2: Freeze movement prevention", "note");
+    log(STATE, "3: Stat modifiers (weaken/armor)", "note");
+    log(STATE, "4: Wet+Electric instant kill", "note");
+    log(STATE, "5: Apply all DOT effects", "note");
+    log(STATE, "6: Test water material (step into water)", "note");
+    log(STATE, "7: Test multiple status stacking", "note");
+    log(STATE, "8: Test status expiration", "note");
+    log(STATE, "9: Run full engine diagnostic", "note");
+    e.preventDefault();
+  }
+  else if (k === "1" && e.shiftKey) {
+    // Test fire extinguishing water
+    log(STATE, "═══ TEST: Fire + Water Interaction ═══", "magic");
+    log(STATE, "Applying burn first...", "note");
+    applyStatusEffect(STATE.player, "burn", 5, 3);
+    setTimeout(() => {
+      log(STATE, "Now applying wet (should extinguish burn)...", "note");
+      applyStatusEffect(STATE.player, "wet", 3, 0);
+      render(STATE);
+    }, 100);
+    e.preventDefault();
+  }
+  else if (k === "2" && e.shiftKey) {
+    // Test freeze prevention
+    log(STATE, "═══ TEST: Freeze Movement Prevention ═══", "magic");
+    applyStatusEffect(STATE.player, "freeze", 3, 0);
+    log(STATE, "Applied freeze - try to move (should be prevented)", "note");
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "3" && e.shiftKey) {
+    // Test stat modifiers
+    log(STATE, "═══ TEST: Stat Modifiers ═══", "magic");
+    log(STATE, "Applying weaken (STR -3)...", "note");
+    applyStatusEffect(STATE.player, "weaken", 3, 0);
+    log(STATE, "Applying armor (DEF +3)...", "note");
+    applyStatusEffect(STATE.player, "armor", 3, 0);
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "4" && e.shiftKey) {
+    // Test wet + electric instant kill
+    log(STATE, "═══ TEST: Wet + Electric Instant Kill ═══", "magic");
+    log(STATE, "Applying wet status with high conductivity...", "note");
+    applyStatusEffect(STATE.player, "wet", 5, 0);
+    const wet = STATE.player.statusEffects?.find(s => s.type === 'wet');
+    if (wet) wet.quantity = 50; // Ensure high conductivity
+    setTimeout(() => {
+      log(STATE, "Now applying shock (should be LETHAL!)...", "bad");
+      applyStatusEffect(STATE.player, "shock", 1, 4);
+      render(STATE);
+    }, 100);
+    e.preventDefault();
+  }
+  else if (k === "5" && e.shiftKey) {
+    // Apply all DOT effects
+    log(STATE, "═══ TEST: All DOT Effects ═══", "magic");
+    applyStatusEffect(STATE.player, "burn", 2, 2);
+    applyStatusEffect(STATE.player, "poison", 2, 2);
+    applyStatusEffect(STATE.player, "shock", 2, 3);
+    applyStatusEffect(STATE.player, "bleed", 2, 1);
+    log(STATE, "Applied: burn, poison, shock, bleed", "note");
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "6" && e.shiftKey) {
+    // Test water tile conductivity
+    log(STATE, "═══ TEST: Water Tile Conductivity ═══", "magic");
+    log(STATE, "Find water (~) and step in it", "note");
+    log(STATE, "Then press 'e' for shock to test instant kill", "note");
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "7" && e.shiftKey) {
+    // Test multiple stacking
+    log(STATE, "═══ TEST: Status Stacking ═══", "magic");
+    log(STATE, "Applying burn 3 times (should stack)...", "note");
+    applyStatusEffect(STATE.player, "burn", 2, 2);
+    applyStatusEffect(STATE.player, "burn", 2, 3);
+    applyStatusEffect(STATE.player, "burn", 2, 1);
+    log(STATE, "Check console for stacking behavior", "note");
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "8" && e.shiftKey) {
+    // Test expiration
+    log(STATE, "═══ TEST: Quick Expiration ═══", "magic");
+    applyStatusEffect(STATE.player, "burn", 1, 5);
+    applyStatusEffect(STATE.player, "poison", 1, 5);
+    log(STATE, "Applied 1-turn effects. Move to see expiration", "note");
+    render(STATE);
+    e.preventDefault();
+  }
+  else if (k === "9" && e.shiftKey) {
+    // Full diagnostic
+    log(STATE, "═══ FULL ENGINE DIAGNOSTIC ═══", "magic");
+    console.log("\n════════ ENGINE DIAGNOSTIC REPORT ════════");
+    
+    // Check registered statuses
+    console.log("[DIAGNOSTIC] Checking registered statuses...");
+    const testStatuses = ['wet', 'burn', 'poison', 'shock', 'freeze', 'weaken', 'armor'];
+    testStatuses.forEach(s => {
+      const tags = tagsForStatus(s);
+      console.log(`  • ${s}: ${tags.length > 0 ? tags.join(', ') : 'NO TAGS (ERROR)'}`);
+    });
+    
+    // Check phases
+    console.log("\n[DIAGNOSTIC] Available phases:");
+    console.log("  •", PHASE_ORDER.join(', '));
+    
+    // Check current status
+    console.log("\n[DIAGNOSTIC] Current player status:");
+    console.log(`  • HP: ${STATE.player.hp}/${STATE.player.hpMax}`);
+    console.log(`  • Active effects: ${STATE.player.statusEffects?.map(e => `${e.type}(${e.turns}t)`).join(', ') || 'none'}`);
+    
+    // Check Map vs Array sync
+    console.log("\n[DIAGNOSTIC] Map/Array synchronization:");
+    const mapEffects = Status.get('player');
+    const arrayEffects = STATE.player.statusEffects || [];
+    console.log(`  • Map storage: ${mapEffects ? Object.keys(mapEffects).join(', ') : 'empty'}`);
+    console.log(`  • Array storage: ${arrayEffects.map(e => e.type).join(', ') || 'empty'}`);
+    
+    if (mapEffects && arrayEffects.length > 0) {
+      const inMapNotArray = Object.keys(mapEffects).filter(e => !arrayEffects.find(a => a.type === e));
+      const inArrayNotMap = arrayEffects.filter(a => !mapEffects[a.type]);
+      if (inMapNotArray.length > 0) console.log(`  ⚠ In Map but not Array: ${inMapNotArray.join(', ')}`);
+      if (inArrayNotMap.length > 0) console.log(`  ⚠ In Array but not Map: ${inArrayNotMap.map(a => a.type).join(', ')}`);
+      if (inMapNotArray.length === 0 && inArrayNotMap.length === 0) console.log(`  ✓ Map and Array are synchronized`);
+    }
+    
+    console.log("\n════════ END DIAGNOSTIC ════════\n");
+    log(STATE, "Diagnostic complete. Check console.", "note");
     e.preventDefault();
   }
   return;
@@ -669,18 +854,22 @@ async function handleCursorControls(STATE, e) {
   // Movement (arrows and WASD)
   if (k === "ArrowUp" || k === "w" || k === "W") {
     moveCursor(0, -1, e.shiftKey);
+    showCursorInfo(STATE);
     render(STATE);
     e.preventDefault();
   } else if (k === "ArrowDown" || k === "s" || k === "S") {
     moveCursor(0, 1, e.shiftKey);
+    showCursorInfo(STATE);
     render(STATE);
     e.preventDefault();
   } else if (k === "ArrowLeft" || k === "a" || k === "A") {
     moveCursor(-1, 0, e.shiftKey);
+    showCursorInfo(STATE);
     render(STATE);
     e.preventDefault();
   } else if (k === "ArrowRight" || k === "d" || k === "D") {
     moveCursor(1, 0, e.shiftKey);
+    showCursorInfo(STATE);
     render(STATE);
     e.preventDefault();
   }
@@ -691,7 +880,7 @@ async function handleCursorControls(STATE, e) {
     if (info) {
       // Show dropdown menu for any tile
       import('../ui/dropdown.js').then(({ createDropdown }) => {
-        import('../systems/pathfinding.js').then(({ findPath, isWalkable }) => {
+        import('../movement/pathfinding.js').then(({ findPath, isWalkable }) => {
           const menuOptions = [];
           
           // Check if clicking on a monster
@@ -732,6 +921,24 @@ async function handleCursorControls(STATE, e) {
                 if (info.distance) {
                   desc += ` (${info.distance} tiles away)`;
                 }
+                
+                // Add status effects if any
+                if (info.monster.statuses && info.monster.statuses.length > 0) {
+                  const statusStrings = info.monster.statuses.map(status => {
+                    let statusText = status.name;
+                    if (status.turns > 0) {
+                      statusText += ` (${status.turns}t)`;
+                    }
+                    if (status.value > 0 && ['Burning', 'Poisoned', 'Shocked'].includes(status.name)) {
+                      statusText += ` [${status.value} dmg/turn]`;
+                    }
+                    return statusText;
+                  });
+                  desc += ` | Status: ${statusStrings.join(', ')}`;
+                } else {
+                  desc += ' | Status: None';
+                }
+                
                 log(STATE, desc, "note");
                 render(STATE);
               }

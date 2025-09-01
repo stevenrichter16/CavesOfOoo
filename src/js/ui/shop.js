@@ -2,12 +2,12 @@
 // This module ONLY handles rendering and DOM manipulation
 // All state changes go through the systems/shop.js module
 
-import { on } from '../events.js';
-import { esc } from '../utils.js';
-import { ShopTransactionEvents } from '../systems/shop.js';
-import { getQuestDisplay } from '../systems/vendorQuests.js';
-import { checkFetchQuestItem } from '../quests.js';
-import { QUEST_TEMPLATES } from '../config.js';
+import { on } from '../utils/events.js';
+import { esc } from '../utils/utils.js';
+import { ShopTransactionEvents } from '../items/shop.js';
+import { getQuestDisplay } from '../quests/vendorQuests.js';
+import { checkFetchQuestItem } from '../quests/quests.js';
+import { QUEST_TEMPLATES } from '../core/config.js';
 
 // UI state (for rendering only, not game state)
 let shopUIState = {

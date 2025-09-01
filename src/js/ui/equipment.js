@@ -1,8 +1,8 @@
 // ui/equipment.js - Equipment and stats panel rendering
 // Handles all equipment display and stat calculations UI
 
-import { getGearMods } from '../gear/effects.js';
-import { getStatusModifier } from '../systems/statusSystem.js';
+import { getGearMods } from '../combat/effects.js';
+import { getStatusModifier } from '../combat/statusSystem.js';
 
 /**
  * Render the equipment panel showing all equipped items and stats

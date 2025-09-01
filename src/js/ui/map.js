@@ -1,7 +1,7 @@
 // ui/map.js - World Map UI module
-import { on, emit } from '../events.js';
-import { EventType } from '../eventTypes.js';
-import { initMapCursor, renderWorldMap, handleMapNavigation } from '../worldMap.js';
+import { on, emit } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
+import { initMapCursor, renderWorldMap, handleMapNavigation } from '../world/worldMap.js';
 
 // Map UI state
 let mapState = {

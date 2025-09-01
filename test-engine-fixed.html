@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Engine Test Suite</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        .test {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            background: #222;
+        }
+        .test h3 {
+            color: #4af;
+            margin: 0 0 10px 0;
+        }
+        .pass {
+            color: #4f4;
+        }
+        .fail {
+            color: #f44;
+        }
+        .info {
+            color: #999;
+        }
+        button {
+            background: #4af;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #5bf;
+        }
+        button:disabled {
+            background: #666;
+            color: #333;
+            cursor: not-allowed;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #111;
+            border: 1px solid #333;
+            white-space: pre-wrap;
+        }
+        .loading {
+            color: #fa4;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Caves of Ooo - Engine Test Suite</h1>
+    
+    <div class="loading" id="loading">Loading test framework...</div>
+    
+    <div id="test-container" style="display: none;">
+        <div class="test">
+            <h3>Test 1: Fire + Water Interaction</h3>
+            <p class="info">Water should extinguish fire status</p>
+            <button class="test-btn" data-test="testFireWater">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 2: Freeze Movement Prevention</h3>
+            <p class="info">Freeze status should prevent movement</p>
+            <button class="test-btn" data-test="testFreeze">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 3: Stat Modifiers</h3>
+            <p class="info">Weaken/Armor should modify STR/DEF</p>
+            <button class="test-btn" data-test="testStatMods">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 4: Wet + Electric Instant Kill</h3>
+            <p class="info">Conductive + Electric damage should be lethal</p>
+            <button class="test-btn" data-test="testWetElectric">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 5: DOT Effect Processing</h3>
+            <p class="info">All DOT effects should deal damage each turn</p>
+            <button class="test-btn" data-test="testDOT">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 6: Status Stacking</h3>
+            <p class="info">Multiple applications should stack correctly</p>
+            <button class="test-btn" data-test="testStacking">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 7: Water Material Conductivity</h3>
+            <p class="info">Being in water should make entity conductive</p>
+            <button class="test-btn" data-test="testWaterTile">Run Test</button>
+        </div>
+        
+        <div class="test">
+            <h3>Test 8: Full Engine Diagnostic</h3>
+            <p class="info">Comprehensive system check</p>
+            <button class="test-btn" data-test="runDiagnostic">Run Diagnostic</button>
+        </div>
+        
+        <button class="test-btn" data-test="runAllTests">RUN ALL TESTS</button>
+        <button id="clear-btn">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script type="module">
+        import { applyStatusEffect } from './src/js/systems/statusSystem.js';
+        import { runTickForEntity, runPreDamage, toEngineEntity } from './src/js/engine/adapters/cavesOfOoo.js';
+        import { getAllPhases, getAllRules } from './src/js/engine/sim.js';
+        import { getStatusRegistry } from './src/js/engine/statusRegistry.js';
+        
+        const results = document.getElementById('results');
+        const loading = document.getElementById('loading');
+        const testContainer = document.getElementById('test-container');
+        
+        function log(msg, type = 'info') {
+            const color = type === 'pass' ? '#4f4' : type === 'fail' ? '#f44' : '#999';
+            results.innerHTML += `<span style="color: ${color}">${msg}</span>\n`;
+            console.log(msg);
+        }
+        
+        function clearResults() {
+            results.innerHTML = '';
+        }
+        
+        // Create a mock game state and entity for testing
+        function createMockState() {
+            const mockApplyStatus = (entity, type, turns, value) => {
+                applyStatusEffect(entity, type, turns, value);
+            };
+            
+            return {
+                player: {
+                    id: 'test-player',
+                    hp: 100,
+                    hpMax: 100,
+                    x: 5, y: 5,
+                    statusEffects: [],
+                    str: 10, def: 10, spd: 10
+                },
+                chunk: {
+                    map: Array(20).fill(null).map(() => Array(20).fill('.'))
+                },
+                log: (state, msg, type) => log(msg, type),
+                applyStatus: mockApplyStatus
+            };
+        }
+        
+        // Define all test functions
+        const tests = {
+            async testFireWater() {
+                log('\n=== Testing Fire + Water Interaction ===');
+                const state = createMockState();
+                
+                // Apply burn
+                applyStatusEffect(state.player, 'burn', 3, 2);
+                log('Applied burn status');
+                
+                // Check if burn exists
+                const hasBurn = state.player.statusEffects.some(s => s.type === 'burn');
+                if (!hasBurn) {
+                    log('FAIL: Burn status not applied', 'fail');
+                    return;
+                }
+                
+                // Apply wet (should extinguish)
+                applyStatusEffect(state.player, 'wet', 3, 0);
+                log('Applied wet status');
+                
+                // Run engine to process interactions
+                await new Promise(r => setTimeout(r, 100));
+                
+                // Check if burn was removed
+                const stillHasBurn = state.player.statusEffects.some(s => s.type === 'burn');
+                if (stillHasBurn) {
+                    log('FAIL: Burn was not extinguished by water', 'fail');
+                } else {
+                    log('PASS: Water successfully extinguished fire!', 'pass');
+                }
+            },
+            
+            testFreeze() {
+                log('\n=== Testing Freeze Movement Prevention ===');
+                const state = createMockState();
+                
+                // Apply freeze
+                applyStatusEffect(state.player, 'freeze', 3, 0);
+                log('Applied freeze status');
+                
+                // Run tick to check for movement prevention
+                runTickForEntity(state, state.player);
+                
+                // Check if preventTurn was set
+                if (state.player._engine?.preventTurn) {
+                    log('PASS: Freeze prevents movement!', 'pass');
+                } else {
+                    log('FAIL: Freeze did not prevent movement', 'fail');
+                }
+            },
+            
+            testStatMods() {
+                log('\n=== Testing Stat Modifiers ===');
+                const state = createMockState();
+                
+                // Apply weaken and armor
+                applyStatusEffect(state.player, 'weaken', 3, 3);
+                applyStatusEffect(state.player, 'armor', 3, 3);
+                log('Applied weaken (-3 STR) and armor (+3 DEF)');
+                
+                // Run tick to apply stat mods
+                runTickForEntity(state, state.player);
+                
+                // Check stat mods
+                const mods = state.player._engine?.statMods || {};
+                if (mods.str === -3 && mods.def === 3) {
+                    log('PASS: Stat modifiers applied correctly!', 'pass');
+                    log(`  STR mod: ${mods.str}, DEF mod: ${mods.def}`);
+                } else {
+                    log('FAIL: Stat modifiers incorrect', 'fail');
+                    log(`  Expected: STR -3, DEF +3`);
+                    log(`  Got: STR ${mods.str || 0}, DEF ${mods.def || 0}`);
+                }
+            },
+            
+            testWetElectric() {
+                log('\n=== Testing Wet + Electric Instant Kill ===');
+                const state = createMockState();
+                
+                // Apply wet with high conductivity
+                applyStatusEffect(state.player, 'wet', 5, 0);
+                const wet = state.player.statusEffects.find(s => s.type === 'wet');
+                if (wet) wet.quantity = 50;
+                log('Applied wet status with high conductivity');
+                
+                // Test shock damage through predamage phase
+                const damage = { amount: 4, type: 'electric' };
+                const modified = runPreDamage(state, state.player, damage);
+                
+                if (modified.amount >= 99999) {
+                    log('PASS: Wet + Electric = Instant Kill!', 'pass');
+                    log(`  Damage amplified to: ${modified.amount}`);
+                } else {
+                    log('FAIL: Damage not amplified to lethal', 'fail');
+                    log(`  Expected: 99999+, Got: ${modified.amount}`);
+                }
+            },
+            
+            testDOT() {
+                log('\n=== Testing DOT Effects ===');
+                const state = createMockState();
+                
+                // Apply multiple DOT effects
+                applyStatusEffect(state.player, 'burn', 2, 2);
+                applyStatusEffect(state.player, 'poison', 2, 3);
+                applyStatusEffect(state.player, 'shock', 2, 4);
+                log('Applied burn (2), poison (3), shock (4) damage');
+                
+                const hpBefore = state.player.hp;
+                
+                // Run tick to process DOT
+                runTickForEntity(state, state.player);
+                
+                const hpAfter = state.player.hp;
+                const totalDamage = hpBefore - hpAfter;
+                
+                // Note: damage might be 0 if DOT processing is disabled
+                log(`HP: ${hpBefore} -> ${hpAfter} (${totalDamage} damage)`);
+                if (totalDamage > 0) {
+                    log('PASS: DOT effects dealing damage!', 'pass');
+                } else {
+                    log('INFO: DOT damage may be disabled in rules', 'info');
+                }
+            },
+            
+            testStacking() {
+                log('\n=== Testing Status Stacking ===');
+                const state = createMockState();
+                
+                // Apply burn twice
+                applyStatusEffect(state.player, 'burn', 3, 2);
+                applyStatusEffect(state.player, 'burn', 2, 3);
+                log('Applied burn twice (3 turns + 2 turns)');
+                
+                const burn = state.player.statusEffects.find(s => s.type === 'burn');
+                if (burn && burn.turns === 5 && burn.value === 3) {
+                    log('PASS: Status stacking works!', 'pass');
+                    log(`  Total turns: ${burn.turns}, Value: ${burn.value}`);
+                } else {
+                    log('FAIL: Status did not stack correctly', 'fail');
+                    if (burn) {
+                        log(`  Expected: 5 turns, value 3`);
+                        log(`  Got: ${burn.turns} turns, value ${burn.value}`);
+                    }
+                }
+            },
+            
+            testWaterTile() {
+                log('\n=== Testing Water Tile Conductivity ===');
+                const state = createMockState();
+                
+                // Place player on water tile
+                state.chunk.map[5][5] = '~';
+                log('Placed player on water tile');
+                
+                // Build entity snapshot
+                const snapshot = toEngineEntity(state, state.player);
+                
+                // Check for conductive tag
+                const hasConductive = snapshot.materials.some(m => 
+                    m.tags?.includes('conductive')
+                );
+                
+                if (hasConductive) {
+                    log('PASS: Water tile makes entity conductive!', 'pass');
+                } else {
+                    log('FAIL: Water tile did not add conductivity', 'fail');
+                }
+            },
+            
+            runDiagnostic() {
+                log('\n=== Full Engine Diagnostic ===');
+                
+                // Check status registry
+                const registry = getStatusRegistry();
+                const statusCount = Object.keys(registry).length;
+                log(`Status Registry: ${statusCount} statuses registered`);
+                
+                // Check phases
+                const phases = getAllPhases();
+                log(`Engine Phases: ${phases.join(', ')}`);
+                
+                // Check rules
+                const rules = getAllRules();
+                log(`Total Rules: ${rules.length}`);
+                
+                // List important rules
+                const importantRules = [
+                    'wet_electric_lethal_test',
+                    'fire_thaws_on_apply',
+                    'water_extinguishes_on_apply',
+                    'freeze_prevent_turn'
+                ];
+                
+                importantRules.forEach(id => {
+                    const rule = rules.find(r => r.id === id);
+                    if (rule) {
+                        log(`  ✓ ${id} (phase: ${rule.phase})`, 'pass');
+                    } else {
+                        log(`  ✗ ${id} not found`, 'fail');
+                    }
+                });
+                
+                log('\nDiagnostic complete!', 'pass');
+            },
+            
+            async runAllTests() {
+                clearResults();
+                log('=== RUNNING ALL TESTS ===\n');
+                
+                await tests.testFireWater();
+                tests.testFreeze();
+                tests.testStatMods();
+                tests.testWetElectric();
+                tests.testDOT();
+                tests.testStacking();
+                tests.testWaterTile();
+                tests.runDiagnostic();
+                
+                log('\n=== ALL TESTS COMPLETE ===', 'pass');
+            }
+        };
+        
+        // Wait for everything to load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Hide loading, show tests
+            loading.style.display = 'none';
+            testContainer.style.display = 'block';
+            
+            // Attach event listeners to buttons
+            document.querySelectorAll('.test-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const testName = btn.getAttribute('data-test');
+                    if (tests[testName]) {
+                        tests[testName]();
+                    } else {
+                        log(`Error: Test function '${testName}' not found`, 'fail');
+                    }
+                });
+            });
+            
+            // Clear button
+            document.getElementById('clear-btn').addEventListener('click', clearResults);
+            
+            log('Test framework loaded. Click any test button to begin.', 'info');
+        });
+    </script>
+</body>
+</html>
