@@ -38,7 +38,8 @@ export function renderInventory(state) {
     { id: 'armor', label: 'Armor', icon: '🛡️' },
     { id: 'headgear', label: 'Headgear', icon: '👑' },
     { id: 'ring', label: 'Rings', icon: '💍' },
-    { id: 'potion', label: 'Potions', icon: '🧪' }
+    { id: 'potion', label: 'Potions', icon: '🧪' },
+    { id: 'item', label: 'Quest Items', icon: '📜' }
   ];
   
   tabs.forEach(tab => {
@@ -200,6 +201,17 @@ export function renderInventory(state) {
           <div class="desc">${item.item.desc}</div>
         </div>
       `;
+    } else if (item.type === "item") {
+      // Generic quest/misc items
+      const countText = item.count > 1 ? ` x${item.count}` : "";
+      const desc = item.item.description || item.item.desc || "A quest item";
+      
+      div.innerHTML = `
+        <div>
+          <div class="name">• ${item.item.name}${countText}</div>
+          <div class="desc">${desc}</div>
+        </div>
+      `;
     }
     
     itemsContainer.appendChild(div);
@@ -314,6 +326,9 @@ export function useInventoryItem(state) {
     } else if (potion.effect === "buff_def") {
       applyStatusEffect(state.player, "buff_def", potion.turns, potion.value);
       state.log(`You drink the ${potion.name}. +${potion.value} DEF for ${potion.turns} turns!`, "good");
+    } else if (potion.effect === "buff_spd") {
+      applyStatusEffect(state.player, "buff_spd", potion.turns, potion.value);
+      state.log(`You drink the ${potion.name}. +${potion.value} SPD for ${potion.turns} turns!`, "good");
     } else if (potion.effect === "buff_both") {
       applyStatusEffect(state.player, "buff_str", potion.turns, potion.value);
       applyStatusEffect(state.player, "buff_def", potion.turns, potion.value);

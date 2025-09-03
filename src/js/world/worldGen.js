@@ -1,6 +1,8 @@
 import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, FETCH_ITEMS } from '../core/config.js';
 import { clamp, seededRand, hashStr } from '../utils/utils.js';
 import { makeMonster } from '../entities/entities.js';
+import { generateGraveyardChunk } from './graveyardChunk.js';
+import { generateCandyMarketChunk } from './candyMarketChunk.js';
 
 export function generateRooms(sr, count = 5) {
   const rooms = [];
@@ -346,6 +348,16 @@ export function placeItems(map, sr, biome) {
 }
 
 export function genChunk(seed, cx, cy) {
+  // Check if this is the candy market chunk (starting position)
+  if (cx === 0 && cy === 0) {
+    return generateCandyMarketChunk(seed, cx, cy);
+  }
+  
+  // Check if this is the graveyard chunk
+  if (cx === -1 && cy === 0) {
+    return generateGraveyardChunk(seed, cx, cy);
+  }
+  
   const sr = seededRand(hashStr(`${seed}|${cx}|${cy}`));
   
   // Calculate distance from spawn for difficulty scaling

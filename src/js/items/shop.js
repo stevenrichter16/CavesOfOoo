@@ -85,10 +85,28 @@ export function purchaseItem(state, vendorId, itemIndex) {
   // Perform transaction
   state.player.gold -= price;
   
-  // Add to inventory
-  if (item.type === "potion") {
+  // Add to inventory - check if it's a quest item first
+  if (item.item && typeof item.item === 'string') {
+    // This is a quest item ID, use the proper granting function
+    import('../items/questItems.js').then(module => {
+      module.grantQuestItem(state, item.item, 1);
+    }).catch(err => {
+      // Fallback to old method
+      console.warn('Failed to import questItems:', err);
+      state.player.inventory.push({
+        type: item.type || 'item',
+        item: { 
+          id: item.item,
+          name: item.item.replace(/_/g, ' '),
+          value: item.price || 10
+        },
+        id: generateItemId()
+      });
+    });
+  } else if (item.type === "potion") {
     addPotionToInventory(state, item.item);
   } else {
+    // Regular vendor items with full item objects
     state.player.inventory.push({
       type: item.type,
       item: { ...item.item },
@@ -97,8 +115,11 @@ export function purchaseItem(state, vendorId, itemIndex) {
   }
   
   // Log success
+  const itemName = typeof item.item === 'string' 
+    ? item.item.replace(/_/g, ' ') 
+    : item.item.name;
   emit(EventType.Log, { 
-    message: `Bought ${item.item.name} for ${price}g!`, 
+    message: `Bought ${itemName} for ${price}g!`, 
     style: 'good' 
   });
   

@@ -35,6 +35,16 @@ import '../engine/universalRules.js';     // (empty for now, fine to keep)
 import '../engine/testRules.instantKillWetElectric.js'; // our test rule
 import '../engine/candyDustRule.js';      // candy dust explosion rules
 import { applyStatusEffect } from '../combat/statusSystem.js';
+import { processNPCSocialTurn, initializeSocialSystem, spawnSocialNPC } from '../social/index.js';
+import { processHostileNPCs } from '../social/hostility.js';
+import { RelationshipSystem } from '../social/relationship.js';
+import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/social.js';
+import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../social/dialogueTreesV2.js';
+import { candyKingdomDialoguesV3 } from '../data/candyKingdomDialoguesV3.js';
+import { starchyDialogues } from '../data/starchyDialogues.js';
+import { spawnQuestContent, onEnemyDefeated, onItemCollected } from '../world/questChunks.js';
+import * as questItems from '../items/questItems.js';  // Import quest items for immediate availability
+import { initCursorInspect } from '../ui/cursorInspect.js';
 
 // Game state
 let STATE = null;
@@ -304,10 +314,21 @@ function applyStatusHeal(entityId, amount, source) {
 }
 
 export function turnEnd(state) {
-  console.log(`\n[TURN-END] ═══════════ END OF TURN ═══════════`);
+  // Increment turn counter
+  state.turn = (state.turn || 0) + 1;
+  
+  console.log(`\n[TURN-END] ═══════════ END OF TURN ${state.turn} ═══════════`);
   console.log(`[TURN-END] Player HP: ${state.player.hp}/${state.player.hpMax}`);
   const playerEffects = getStatusEffectsAsArray(state.player);
   console.log(`[TURN-END] Active effects: ${playerEffects.map(e => e.type).join(', ') || 'none'}`);
+  
+  // Process hostile NPCs first (they attack instead of socializing)
+  console.log(`[TURN-END] Processing hostile NPCs...`);
+  processHostileNPCs(state);
+  
+  // Process NPC social interactions
+  console.log(`[TURN-END] Processing NPC social turns...`);
+  processNPCSocialTurn(state);
   
   // Process status effects using the new system
   console.log(`[TURN-END] Processing status effects...`);
@@ -322,6 +343,9 @@ export function turnEnd(state) {
   if (state.player.alive) {
     runOnTurnEndHooks(state, state.player);
   }
+  
+  // Decay relationships over time
+  RelationshipSystem.decayRelations();
   
   // Time progression
   if (Math.random() < 0.1) {
@@ -549,6 +573,16 @@ export function newWorld() {
     timeIndex: rnd(TIMES.length),
     weather: choice(WEATHERS),
     over: false,
+    npcs: [],  // Array to hold all NPCs in the game
+    turn: 0,   // Turn counter for social system
+    factionReputation: {  // Initialize faction reputation
+      merchants: 0,
+      guards: 0,
+      nobles: 0,
+      peasants: 0,
+      bandits: 0,
+      wildlings: 0
+    },
     ui: { 
       inventoryOpen: false, 
       selectedIndex: 0, 
@@ -568,14 +602,18 @@ export function newWorld() {
       selectedFetchItemIndex: undefined,
       confirmGiveEquipped: false,
       tempSelectedItem: null,
-      allCompletedQuests: null
+      allCompletedQuests: null,
+      socialMenuOpen: false,  // For NPC interaction menu
+      selectedNPCId: null,     // Currently interacting NPC
+      socialActionIndex: 0     // Selected social action
     },
     equippedWeaponId: null,  // Track by ID instead of reference
     equippedArmorId: null,   // Track by ID instead of reference
     equippedHeadgearId: null, // Track by ID instead of reference
     // Add method references for modules to use
     log: (text, cls) => log(state, text, cls),
-    render: () => render(state)
+    render: () => render(state),
+    openNPCInteraction: (state, npc) => openNPCInteraction(state, npc)
   };
   state.FETCH_ITEMS = FETCH_ITEMS; // Set reference for PlayerMovement module
   PlayerMovement.loadOrGenChunk(state, 0, 0);
@@ -593,6 +631,151 @@ export function newWorld() {
         }
       }
     });
+  }
+  
+  // Initialize social system for existing entities
+  initializeSocialSystem(state);
+  
+  // Load v3.0 Adventure Time authentic dialogue trees
+  loadExpandedCandyKingdomDialogues(candyKingdomDialoguesV3);
+  
+  // Register Starchy's dialogue tree
+  registerDialogueTree(starchyDialogues.npcType, starchyDialogues.biome, starchyDialogues);
+  console.log('🎭 [GAME] Starchy dialogue tree registered');
+  
+  // Populate the candy market if this is the starting area
+  if (state.cx === 0 && state.cy === 0 && state.chunk?.isMarket) {
+    import('../world/candyMarketChunk.js').then(module => {
+      module.populateCandyMarket(state);
+    });
+  } else if (state.cx === 0 && state.cy === 0) {
+    // Fallback: Spawn some test NPCs if not a market chunk
+    const npcSpots = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const tile = state.chunk.map[y][x];
+        if (tile === '.' && Math.abs(x - player.x) > 2 && Math.abs(y - player.y) > 2) {
+          npcSpots.push({ x, y });
+        }
+      }
+    }
+    
+    // Spawn a few NPCs
+    if (npcSpots.length >= 3) {
+      // Candy Merchant  
+      const merchantSpot = choice(npcSpots);
+      spawnSocialNPC(state, {
+        id: 'merchant_1',
+        name: 'Gummy Joe',
+        x: merchantSpot.x,
+        y: merchantSpot.y,
+        faction: 'merchants',
+        dialogueType: 'candy_merchant',
+        traits: ['greedy', 'gossipy'],
+        hp: 30,
+        hpMax: 30
+      });
+      
+      // Banana Guard
+      const guardSpot = choice(npcSpots.filter(s => s !== merchantSpot));
+      if (guardSpot) {
+        spawnSocialNPC(state, {
+          id: 'guard_1', 
+          name: 'Banana Guard Barry',
+          x: guardSpot.x,
+          y: guardSpot.y,
+          faction: 'guards',
+          dialogueType: 'banana_guard',
+          traits: ['brave', 'loyal'],
+          hp: 40,
+          hpMax: 40
+        });
+      }
+      
+      // Candy Peasant
+      const peasantSpot = choice(npcSpots.filter(s => s !== merchantSpot && s !== guardSpot));
+      if (peasantSpot) {
+        spawnSocialNPC(state, {
+          id: 'peasant_1',
+          name: 'Mr. Cupcake',
+          x: peasantSpot.x,
+          y: peasantSpot.y,
+          faction: 'peasants',
+          dialogueType: 'candy_peasant',
+          traits: ['humble', 'peaceful'],
+          hp: 20,
+          hpMax: 20
+        });
+      }
+      
+      // Candy Noble (Lemongrab-style)
+      const nobleSpot = choice(npcSpots.filter(s => s !== merchantSpot && s !== guardSpot && s !== peasantSpot));
+      if (nobleSpot) {
+        spawnSocialNPC(state, {
+          id: 'noble_1',
+          name: 'Earl of Candy Corn',
+          x: nobleSpot.x,
+          y: nobleSpot.y,
+          faction: 'nobles',
+          dialogueType: 'candy_noble',
+          traits: ['proud', 'ambitious'],
+          hp: 25,
+          hpMax: 25
+        });
+      }
+      
+      // Special NPC - Peppermint Butler (if we have more spots)
+      const butlerSpot = choice(npcSpots.filter(s => 
+        s !== merchantSpot && s !== guardSpot && s !== peasantSpot && s !== nobleSpot));
+      if (butlerSpot && npcSpots.length >= 5) {
+        spawnSocialNPC(state, {
+          id: 'peppermint_butler',
+          name: 'Peppermint Butler',
+          x: butlerSpot.x,
+          y: butlerSpot.y,
+          faction: 'royalty',
+          dialogueType: 'peppermint_butler',
+          traits: ['secretive', 'loyal'],
+          hp: 35,
+          hpMax: 35
+        });
+      }
+      
+      // Root Beer Guy at the tavern (if we have even more spots)
+      const tavernSpot = choice(npcSpots.filter(s => 
+        s !== merchantSpot && s !== guardSpot && s !== peasantSpot && s !== nobleSpot && s !== butlerSpot));
+      if (tavernSpot && npcSpots.length >= 6) {
+        spawnSocialNPC(state, {
+          id: 'root_beer_guy',
+          name: 'Root Beer Guy',
+          x: tavernSpot.x,
+          y: tavernSpot.y,
+          faction: 'merchants',
+          dialogueType: 'root_beer_guy',
+          traits: ['curious', 'charismatic'],
+          hp: 30,
+          hpMax: 30
+        });
+      }
+      
+      // Starchy - The Conspiracy Theorist Gravedigger
+      const starchySpot = choice(npcSpots.filter(s => 
+        s !== merchantSpot && s !== guardSpot && s !== peasantSpot && s !== nobleSpot && s !== butlerSpot && s !== tavernSpot));
+      if (starchySpot && npcSpots.length >= 7) {
+        spawnSocialNPC(state, {
+          id: 'starchy',
+          name: 'Starchy',
+          x: starchySpot.x,
+          y: starchySpot.y,
+          faction: 'peasants',
+          dialogueType: 'starchy',
+          traits: ['secretive', 'gossipy'],
+          hp: 25,
+          hpMax: 25
+        });
+        console.log('🎭 [GAME] Starchy spawned at', starchySpot);
+      }
+    }
   }
   
   log(state, "Welcome to the Land of Ooo! Press 'H' for help.", "note");
@@ -651,7 +834,79 @@ export function initGame() {
   });
   
   STATE = newWorld();
-  window.STATE = STATE; // Make available for particle system
+  window.STATE = STATE; // Make available globally for particle system and social system
+  
+  // Add debug helpers to the window for console debugging
+  window.debugChunk = () => {
+    const s = window.STATE;
+    console.log('=== CHUNK DEBUG INFO ===');
+    console.log(`Current chunk: (${s.cx}, ${s.cy})`);
+    console.log(`Player position: (${s.player.x}, ${s.player.y})`);
+    console.log(`Total NPCs: ${s.npcs?.length || 0}`);
+    
+    const chunkNPCs = s.npcs?.filter(n => n.chunkX === s.cx && n.chunkY === s.cy) || [];
+    console.log(`NPCs in current chunk: ${chunkNPCs.length}`);
+    chunkNPCs.forEach(n => {
+      console.log(`  - ${n.name} (${n.id}) at (${n.x}, ${n.y}), HP: ${n.hp}/${n.hpMax}`);
+    });
+    
+    console.log('\nAll NPCs by chunk:');
+    const npcsByChunk = {};
+    s.npcs?.forEach(n => {
+      const key = `(${n.chunkX}, ${n.chunkY})`;
+      if (!npcsByChunk[key]) npcsByChunk[key] = [];
+      npcsByChunk[key].push(n.name);
+    });
+    Object.entries(npcsByChunk).forEach(([chunk, npcs]) => {
+      console.log(`  ${chunk}: ${npcs.join(', ')}`);
+    });
+    
+    return 'Debug info printed to console';
+  };
+  
+  window.spawnStarchy = () => {
+    const s = window.STATE;
+    import('../world/graveyardChunk.js').then(module => {
+      module.populateGraveyard(s);
+      console.log('Called populateGraveyard manually');
+    });
+    return 'Attempting to spawn Starchy...';
+  };
+  
+  window.findStarchy = () => {
+    const s = window.STATE;
+    const starchy = s.npcs?.find(n => n.id === 'starchy');
+    if (starchy) {
+      console.log('=== STARCHY STATUS ===');
+      console.log('Position:', starchy.x, starchy.y);
+      console.log('Chunk:', starchy.chunkX, starchy.chunkY);
+      console.log('HP:', starchy.hp, '/', starchy.hpMax);
+      console.log('Alive:', starchy.hp > 0);
+      console.log('Current player chunk:', s.cx, s.cy);
+      console.log('In same chunk?', starchy.chunkX === s.cx && starchy.chunkY === s.cy);
+      
+      // Check what's at Starchy's position
+      if (s.chunk?.map?.[starchy.y]?.[starchy.x]) {
+        console.log('Tile at Starchy position:', s.chunk.map[starchy.y][starchy.x]);
+      }
+      
+      return starchy;
+    } else {
+      console.log('Starchy not found in NPCs array!');
+      return null;
+    }
+  };
+  
+  console.log('🎮 Debug helpers available: window.debugChunk(), window.spawnStarchy(), window.findStarchy()');
+  window.__questItems = questItems; // Make quest items module globally available for dialogue
+  console.log('🎮 [GAME] Quest items module made globally available');
+  
+  // Initialize cursor inspect system now that we have state
+  if (canvasRenderer && canvasRenderer.canvas) {
+    initCursorInspect(canvasRenderer.canvas, STATE);
+    console.log('🖱️ [GAME] Cursor inspect system initialized');
+  }
+  
   render(STATE);
 
   STATE.applyStatus = (entity, type, turns = 10, value = 1) => {

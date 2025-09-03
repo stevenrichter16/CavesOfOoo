@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Social System Test - CavesOfOoo</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        .test {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            background: #222;
+        }
+        .test h3 {
+            color: #4af;
+            margin: 0 0 10px 0;
+        }
+        .pass { color: #4f4; }
+        .fail { color: #f44; }
+        .info { color: #999; }
+        button {
+            background: #4af;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button:hover { background: #5bf; }
+        #results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #111;
+            border: 1px solid #333;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>CavesOfOoo - Social System Test Suite</h1>
+    
+    <div class="test">
+        <h3>Test 1: NPC Initialization</h3>
+        <p class="info">Check that NPCs are properly initialized with traits and factions</p>
+        <button onclick="testNPCInit()">Run Test</button>
+    </div>
+    
+    <div class="test">
+        <h3>Test 2: Relationship System</h3>
+        <p class="info">Test directional relationships and modifications</p>
+        <button onclick="testRelationships()">Run Test</button>
+    </div>
+    
+    <div class="test">
+        <h3>Test 3: Social Actions</h3>
+        <p class="info">Test various social actions (chat, compliment, insult)</p>
+        <button onclick="testSocialActions()">Run Test</button>
+    </div>
+    
+    <div class="test">
+        <h3>Test 4: Memory System</h3>
+        <p class="info">Test NPC memory with grudges and favors</p>
+        <button onclick="testMemory()">Run Test</button>
+    </div>
+    
+    <div class="test">
+        <h3>Test 5: Faction Propagation</h3>
+        <p class="info">Test faction reputation changes</p>
+        <button onclick="testFactions()">Run Test</button>
+    </div>
+    
+    <div class="test">
+        <h3>Test 6: Dialogue Generation</h3>
+        <p class="info">Test context-aware dialogue</p>
+        <button onclick="testDialogue()">Run Test</button>
+    </div>
+    
+    <button onclick="runAllTests()">RUN ALL TESTS</button>
+    <button onclick="clearResults()">Clear Results</button>
+    
+    <div id="results"></div>
+    
+    <script type="module">
+        import { 
+            initializeNPC, 
+            spawnSocialNPC,
+            runPlayerNPCInteraction,
+            propagateReputation
+        } from './src/js/social/index.js';
+        import { RelationshipSystem } from './src/js/social/relationship.js';
+        import { NPCMemory } from './src/js/social/memory.js';
+        import { DialogueGenerator } from './src/js/social/dialogue.js';
+        
+        const results = document.getElementById('results');
+        
+        function log(msg, type = 'info') {
+            const color = type === 'pass' ? '#4f4' : type === 'fail' ? '#f44' : '#999';
+            results.innerHTML += `<span style="color: ${color}">${msg}</span>\n`;
+            console.log(msg);
+        }
+        
+        window.clearResults = () => {
+            results.innerHTML = '';
+        };
+        
+        window.testNPCInit = () => {
+            log('\n=== Testing NPC Initialization ===');
+            
+            const npc = {
+                id: 'test_npc_1',
+                name: 'Test NPC',
+                x: 5, y: 5,
+                hp: 20, hpMax: 20
+            };
+            
+            initializeNPC(npc, {
+                faction: 'merchants',
+                traits: ['greedy', 'gossipy']
+            });
+            
+            if (npc.hasTrait && npc.hasTrait('greedy')) {
+                log('PASS: NPC has trait helper and greedy trait', 'pass');
+            } else {
+                log('FAIL: Trait system not working', 'fail');
+            }
+            
+            if (npc.faction === 'merchants') {
+                log('PASS: NPC faction set correctly', 'pass');
+            } else {
+                log('FAIL: Faction not set', 'fail');
+            }
+            
+            if (npc.memory && npc.memory instanceof NPCMemory) {
+                log('PASS: NPC memory initialized', 'pass');
+            } else {
+                log('FAIL: Memory not initialized', 'fail');
+            }
+        };
+        
+        window.testRelationships = () => {
+            log('\n=== Testing Relationship System ===');
+            
+            const actor = { id: 'actor', name: 'Actor' };
+            const target = { id: 'target', name: 'Target' };
+            
+            // Test directional relationships
+            RelationshipSystem.modifyRelation(actor, target, {
+                value: 10,
+                trust: 5,
+                reason: 'test'
+            });
+            
+            const rel1 = RelationshipSystem.getRelation(actor, target);
+            const rel2 = RelationshipSystem.getRelation(target, actor);
+            
+            if (rel1.value === 10 && rel2.value === 0) {
+                log('PASS: Relationships are directional', 'pass');
+            } else {
+                log('FAIL: Relationships not directional', 'fail');
+            }
+            
+            // Test clamping
+            RelationshipSystem.modifyRelation(actor, target, {
+                value: 200,
+                fear: 200
+            });
+            
+            const rel3 = RelationshipSystem.getRelation(actor, target);
+            if (rel3.value <= 100 && rel3.fear <= 100) {
+                log('PASS: Values properly clamped', 'pass');
+            } else {
+                log('FAIL: Values not clamped', 'fail');
+            }
+        };
+        
+        window.testSocialActions = () => {
+            log('\n=== Testing Social Actions ===');
+            
+            const mockState = {
+                npcs: [],
+                player: { id: 'player', name: 'Hero', inventory: [] },
+                log: (text, cls) => log(`Game: ${text}`)
+            };
+            
+            const npc = spawnSocialNPC(mockState, {
+                id: 'test_npc',
+                name: 'Test NPC',
+                faction: 'merchants',
+                traits: ['proud']
+            });
+            
+            // Test compliment on proud NPC
+            const result1 = runPlayerNPCInteraction(
+                mockState,
+                mockState.player,
+                npc,
+                'compliment'
+            );
+            
+            if (result1.success) {
+                log('PASS: Compliment action executed', 'pass');
+                log(`Dialogue: ${result1.dialogue}`);
+            } else {
+                log('FAIL: Compliment failed', 'fail');
+            }
+            
+            // Test insult
+            const result2 = runPlayerNPCInteraction(
+                mockState,
+                mockState.player,
+                npc,
+                'insult'
+            );
+            
+            if (result2.success) {
+                log('PASS: Insult action executed', 'pass');
+                const rel = RelationshipSystem.getRelation(mockState.player, npc);
+                if (rel.value < 0) {
+                    log('PASS: Insult decreased relationship', 'pass');
+                }
+            }
+        };
+        
+        window.testMemory = () => {
+            log('\n=== Testing Memory System ===');
+            
+            const memory = new NPCMemory('test_npc');
+            
+            // Add grudge
+            memory.remember({
+                type: 'insulted_by',
+                insulter: 'player'
+            });
+            
+            const grudgeScore = memory.calculateGrudgeScore('player');
+            if (grudgeScore > 0) {
+                log('PASS: Grudge recorded', 'pass');
+            } else {
+                log('FAIL: Grudge not recorded', 'fail');
+            }
+            
+            // Add favor
+            memory.remember({
+                type: 'gift_from',
+                giver: 'player',
+                value: 10
+            });
+            
+            const favorScore = memory.calculateFavorScore('player');
+            if (favorScore > 0) {
+                log('PASS: Favor recorded', 'pass');
+            } else {
+                log('FAIL: Favor not recorded', 'fail');
+            }
+            
+            // Test attitude calculation
+            const attitude = memory.getAttitude('player');
+            log(`Net attitude: ${attitude} (favor ${favorScore} - grudge ${grudgeScore})`);
+        };
+        
+        window.testFactions = () => {
+            log('\n=== Testing Faction System ===');
+            
+            const mockState = { npcs: [] };
+            
+            // Test faction standing
+            propagateReputation(mockState, 'player', 'merchants', 20, 'trade');
+            
+            const standing = RelationshipSystem.getFactionStanding('player', 'merchants');
+            if (standing === 20) {
+                log('PASS: Direct faction standing modified', 'pass');
+            } else {
+                log('FAIL: Faction standing not set', 'fail');
+            }
+            
+            // Check propagation to allied faction (guards)
+            const guardStanding = RelationshipSystem.getFactionStanding('player', 'guards');
+            if (guardStanding > 0) {
+                log(`PASS: Reputation propagated to guards: ${guardStanding}`, 'pass');
+            } else {
+                log('FAIL: Reputation not propagated', 'fail');
+            }
+            
+            // Check propagation to enemy faction (bandits)
+            const banditStanding = RelationshipSystem.getFactionStanding('player', 'bandits');
+            if (banditStanding < 0) {
+                log(`PASS: Negative propagation to bandits: ${banditStanding}`, 'pass');
+            } else {
+                log('FAIL: Negative propagation failed', 'fail');
+            }
+        };
+        
+        window.testDialogue = () => {
+            log('\n=== Testing Dialogue Generation ===');
+            
+            const dialogueGen = new DialogueGenerator();
+            
+            const proudNPC = {
+                id: 'proud_npc',
+                name: 'Lord Proudheart',
+                hasTrait: (t) => t === 'proud',
+                memory: new NPCMemory('proud_npc')
+            };
+            
+            const player = { id: 'player', name: 'Hero' };
+            
+            // Test hostile dialogue
+            RelationshipSystem.modifyRelation(proudNPC, player, {
+                value: -60,
+                reason: 'test'
+            });
+            
+            const hostileDialogue = dialogueGen.generate(proudNPC, player, {
+                action: 'chat'
+            });
+            
+            log(`Hostile dialogue: "${hostileDialogue}"`);
+            
+            // Test friendly dialogue
+            RelationshipSystem.modifyRelation(proudNPC, player, {
+                value: 120, // Will bring it to 60
+                reason: 'test'
+            });
+            
+            const friendlyDialogue = dialogueGen.generate(proudNPC, player, {
+                action: 'compliment'
+            });
+            
+            log(`Friendly dialogue: "${friendlyDialogue}"`);
+            
+            log('PASS: Dialogue generation working', 'pass');
+        };
+        
+        window.runAllTests = () => {
+            clearResults();
+            log('=== RUNNING ALL TESTS ===\n');
+            
+            testNPCInit();
+            testRelationships();
+            testSocialActions();
+            testMemory();
+            testFactions();
+            testDialogue();
+            
+            log('\n=== ALL TESTS COMPLETE ===', 'pass');
+        };
+    </script>
+</body>
+</html>

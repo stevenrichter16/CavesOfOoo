@@ -150,6 +150,33 @@ export function applyAttack(state, attacker, defender, result) {
   result.dmg = adjusted.amount;
   // ----------------------------------------------------
 
+  // Check for peppermint ward protection against undead
+  if ((defender === state.player || defender.isPlayer) && attacker.undead) {
+    // Check if player has peppermint ward equipped
+    const hasWard = state.player.rings?.some(ring => 
+      ring?.item?.name === "Peppermint Ward" || 
+      ring?.item?.id === "peppermint_ward"
+    );
+    
+    if (hasWard) {
+      // Reduce damage by 30%
+      const reduction = Math.floor(result.dmg * 0.3);
+      result.dmg = result.dmg - reduction;
+      
+      // Visual feedback
+      emit(EventType.Log, { 
+        text: `Peppermint ward protects! (${reduction} damage blocked)`, 
+        cls: "magic" 
+      });
+      emit(EventType.FloatingText, { 
+        x: defender.x, 
+        y: defender.y, 
+        text: `Ward -${reduction}`, 
+        kind: 'magic' 
+      });
+    }
+  }
+
   // Apply damage
   defender.hp = Math.max(0, (defender.hp || 0) - result.dmg);
   
@@ -229,6 +256,26 @@ export function applyAttack(state, attacker, defender, result) {
       
       // Update quest progress
       updateQuestProgress(state, defender.kind);
+      
+      // Check Candy Kingdom quest objectives
+      if (defender.questTarget || defender.id) {
+        import('../world/questChunks.js').then(module => {
+          module.onEnemyDefeated(state, defender);
+        });
+        
+        // Check for graveyard ghoul
+        if (defender.questTarget === 'shed_ghoul') {
+          import('../world/graveyardChunk.js').then(module => {
+            module.onGhoulDefeated(state, defender);
+            // Trigger immediate re-render to show dropped items after a tiny delay
+            setTimeout(() => {
+              import('../core/game.js').then(gameModule => {
+                gameModule.render(state);
+              });
+            }, 10); // Small delay to ensure items are added first
+          });
+        }
+      }
       
       // Gold drop
       const tier = defender.tier || 1;

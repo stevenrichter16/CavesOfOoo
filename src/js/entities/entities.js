@@ -3,6 +3,7 @@ export function makePlayer() {
     x: 2, y: 2, hp: 20, hpMax: 20, str: 5, def: 1, spd: 3,
     level: 1, xp: 0, xpNext: 10,
     alive: true,
+    faction: 'player',  // Player's faction for hostility checks
     weapon: null, armor: null, headgear: null,
     rings: [null, null],  // Two ring slots
     gold: 0,  // Starting gold
@@ -116,6 +117,7 @@ export function makeMonster(kind, x, y, tier = 1) {
       spd: 4,
       xp: 8, 
       ai: "smart",
+      undead: true,  // Marked as undead
       ability: { 
         type: "lifeDrain",
         chance: 0.08,
@@ -136,6 +138,7 @@ export function makeMonster(kind, x, y, tier = 1) {
       spd: 3,
       xp: 10, 
       ai: "chase",
+      undead: true,  // Shadow creature, counts as undead
       ability: { 
         type: "shadowStrike",
         chance: 0.06,
@@ -157,6 +160,7 @@ export function makeMonster(kind, x, y, tier = 1) {
       spd: 2,
       xp: 12, 
       ai: "smart",
+      undead: true,  // Skeleton warrior
       ability: { 
         type: "boneShield",
         chance: 0.1,
@@ -175,6 +179,7 @@ export function makeMonster(kind, x, y, tier = 1) {
       spd: 4,
       xp: 15, 
       ai: "smart",
+      undead: true,  // Demonic entity
       ability: { 
         type: "hellfire",
         chance: 0.07,

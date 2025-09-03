@@ -61,4 +61,14 @@ export const EventType = {
   CursorAction: 'cursorAction',
   ExamineTile: 'examineTile',
   CursorTargetEnemy: 'cursorTargetEnemy',
+  
+  // Social system events
+  RelationshipChanged: 'relationshipChanged',
+  FactionStandingChanged: 'factionStandingChanged',
+  SocialActionPerformed: 'socialActionPerformed',
+  DialogueLine: 'dialogueLine',
+  NPCInteraction: 'npcInteraction',
+  EndOfWorldTurn: 'endOfWorldTurn',
+  DialogueEnded: 'dialogueEnded',
+  NPCHostile: 'npcHostile',
 };

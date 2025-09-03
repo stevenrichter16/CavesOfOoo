@@ -39,6 +39,8 @@ import {
   executeCursorAction,
   getInfoAtCursor
 } from '../movement/cursor.js';
+import { handleSocialInput } from '../ui/social.js';
+import { handleDialogueInput } from '../ui/dialogueTree.js';
 
 // Helper function to show cursor info
 function showCursorInfo(STATE) {
@@ -90,7 +92,7 @@ export function initKeyboardControls() {
     
     // Prevent Tab key from selecting HTML elements when any UI is open
     if (e.key === "Tab" && (STATE.ui.questTurnInOpen || STATE.ui.mapOpen || 
-        STATE.ui.shopOpen || STATE.ui.inventoryOpen)) {
+        STATE.ui.shopOpen || STATE.ui.inventoryOpen || STATE.ui.socialMenuOpen || STATE.ui.dialogueTreeOpen)) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -100,6 +102,22 @@ export function initKeyboardControls() {
     if (cursorState && cursorState.active) {
       handleCursorControls(STATE, e);
       return;
+    }
+    
+    // Dialogue tree controls (priority over social menu)
+    if (STATE.ui.dialogueTreeOpen) {
+      if (handleDialogueInput(STATE, e.key)) {
+        e.preventDefault();
+        return;
+      }
+    }
+    
+    // Social menu controls
+    if (STATE.ui.socialMenuOpen) {
+      if (handleSocialInput(STATE, e.key)) {
+        e.preventDefault();
+        return;
+      }
     }
     
     // Quest turn-in controls
@@ -194,6 +212,39 @@ function handleGameControls(STATE, e) {
     }
     e.preventDefault();
   }
+  else if (k === "p") { // lowercase p only - Place ward on adjacent gravestone
+    // Place ward on adjacent gravestone (for graveyard quest)
+    if (STATE.chunk?.isGraveyard) {
+      const positions = [
+        {x: STATE.player.x, y: STATE.player.y - 1},
+        {x: STATE.player.x, y: STATE.player.y + 1},
+        {x: STATE.player.x - 1, y: STATE.player.y},
+        {x: STATE.player.x + 1, y: STATE.player.y}
+      ];
+      
+      let placedWard = false;
+      for (const pos of positions) {
+        if (pos.x >= 0 && pos.x < W && pos.y >= 0 && pos.y < H) {
+          if (STATE.chunk.map[pos.y][pos.x] === "T") {
+            // Try to place ward on this grave
+            import('../world/graveyardChunk.js').then(module => {
+              module.placeWardOnGrave(STATE, pos.x, pos.y);
+              render(STATE);
+            });
+            placedWard = true;
+            break;
+          }
+        }
+      }
+      
+      if (!placedWard) {
+        log(STATE, "Stand next to a gravestone (T) to place a ward.", "note");
+      }
+    } else {
+      log(STATE, "You can only place wards in the graveyard.", "note");
+    }
+    e.preventDefault();
+  }
   else if (k.toLowerCase() === "r") {
     if (STATE.chunk) saveChunk(STATE.worldSeed, STATE.cx, STATE.cy, STATE.chunk);
     window.STATE = newWorld();
@@ -204,9 +255,13 @@ function handleGameControls(STATE, e) {
   else if (k.toLowerCase() === "h") {
     log(STATE, "=== HELP ===", "note");
     log(STATE, "WASD/Arrows: Move | .: Wait | I: Inventory", "note");
+    log(STATE, "X: Examine | Q: Quests | M: Map", "note");
+    log(STATE, "p: Place ward (graveyard) | V: Talk to vendor", "note");
     log(STATE, "R: New Game | Walk off edges to explore", "note");
     log(STATE, "Find weapons, armor, and potions to survive!", "note");
     log(STATE, "Defeat monsters to gain XP and level up!", "note");
+    log(STATE, "The graveyard is west (-1,0) from spawn!", "note");
+    log(STATE, "Place wards after evening/dusk/night!", "note");
     e.preventDefault();
   }
   
@@ -250,7 +305,7 @@ function handleDebugGameControls(STATE, e, k) {
     render(STATE);
     e.preventDefault();
   }
-  else if (k.toLowerCase() === "p") {
+  else if (k === "P") { // uppercase P for debug poison
     applyStatusEffect(STATE.player, "poison", 3, 2);
     log(STATE, "Applied poison (3 turns, 2 damage)!", "magic");
     render(STATE);

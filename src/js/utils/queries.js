@@ -44,6 +44,88 @@ export function isBlocked(state, x, y) {
   return !isPassable(state, x, y);
 }
 
+// Helper to find a safe opening in the wall when entering a chunk
+function findWallOpening(state, player, side) {
+  const map = state.chunk?.map;
+  if (!map) return;
+  
+  // Check if current position is already safe
+  if (map[player.y][player.x] !== '#') return;
+  
+  // Search for an opening along the appropriate wall
+  if (side === 'top') {
+    // Search along top edge (y = 0)
+    const y = 0;
+    // First try near the player's x position
+    for (let offset = 0; offset <= Math.floor(W/2); offset++) {
+      for (const dx of [offset, -offset]) {
+        const x = player.x + dx;
+        if (x >= 0 && x < W && map[y][x] !== '#') {
+          player.x = x;
+          player.y = y;
+          return;
+        }
+      }
+    }
+  } else if (side === 'bottom') {
+    // Search along bottom edge (y = H-1)
+    const y = H - 1;
+    for (let offset = 0; offset <= Math.floor(W/2); offset++) {
+      for (const dx of [offset, -offset]) {
+        const x = player.x + dx;
+        if (x >= 0 && x < W && map[y][x] !== '#') {
+          player.x = x;
+          player.y = y;
+          return;
+        }
+      }
+    }
+  } else if (side === 'left') {
+    // Search along left edge (x = 0)
+    const x = 0;
+    for (let offset = 0; offset <= Math.floor(H/2); offset++) {
+      for (const dy of [offset, -offset]) {
+        const y = player.y + dy;
+        if (y >= 0 && y < H && map[y][x] !== '#') {
+          player.x = x;
+          player.y = y;
+          return;
+        }
+      }
+    }
+  } else if (side === 'right') {
+    // Search along right edge (x = W-1)
+    const x = W - 1;
+    for (let offset = 0; offset <= Math.floor(H/2); offset++) {
+      for (const dy of [offset, -offset]) {
+        const y = player.y + dy;
+        if (y >= 0 && y < H && map[y][x] !== '#') {
+          player.x = x;
+          player.y = y;
+          return;
+        }
+      }
+    }
+  }
+  
+  // Fallback: find any open spot near the edge
+  for (let r = 1; r < 5; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const checkY = player.y + dy;
+        const checkX = player.x + dx;
+        if (checkY >= 0 && checkY < H && checkX >= 0 && checkX < W) {
+          if (map[checkY][checkX] !== '#') {
+            player.x = checkX;
+            player.y = checkY;
+            return;
+          }
+        }
+      }
+    }
+  }
+}
+
 export function tryEdgeTravel(state, player, nx, ny) {
   // In-bounds? Nothing to do.
   if (nx >= 0 && nx < W && ny >= 0 && ny < H) return false;
@@ -73,6 +155,33 @@ export function tryEdgeTravel(state, player, nx, ny) {
 
   // Ensure items array exists
   if (!state.chunk.items) state.chunk.items = [];
+  
+  // Populate special chunks
+  if (tcx === -1 && tcy === 0) {
+    // Graveyard chunk - spawn Starchy and other graveyard NPCs
+    import('../world/graveyardChunk.js').then(module => {
+      module.populateGraveyard(state);
+      
+      // Trigger re-render after NPCs are spawned
+      import('../core/game.js').then(gameModule => {
+        setTimeout(() => {
+          gameModule.render(state);
+        }, 50); // Short delay to ensure population is complete
+      });
+    });
+  } else if (tcx === 0 && tcy === 0 && state.chunk?.isMarket) {
+    // Candy Market chunk - spawn vendors
+    import('../world/candyMarketChunk.js').then(module => {
+      module.populateCandyMarket(state);
+      
+      // Trigger re-render after NPCs are spawned
+      import('../core/game.js').then(gameModule => {
+        setTimeout(() => {
+          gameModule.render(state);
+        }, 50);
+      });
+    });
+  }
 
   // Restore itemCheck functions for vendor fetch quests (lost during JSON serialization)
   if (state.chunk.items) {
@@ -89,43 +198,31 @@ export function tryEdgeTravel(state, player, nx, ny) {
     });
   }
 
-  // Snap player to opposite edge
+  // Snap player to opposite edge and find safe opening
   if (nx < 0) {
+    // Entering from the left, appear on the right edge
     player.x = W - 1;
     player.y = Math.max(0, Math.min(ny, H - 1));
+    // Find opening along the right wall
+    findWallOpening(state, player, 'right');
   } else if (nx >= W) {
+    // Entering from the right, appear on the left edge
     player.x = 0;
     player.y = Math.max(0, Math.min(ny, H - 1));
+    // Find opening along the left wall
+    findWallOpening(state, player, 'left');
   } else if (ny < 0) {
+    // Entering from the top, appear on the bottom edge
     player.y = H - 1;
     player.x = Math.max(0, Math.min(nx, W - 1));
+    // Find opening along the bottom wall
+    findWallOpening(state, player, 'bottom');
   } else if (ny >= H) {
+    // Entering from the bottom, appear on the top edge
     player.y = 0;
     player.x = Math.max(0, Math.min(nx, W - 1));
-  }
-
-  // Check if player landed on a wall and find a safe spot
-  if (state.chunk?.map?.[player.y]?.[player.x] === "#") {
-    // Find nearest open spot
-    for (let r = 1; r < 5; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          const checkY = player.y + dy;
-          const checkX = player.x + dx;
-          if (checkY >= 0 && checkY < H && checkX >= 0 && checkX < W) {
-            if (state.chunk.map[checkY][checkX] === ".") {
-              player.x = checkX;
-              player.y = checkY;
-              emit(EventType.DidChangeChunk, { cx: tcx, cy: tcy, biome: next?.biome });
-              return true;
-            }
-          }
-        }
-      }
-    }
-    // If no spot found, force to center
-    player.x = Math.floor(W / 2);
-    player.y = Math.floor(H / 2);
+    // Find opening along the top wall
+    findWallOpening(state, player, 'top');
   }
 
   emit(EventType.DidChangeChunk, { cx: tcx, cy: tcy, biome: next?.biome });

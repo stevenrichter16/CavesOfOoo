@@ -3,6 +3,7 @@ import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { entityAt, isPassable, tryEdgeTravel } from '../utils/queries.js';
 import { attack } from '../combat/combat.js';
+import { isNPCHostileToPlayer } from '../social/disguise.js';
 
 export function runPlayerMove(state, action) {
   if (!action || action.type !== 'move') return false;
@@ -22,17 +23,46 @@ export function runPlayerMove(state, action) {
   emit(EventType.WillMove, pre);
   if (pre.cancel) return true;
 
-  // 2) Check for entity at target (bump to attack)
+  // 2) Check for NPC at target (bump to interact or attack)
+  const npc = state.npcs?.find(n => 
+    n.x === nx && 
+    n.y === ny && 
+    n.hp > 0 &&
+    n.chunkX === state.cx &&
+    n.chunkY === state.cy
+  );
+  if (npc) {
+    // Check if NPC is hostile - if so, attack instead of interact
+    if (isNPCHostileToPlayer(state, npc)) {
+      // NPC is hostile, attack them
+      attack(state, p, npc);
+      return true;
+    }
+    
+    // NPC is not hostile, open social interaction menu
+    emit(EventType.NPCInteraction, { player: p, npc });
+    if (state.openNPCInteraction) {
+      state.openNPCInteraction(state, npc);
+    } else {
+      // Fallback: just log that we bumped into them
+      if (state.log) {
+        state.log(state, `You approach ${npc.name}.`, "note");
+      }
+    }
+    return true;
+  }
+  
+  // 3) Check for entity at target (bump to attack)
   const foe = entityAt(state, nx, ny);
   if (foe) {
     attack(state, p, foe);
     return true;
   }
 
-  // 3) Check for edge travel
+  // 4) Check for edge travel
   if (tryEdgeTravel(state, p, nx, ny)) return true;
 
-  // 4) Check if passable and move
+  // 5) Check if passable and move
   if (isPassable(state, nx, ny)) {
     const from = { x, y };
     p.x = nx;
@@ -87,7 +117,7 @@ export function runPlayerMove(state, action) {
     return true;
   }
 
-  // 5) Blocked movement
+  // 6) Blocked movement
   emit(EventType.BlockedMove, { 
     id: p.id || state.playerId || 'player', 
     to: { x: nx, y: ny }, 

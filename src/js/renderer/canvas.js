@@ -85,9 +85,39 @@ export class CanvasRenderer {
   }
   
   /**
+   * Draw market sprite
+   */
+  drawMarketSprite(char, pixelX, pixelY) {
+    // Import market sprites and draw them
+    import('../sprites/marketSprites.js').then(module => {
+      const spriteMap = {
+        '╬': 'canopyStall',
+        '╤': 'tableStall', 
+        '≡': 'goodsTable',
+        '¤': 'vendorCart',
+        '☐': 'crateOfWares',
+        '♣': 'lollipop'
+      };
+      
+      const spriteName = spriteMap[char];
+      if (spriteName && module.MARKET_SPRITES[spriteName]) {
+        module.MARKET_SPRITES[spriteName].draw(this.ctx, pixelX, pixelY, this.tileSize);
+      }
+    }).catch(err => {
+      // Fallback to ASCII if sprites fail to load
+      console.warn('Failed to load market sprites:', err);
+      this.ctx.font = `${CANVAS_CONFIG.FONT_SIZE}px ${CANVAS_CONFIG.FONT_FAMILY}`;
+      this.ctx.textBaseline = 'middle';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillStyle = CANVAS_CONFIG.FOREGROUND;
+      this.ctx.fillText(char, pixelX + this.tileSize / 2, pixelY + this.tileSize / 2);
+    });
+  }
+  
+  /**
    * Draw a single tile (ASCII or sprite)
    */
-  drawTile(x, y, char, color = CANVAS_CONFIG.FOREGROUND, bgColor = null) {
+  drawTile(x, y, char, color = CANVAS_CONFIG.FOREGROUND, bgColor = null, chunk = null) {
     const pixelX = x * this.tileSize;
     const pixelY = y * this.tileSize;
     
@@ -99,6 +129,14 @@ export class CanvasRenderer {
     
     // Don't draw truly empty tiles, but DO draw floor tiles ('.')
     if (!char || char === ' ') return;
+    
+    // Check if this is a market sprite tile
+    const marketSprites = ['╬', '╤', '≡', '¤', '☐', '♣'];
+    if (chunk?.isMarket && marketSprites.includes(char)) {
+      // Draw market sprite using pixel art
+      this.drawMarketSprite(char, pixelX, pixelY);
+      return;
+    }
     
     // Foreground
     if (CANVAS_CONFIG.RENDER_MODE === 'ASCII') {
@@ -144,8 +182,8 @@ export class CanvasRenderer {
         if (!map[y] || !map[y][x]) continue;
         
         const tile = map[y][x];
-        const color = this.getTileColor(tile, biome);
-        this.drawTile(x, y, tile, color);
+        const color = this.getTileColor(tile, biome, chunk);
+        this.drawTile(x, y, tile, color, null, chunk);
       }
     }
     
@@ -177,6 +215,30 @@ export class CanvasRenderer {
           }
           
           this.drawTile(monster.x, monster.y, monster.glyph, color, bgColor);
+        }
+      });
+    }
+    
+    // Draw NPCs (only in current chunk)
+    if (gameState.npcs && Array.isArray(gameState.npcs)) {
+      gameState.npcs.forEach(npc => {
+        // Only draw NPCs that are in the current chunk
+        if (npc.hp > 0 && 
+            npc.chunkX === gameState.cx &&
+            npc.chunkY === gameState.cy &&
+            npc.x >= 0 && npc.x < this.width && 
+            npc.y >= 0 && npc.y < this.height) {
+          // Choose color based on faction
+          let color = '#8888ff'; // Default blue
+          if (npc.faction === 'merchants') color = '#ffcc00'; // Gold
+          else if (npc.faction === 'guards') color = '#4488ff'; // Blue
+          else if (npc.faction === 'bandits') color = '#ff4444'; // Red
+          else if (npc.faction === 'nobles') color = '#ff44ff'; // Purple
+          else if (npc.faction === 'peasants') color = '#888888'; // Gray
+          else if (npc.faction === 'wildlings') color = '#44ff44'; // Green
+          
+          // NPCs use @ symbol like player but different colors
+          this.drawTile(npc.x, npc.y, '@', color, null);
         }
       });
     }
@@ -234,9 +296,10 @@ export class CanvasRenderer {
   /**
    * Get color based on biome and tile type
    */
-  getTileColor(tile, biome) {
-    // Cache key for performance
-    const cacheKey = `${tile}_${biome}`;
+  getTileColor(tile, biome, chunk) {
+    // Cache key for performance - include graveyard flag
+    const isGraveyard = chunk?.isGraveyard || false;
+    const cacheKey = `${tile}_${biome}_${isGraveyard}`;
     if (this.colorCache.has(cacheKey)) {
       return this.colorCache.get(cacheKey);
     }
@@ -301,15 +364,30 @@ export class CanvasRenderer {
     switch(tile) {
       case TILE.wall:
       case '#':
-        color = colors.wall;
+        // Special graveyard wall color
+        if (chunk?.isGraveyard) {
+          color = '#4a4a4a'; // Stone grey for graveyard walls/crypts
+        } else {
+          color = colors.wall;
+        }
         break;
       case TILE.floor:
       case '.':
-        color = colors.floor;
+        // Special graveyard floor color
+        if (chunk?.isGraveyard) {
+          color = '#3a3a3a'; // Dark grey dirt for graveyard
+        } else {
+          color = colors.floor;
+        }
         break;
       case TILE.door:
       case '+':
-        color = colors.door;
+        // Special graveyard door color (iron gates/crypt doors)
+        if (chunk?.isGraveyard) {
+          color = '#5a5a5a'; // Iron grey for cemetery gates
+        } else {
+          color = colors.door;
+        }
         break;
       case TILE.vendor:
       case 'V':
@@ -327,8 +405,34 @@ export class CanvasRenderer {
       case '★':
         color = '#FFD700'; // Gold
         break;
-      case '~': // Water
-        color = '#4682B4'; // Steel blue
+      case '~': // Water (or mist in graveyard)
+        // Check if this is graveyard chunk
+        if (biome === 'candy_kingdom' && chunk?.isGraveyard) {
+          color = '#9090A0'; // Ghostly mist color
+        } else {
+          color = '#4682B4'; // Steel blue for water
+        }
+        break;
+      case 'T': // Gravestone
+        color = '#808080'; // Gray
+        break;
+      case 'Y': // Dead tree in graveyard
+        color = '#654321'; // Dark brown
+        break;
+      case '%': // Candy dust pile
+        color = '#FFB6C1'; // Pink candy dust
+        break;
+      case '▓': // Heavy door (shed door)
+        color = '#8B4513'; // Saddle brown
+        break;
+      case '☐': // Window
+        color = '#87CEEB'; // Sky blue (glass)
+        break;
+      case '†': // Shovel
+        color = '#696969'; // Dim gray
+        break;
+      case 'b': // Barrel
+        color = '#8B7355'; // Burlywood brown
         break;
       default:
         color = CANVAS_CONFIG.FOREGROUND;

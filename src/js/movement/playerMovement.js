@@ -120,6 +120,18 @@ export function loadOrGenChunk(state, cx, cy) {
   // Ensure items array exists
   if (!state.chunk.items) state.chunk.items = [];
   
+  // Spawn quest content for this chunk
+  import('../world/questChunks.js').then(module => {
+    module.spawnQuestContent(state, cx, cy);
+  });
+  
+  // If this is the graveyard, populate it
+  if (cx === -1 && cy === 0) {
+    import('../world/graveyardChunk.js').then(module => {
+      module.populateGraveyard(state);
+    });
+  }
+  
   // Restore itemCheck functions for vendor fetch quests (lost during JSON serialization)
   if (state.chunk.items && state.FETCH_ITEMS) {
     state.chunk.items.forEach(item => {
@@ -328,6 +340,48 @@ export function interactTile(state, x, y, openVendorShop = null) {
         log(state, "The shrine grants you protection!", "good");
       }
     }
+  }
+  
+  // Quest item pickup
+  else if (items.some(i => i.type === "quest_item" && i.x === x && i.y === y)) {
+    const questItem = items.find(i => i.type === "quest_item" && i.x === x && i.y === y);
+    if (questItem) {
+      // Grant the quest item(s) - use count if specified
+      const quantity = questItem.count || 1;
+      import('../items/questItems.js').then(module => {
+        module.grantQuestItem(state, questItem.item.id, quantity);
+        if (quantity > 1) {
+          log(state, `You found: ${quantity}x ${questItem.item.name}!`, "quest");
+        } else {
+          log(state, `You found: ${questItem.item.name}!`, "quest");
+        }
+        
+        // Special handling for whisper shard
+        if (questItem.item.id === 'whisper_shard') {
+          import('../world/graveyardChunk.js').then(graveyardModule => {
+            graveyardModule.collectWhisperShard(state);
+          });
+        }
+        
+        // Remove from items
+        const idx = items.indexOf(questItem);
+        if (idx >= 0) items.splice(idx, 1);
+      });
+    }
+  }
+  
+  // Graveyard-specific interactions
+  else if (state.chunk?.isGraveyard) {
+    import('../world/graveyardChunk.js').then(module => {
+      module.handleGraveyardInteraction(state, x, y);
+    });
+  }
+  
+  // Candy Market interactions
+  else if (state.chunk?.isMarket) {
+    import('../world/candyMarketChunk.js').then(module => {
+      module.handleMarketInteraction(state, x, y);
+    });
   }
 }
 
