@@ -2,7 +2,7 @@
 // Unified ranged combat system for all projectile weapons
 
 import { launchProjectile } from '../systems/ProjectileSystem.js';
-import { entityAt } from '../utils/queries.js';
+import { entityAt, isBlockedByTerrain } from '../utils/queries.js';
 import { applyAttack } from './combat.js';
 import { applyStatusEffect } from './statusSystem.js';
 import { emit } from '../utils/events.js';
@@ -77,7 +77,8 @@ export async function executeRangedAttack(state, attacker, targetX, targetY, wea
     fromX: attacker.x,
     fromY: attacker.y,
     toX: targetX,
-    toY: targetY
+    toY: targetY,
+    checkCollision: (x, y) => isBlockedByTerrain(state, x, y)
   };
   
   // Check range

@@ -26,13 +26,23 @@ class ProjectileSystem {
       toX,
       toY,
       type = 'default',
-      speed = 500, // pixels per second
-      arcHeight = 0.3, // Arc height multiplier
+      speed = 500, // tiles per second
+      arcHeight = 0.3, // Arc height multiplier (relative to distance)
       trail = false,
+      animationSymbols = null, // Custom animation symbols
+      impactSymbols = null, // Custom impact symbols
+      displayKind = null, // Custom display kind
+      checkCollision = null, // Function to check if position is blocked
       onImpact = null
     } = config;
 
     // Validate inputs
+    if (!Number.isFinite(fromX) || !Number.isFinite(fromY) || 
+        !Number.isFinite(toX) || !Number.isFinite(toY)) {
+      console.error('Invalid projectile coordinates:', { fromX, fromY, toX, toY });
+      return Promise.reject(new Error('Invalid projectile coordinates'));
+    }
+    
     if (fromX === toX && fromY === toY) {
       // Instant impact if launching at same position
       if (onImpact) {
@@ -60,7 +70,12 @@ class ProjectileSystem {
       toX,
       toY,
       currentFrame: 0,
-      trailPositions: []
+      trailPositions: [],
+      animationSymbols,
+      impactSymbols,
+      displayKind,
+      checkCollision,
+      collided: false
     };
 
     // Store active projectile
@@ -75,10 +90,13 @@ class ProjectileSystem {
     return new Promise((resolve) => {
       projectile.onComplete = () => {
         this.activeProjectiles.delete(projectile.id);
+        // Use actual impact position (may have changed due to collision)
+        const impactX = projectile.toX;
+        const impactY = projectile.toY;
         if (onImpact) {
-          onImpact(toX, toY);
+          onImpact(impactX, impactY);
         }
-        resolve({ x: toX, y: toY });
+        resolve({ x: impactX, y: impactY });
       };
     });
   }
@@ -161,17 +179,35 @@ class ProjectileSystem {
    * Update projectile position and render
    */
   updateProjectile(projectile, progress) {
-    const { fromX, fromY, trajectory, arcHeight, type } = projectile;
+    const { fromX, fromY, trajectory, arcHeight, type, checkCollision } = projectile;
     
     // Calculate current position with arc
     const linearX = fromX + (trajectory.dx * progress);
     const linearY = fromY + (trajectory.dy * progress);
     
-    // Add parabolic arc for height
-    const arcOffset = Math.sin(progress * Math.PI) * arcHeight;
+    // Add parabolic arc for height (scaled by distance for consistency)
+    const arcScale = Math.min(1, trajectory.distance / 10); // Scale down arc for short throws
+    const arcOffset = Math.sin(progress * Math.PI) * arcHeight * arcScale * trajectory.distance;
     
     const currentX = Math.round(linearX);
     const currentY = Math.round(linearY - arcOffset);
+    
+    // Check for collision if we have a collision checker and position changed
+    if (checkCollision && (currentX !== projectile.lastX || currentY !== projectile.lastY)) {
+      // Don't check collision at starting position
+      if (!(currentX === fromX && currentY === fromY)) {
+        if (checkCollision(currentX, currentY)) {
+          // Collision detected! Impact at last valid position
+          projectile.collided = true;
+          // Use last valid position (before the wall)
+          projectile.toX = projectile.lastX !== undefined ? projectile.lastX : fromX;
+          projectile.toY = projectile.lastY !== undefined ? projectile.lastY : fromY;
+          // Force completion on next frame
+          projectile.startTime = performance.now() - projectile.duration;
+          return; // Don't render at blocked position
+        }
+      }
+    }
 
     // Only render if position changed (performance optimization)
     if (currentX !== projectile.lastX || currentY !== projectile.lastY) {
@@ -203,7 +239,8 @@ class ProjectileSystem {
       return;
     }
     
-    const symbols = this.getProjectileSymbols(type);
+    // Use custom symbols if provided, otherwise use defaults
+    const symbols = projectile.animationSymbols || this.getProjectileSymbols(type);
     if (!symbols || symbols.length === 0) {
       return;
     }
@@ -219,7 +256,7 @@ class ProjectileSystem {
       x,
       y,
       text: symbol,
-      kind: this.getProjectileKind(type),
+      kind: projectile.displayKind || this.getProjectileKind(type),
       duration: 100 // Short duration for smooth animation
     });
   }
@@ -307,8 +344,8 @@ class ProjectileSystem {
   handleImpact(projectile) {
     const { toX, toY, type } = projectile;
     
-    // Create impact effect based on type
-    const impactSymbols = this.getImpactSymbols(type);
+    // Use custom impact symbols if provided, otherwise use defaults
+    const impactSymbols = projectile.impactSymbols || this.getImpactSymbols(type);
     
     // Animate impact burst
     impactSymbols.forEach((symbol, index) => {
@@ -319,7 +356,7 @@ class ProjectileSystem {
           x: toX + offset.x,
           y: toY + offset.y,
           text: symbol,
-          kind: this.getProjectileKind(type),
+          kind: projectile.displayKind || this.getProjectileKind(type),
           duration: 150 - (index * 30)
         });
       }, index * 20);
@@ -358,8 +395,11 @@ class ProjectileSystem {
 
   /**
    * Cancel all active projectiles
+   * @returns {number} Number of projectiles canceled
    */
   cancelAll() {
+    const canceledCount = this.activeProjectiles.size;
+    
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
@@ -378,6 +418,8 @@ class ProjectileSystem {
     
     this.activeProjectiles.clear();
     this.lastFrameTime = 0; // Reset frame timing
+    
+    return canceledCount;
   }
 }
 

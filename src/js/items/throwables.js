@@ -9,7 +9,15 @@ export const THROWABLE_POTS = {
     damage: 5,
     tier: 1,
     value: 10,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'default',
+      speed: 70,
+      arcHeight: 0.0,
+      trail: false,
+      impactSymbols: ['x', '+', '*'],
+      animationSymbols: ['o', 'O', '0', 'O', 'o']
+    }
   },
   
   sugar_pot: {
@@ -18,7 +26,15 @@ export const THROWABLE_POTS = {
     damage: 8,
     tier: 1,
     value: 15,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'default',
+      speed: 70,
+      arcHeight: 0.0,
+      trail: false,
+      impactSymbols: ['*', 'x', '+', '*'],
+      animationSymbols: ['o', 'O', '0', 'O', 'o']
+    }
   },
   
   fire_pot: {
@@ -29,10 +45,33 @@ export const THROWABLE_POTS = {
     value: 20,
     damageType: 'fire',
     statusEffect: 'burn',
-    statusChance: 0.8,
+    statusChance: 0.0,
     statusDuration: 3,
     statusValue: 2,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'fire',
+      speed: 70,
+      arcHeight: 0.0,
+      trail: true,
+      impactSymbols: ['*', 'x', 'X', '+'],
+      animationSymbols: ['*', 'x', '+', 'X', '*'],
+      displayKind: 'crit'
+    },
+    tileInteractions: {
+      '%': {
+        action: 'ignite',
+        message: "KABOOM! The candy dust ignites explosively!",
+        areaEffect: {
+          radius: 3,
+          damage: 15,
+          damageType: 'explosion',
+          effect: 'explosion',
+          excludeSource: false,
+          chainReaction: true
+        }
+      }
+    }
   },
   
   // Tier 2 pots
@@ -42,7 +81,15 @@ export const THROWABLE_POTS = {
     damage: 12,
     tier: 2,
     value: 25,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'explosive',
+      speed: 90,
+      arcHeight: 0.6,
+      trail: false,
+      impactSymbols: ['*', 'X', '*', 'X'],
+      animationSymbols: ['o', 'O', '@', 'O', 'o']
+    }
   },
   
   mint_pot: {
@@ -53,7 +100,16 @@ export const THROWABLE_POTS = {
     value: 30,
     statusEffect: 'freeze',
     statusChance: 0.2,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'ice',
+      speed: 100,
+      arcHeight: 0.5,
+      trail: false,
+      impactSymbols: ['*', '+', '*'],
+      animationSymbols: ['*', 'o', 'O', '*'],
+      displayKind: 'freeze'
+    }
   },
   
   // Tier 3 pots
@@ -63,7 +119,15 @@ export const THROWABLE_POTS = {
     damage: 18,
     tier: 3,
     value: 50,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'explosive',
+      speed: 80,
+      arcHeight: 0.7,
+      trail: true,
+      impactSymbols: ['*', 'X', '*', 'X', '*'],
+      animationSymbols: ['@', 'O', '@', 'O']
+    }
   },
   
   acid_pot: {
@@ -75,7 +139,16 @@ export const THROWABLE_POTS = {
     statusEffect: 'poison',
     statusChance: 0.3,
     statusDuration: 3,
-    stackable: true
+    stackable: true,
+    projectileConfig: {
+      type: 'poison',
+      speed: 100,
+      arcHeight: 0.5,
+      trail: true,
+      impactSymbols: ['@', 'o', '@'],
+      animationSymbols: ['o', '@', 'o', '@'],
+      displayKind: 'poison'
+    }
   }
 };
 

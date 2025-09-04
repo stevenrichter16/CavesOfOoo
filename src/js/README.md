@@ -52,7 +52,7 @@ The JavaScript source code is organized into logical modules for better maintain
 **User interface components**
 - `map.js` - Minimap rendering
 - `particles.js` - Particle effects
-- `shop.js`, `shop_clean.js` - Shop UI variations
+- `shop.js` - Shop UI
 - `fx.js` - Visual effects
 - `equipment.js` - Equipment UI
 - `quests.js` - Quest UI

@@ -44,6 +44,20 @@ export function isBlocked(state, x, y) {
   return !isPassable(state, x, y);
 }
 
+// Check if position is blocked by terrain only (not entities)
+// Used for projectiles which should hit entities but not pass through walls
+export function isBlockedByTerrain(state, x, y) {
+  // Out of bounds blocks projectiles
+  if (x < 0 || x >= W || y < 0 || y >= H) return true;
+  
+  // Check map tile
+  const tile = state.chunk?.map?.[y]?.[x];
+  if (tile === '#' || tile === '+') return true; // walls and doors block
+  
+  // Water and other tiles don't block projectiles
+  return false;
+}
+
 // Helper to find a safe opening in the wall when entering a chunk
 function findWallOpening(state, player, side) {
   const map = state.chunk?.map;

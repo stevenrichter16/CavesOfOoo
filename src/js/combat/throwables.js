@@ -1,12 +1,27 @@
 // src/js/combat/throwables.js
 // System for throwing items at enemies
 
-import { calculateThrowDamage } from '../items/throwables.js';
-import { entityAt } from '../utils/queries.js';
+import { calculateThrowDamage, getThrowablePot } from '../items/throwables.js';
+import { entityAt, isBlockedByTerrain } from '../utils/queries.js';
 import { applyAttack } from './combat.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { applyStatusEffect } from './statusSystem.js';
+import { launchProjectile } from '../systems/ProjectileSystem.js';
+
+/**
+ * Get friendly name for tile type
+ */
+function getTileName(tile) {
+  const tileNames = {
+    '%': 'candy dust',
+    '~': 'water',
+    '^': 'spikes',
+    '#': 'wall',
+    '.': 'ground'
+  };
+  return tileNames[tile] || 'terrain';
+}
 
 /**
  * Execute a throw at the target position
@@ -14,56 +29,65 @@ import { applyStatusEffect } from './statusSystem.js';
  */
 export async function executeThrow(state, targetX, targetY) {
   try {
-    if (!state.pendingThrowable) {
-      state.log("No item selected to throw!", "bad");
+    // Validate target coordinates
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      console.error('Invalid target coordinates:', { targetX, targetY });
+      if (state.log) state.log("Invalid target position!", "bad");
       return false;
     }
     
-    const { item, inventoryIndex } = state.pendingThrowable;
+    if (!state.pendingThrowable) {
+      if (state.log) state.log("No item selected to throw!", "bad");
+      return false;
+    }
+    
+    const { item: inventoryItem, inventoryIndex } = state.pendingThrowable;
     
     // Validate inventory index
     if (!state.player.inventory[inventoryIndex]) {
-      state.log("Item no longer in inventory!", "bad");
+      if (state.log) state.log("Item no longer in inventory!", "bad");
       state.pendingThrowable = null;
       return false;
     }
     
-    // Import ProjectileSystem and launch projectile (cache the import)
-    let launchProjectile;
-    try {
-      const module = await import('../systems/ProjectileSystem.js');
-      launchProjectile = module.launchProjectile;
-    } catch (importError) {
-      console.error('Failed to import ProjectileSystem:', importError);
-      state.log("Failed to load projectile system!", "bad");
+    // Get the full pot configuration (merge inventory item with pot definition)
+    const potId = inventoryItem.id || inventoryItem.type;
+    const potDefinition = getThrowablePot(potId);
+    const item = potDefinition ? { ...potDefinition, ...inventoryItem } : inventoryItem;
+    
+    // Get projectile configuration from item or use defaults
+    const projectileConfig = item.projectileConfig || {
+      type: 'default',
+      speed: 100,
+      trail: false,
+      arcHeight: 0.5
+    };
+    
+    // Validate player exists and has position
+    if (!state.player || !Number.isFinite(state.player.x) || !Number.isFinite(state.player.y)) {
+      if (state.log) state.log("Invalid player position!", "bad");
+      state.pendingThrowable = null;
       return false;
     }
     
-    // Determine projectile type based on item
-    const projectileType = item.damageType === 'fire' ? 'fire' : 
-                          item.statusEffect === 'freeze' ? 'ice' :
-                          item.statusEffect === 'poison' ? 'poison' : 'default';
-    
-    // Launch projectile with animation
-    await launchProjectile({
+    // Launch projectile with configuration
+    const impactResult = await launchProjectile({
       fromX: state.player.x,
       fromY: state.player.y,
       toX: targetX,
       toY: targetY,
-      type: projectileType,
-      speed: 100, // Faster projectiles
-      trail: item.damageType === 'fire', // Fire pots leave trails
-      arcHeight: 5.5,
+      ...projectileConfig,
+      checkCollision: (x, y) => isBlockedByTerrain(state, x, y),
       onImpact: (x, y) => handleImpactEffects(state, x, y, item)
     });
     
-    // Process the actual throw effects after animation
-    await processThrowEffects(state, targetX, targetY, item, inventoryIndex);
+    // Process the actual throw effects after animation (use actual impact position)
+    await processThrowEffects(state, impactResult.x, impactResult.y, item, inventoryIndex);
     
     return true;
   } catch (error) {
     console.error('Error executing throw:', error);
-    state.log("Failed to throw item!", "bad");
+    if (state.log) state.log("Failed to throw item!", "bad");
     state.pendingThrowable = null;
     return false;
   }
@@ -99,37 +123,34 @@ async function processThrowEffects(state, targetX, targetY, item, inventoryIndex
     const targetTile = state.chunk?.map?.[targetY]?.[targetX];
     
     if (!target || target === state.player) {
-    // Check if it's a fire pot hitting candy dust FIRST
-    if (item.damageType === 'fire' && targetTile === '%') {
-      // Fire pot hitting candy dust - don't show miss!
-      state.log(`You throw the ${item.name} at the candy dust!`, "combat");
-      state.log("💥 KABOOM! The candy dust ignites explosively!", "danger");
+    // Check for tile interactions
+    const tileInteraction = item.tileInteractions?.[targetTile];
+    
+    if (tileInteraction) {
+      // Handle configured tile interaction
+      state.log(`You throw the ${item.name} at the ${getTileName(targetTile)}!`, "combat");
       
-      // Use the game's proper area effect system which handles chain reactions
-      import('../engine/adapters/cavesOfOoo.js').then(module => {
-        // Call the game's area effect handler which will:
-        // 1. Remove the candy dust tile
-        // 2. Damage all entities in radius
-        // 3. Trigger chain reactions on nearby candy dust
-        // 4. Show explosion animations
-        module.applyAreaEffectPublic(state, state.player, {
-          x: targetX,
-          y: targetY,
-          radius: 3,  // Larger radius for chain reactions
-          damage: 15,
-          damageType: 'explosion',
-          effect: 'explosion',
-          excludeSource: false
+      if (tileInteraction.message) {
+        state.log(tileInteraction.message, "danger");
+      }
+      
+      // Apply area effect if configured
+      if (tileInteraction.areaEffect) {
+        import('../engine/adapters/cavesOfOoo.js').then(module => {
+          module.applyAreaEffectPublic(state, state.player, {
+            x: targetX,
+            y: targetY,
+            ...tileInteraction.areaEffect
+          });
+          
+          // Emit visual effect
+          if (tileInteraction.areaEffect.effect) {
+            emit(tileInteraction.areaEffect.effect, { x: targetX, y: targetY });
+          }
+          
+          // The explosion event automatically triggers particle effects
         });
-        
-        // Also emit explosion event for visual effects
-        emit(EventType.Explosion, { x: targetX, y: targetY });
-        
-        // Import and trigger particle effects
-        import('../ui/particles.js').then(particleModule => {
-          particleModule.createExplosion(targetX, targetY);
-        });
-      });
+      }
     } else {
       // Actually missed - nothing to hit
       state.log(`You throw the ${item.name} but it hits nothing.`, "note");
