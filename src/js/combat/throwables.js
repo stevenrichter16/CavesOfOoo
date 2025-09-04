@@ -10,20 +10,90 @@ import { applyStatusEffect } from './statusSystem.js';
 
 /**
  * Execute a throw at the target position
+ * @async
  */
-export function executeThrow(state, targetX, targetY) {
-  if (!state.pendingThrowable) {
-    state.log("No item selected to throw!", "bad");
+export async function executeThrow(state, targetX, targetY) {
+  try {
+    if (!state.pendingThrowable) {
+      state.log("No item selected to throw!", "bad");
+      return false;
+    }
+    
+    const { item, inventoryIndex } = state.pendingThrowable;
+    
+    // Validate inventory index
+    if (!state.player.inventory[inventoryIndex]) {
+      state.log("Item no longer in inventory!", "bad");
+      state.pendingThrowable = null;
+      return false;
+    }
+    
+    // Import ProjectileSystem and launch projectile (cache the import)
+    let launchProjectile;
+    try {
+      const module = await import('../systems/ProjectileSystem.js');
+      launchProjectile = module.launchProjectile;
+    } catch (importError) {
+      console.error('Failed to import ProjectileSystem:', importError);
+      state.log("Failed to load projectile system!", "bad");
+      return false;
+    }
+    
+    // Determine projectile type based on item
+    const projectileType = item.damageType === 'fire' ? 'fire' : 
+                          item.statusEffect === 'freeze' ? 'ice' :
+                          item.statusEffect === 'poison' ? 'poison' : 'default';
+    
+    // Launch projectile with animation
+    await launchProjectile({
+      fromX: state.player.x,
+      fromY: state.player.y,
+      toX: targetX,
+      toY: targetY,
+      type: projectileType,
+      speed: 100, // Faster projectiles
+      trail: item.damageType === 'fire', // Fire pots leave trails
+      arcHeight: 5.5,
+      onImpact: (x, y) => handleImpactEffects(state, x, y, item)
+    });
+    
+    // Process the actual throw effects after animation
+    await processThrowEffects(state, targetX, targetY, item, inventoryIndex);
+    
+    return true;
+  } catch (error) {
+    console.error('Error executing throw:', error);
+    state.log("Failed to throw item!", "bad");
+    state.pendingThrowable = null;
     return false;
   }
+}
+
+/**
+ * Handle visual impact effects
+ */
+function handleImpactEffects(state, x, y, item) {
+  // Validate inputs
+  if (!state || !item) return;
   
-  const { item, inventoryIndex } = state.pendingThrowable;
-  
-  // Create projectile animation and get animation duration
-  const animationTime = createProjectileAnimation(state, state.player.x, state.player.y, targetX, targetY, item);
-  
-  // Delay the actual effect until projectile arrives
-  setTimeout(() => {
+  // Additional impact effects specific to item type
+  if (item.damageType === 'fire') {
+    emit(EventType.FloatingText, {
+      x,
+      y,
+      text: 'BOOM!',
+      kind: 'crit',
+      duration: 300
+    });
+  }
+}
+
+/**
+ * Process throw effects after projectile hits
+ * @async
+ */
+async function processThrowEffects(state, targetX, targetY, item, inventoryIndex) {
+  return new Promise((resolve) => {
     // Check what's at the target position
     const target = entityAt(state, targetX, targetY);
     const targetTile = state.chunk?.map?.[targetY]?.[targetX];
@@ -112,24 +182,31 @@ export function executeThrow(state, targetX, targetY) {
   }
     
     // Remove or reduce the thrown item from inventory
-    const invItem = state.player.inventory[inventoryIndex];
-    if (invItem) {
-      if (invItem.count && invItem.count > 1) {
-        invItem.count--;
-        state.log(`${item.name} x${invItem.count} remaining`, "dim");
-      } else {
-        state.player.inventory.splice(inventoryIndex, 1);
+    // Re-validate inventory index as state may have changed during animation
+    if (state.player && state.player.inventory && inventoryIndex < state.player.inventory.length) {
+      const invItem = state.player.inventory[inventoryIndex];
+      if (invItem) {
+        if (invItem.count && invItem.count > 1) {
+          invItem.count--;
+          if (state.log) {
+            state.log(`${item.name} x${invItem.count} remaining`, "dim");
+          }
+        } else {
+          state.player.inventory.splice(inventoryIndex, 1);
+        }
       }
     }
     
     // Clear pending throwable
     state.pendingThrowable = null;
     
-    // Trigger render to update display
-    state.render();
-  }, animationTime); // End of setTimeout
-  
-  return true;
+    // Trigger render to update display if available
+    if (state.render && typeof state.render === 'function') {
+      state.render();
+    }
+    
+    resolve(true);
+  });
 }
 
 /**
@@ -152,113 +229,4 @@ export function canThrowAt(state, x, y) {
  */
 export function getThrowRange() {
   return 8;
-}
-
-/**
- * Create a projectile animation for thrown pots
- */
-function createProjectileAnimation(state, fromX, fromY, toX, toY, item) {
-  // Calculate distance and steps
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const steps = Math.max(3, Math.floor(distance * 2)); // More steps for smoother animation
-  const stepDelay = 30; // 30ms between steps for smooth flight
-  
-  // ASCII animation frames for different pot types
-  const fireFrames = ['*', 'x', '+', 'X', '*']; // Fire spinning effect using basic ASCII
-  const potFrames = ['o', 'O', '0', 'O', 'o'];  // Regular pot tumbling
-  const frames = item.damageType === 'fire' ? fireFrames : potFrames;
-  
-  // Create projectile trail effect
-  const trail = [];
-  
-  // Animate the projectile
-  for (let i = 1; i <= steps; i++) {
-    setTimeout(() => {
-      // Calculate interpolated position
-      const progress = i / steps;
-      const currentX = Math.round(fromX + dx * progress);
-      const currentY = Math.round(fromY + dy * progress);
-      
-      // Get animation frame based on progress
-      const frameIndex = Math.floor(progress * frames.length) % frames.length;
-      const symbol = frames[frameIndex];
-      
-      // For fire pots, create a flaming trail
-      if (item.damageType === 'fire') {
-        // Add trail particles behind the projectile
-        if (i > 1) {
-          const prevProgress = (i - 1) / steps;
-          const prevX = Math.round(fromX + dx * prevProgress);
-          const prevY = Math.round(fromY + dy * prevProgress);
-          
-          // Show diminishing trail using basic ASCII
-          const trailSymbols = ['.', '.', '.'];  // Simple dots for trail
-          const trailIndex = Math.min(2, Math.floor((i - 1) / 2));
-          
-          // Varying shades of red for trail (darker as it fades)
-          const trailColors = ['#ff4444', '#cc3333', '#992222'];
-          
-          emit(EventType.FloatingText, {
-            x: prevX,
-            y: prevY,
-            text: trailSymbols[trailIndex],
-            kind: 'magic',  // Use 'magic' kind which should be styled red/purple
-            duration: stepDelay * 3
-          });
-        }
-      }
-      
-      // Create main projectile with varying red intensity for fire
-      const fireColors = ['#ff0000', '#ff3333', '#ff5555', '#ff3333', '#ff0000']; // Pulsing red effect
-      const projectileColor = item.damageType === 'fire' 
-        ? fireColors[frameIndex] 
-        : '#8B4513'; // Brown for regular
-        
-      emit(EventType.FloatingText, {
-        x: currentX,
-        y: currentY,
-        text: symbol,
-        kind: item.damageType === 'fire' ? 'crit' : 'damage',  // 'crit' is usually red
-        duration: stepDelay * 2
-      });
-      
-      // On the last step, trigger impact
-      if (i === steps) {
-        // Small delay before impact effects
-        setTimeout(() => {
-          // ASCII impact burst using basic characters
-          const impactSymbols = item.damageType === 'fire' 
-            ? ['*', 'x', 'X', '+'] // Fire burst with basic ASCII
-            : ['x', '+', '*'];      // Regular shatter
-          
-          // Create multiple impact particles
-          impactSymbols.forEach((sym, idx) => {
-            setTimeout(() => {
-              const offsetX = idx % 2 === 0 ? 0 : (idx - 1.5) / 2;
-              const offsetY = idx < 2 ? 0 : (idx - 2) / 2;
-              
-              // Different shades of red for fire impact explosion
-              const fireImpactColors = ['#ff0000', '#dd0000', '#bb0000', '#990000'];
-              const impactColor = item.damageType === 'fire' 
-                ? fireImpactColors[idx % fireImpactColors.length]
-                : '#666666';
-                
-              emit(EventType.FloatingText, {
-                x: toX + Math.round(offsetX),
-                y: toY + Math.round(offsetY),
-                text: sym,
-                kind: item.damageType === 'fire' ? 'crit' : 'damage',  // Use existing styled kinds
-                duration: 150 - (idx * 20)
-              });
-            }, idx * 15);
-          });
-        }, stepDelay);
-      }
-    }, i * stepDelay);
-  }
-  
-  // Return total animation time so we can delay the actual effect
-  return steps * stepDelay + 100;
 }
