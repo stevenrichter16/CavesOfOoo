@@ -39,6 +39,7 @@ export function renderInventory(state) {
     { id: 'headgear', label: 'Headgear', icon: '👑' },
     { id: 'ring', label: 'Rings', icon: '💍' },
     { id: 'potion', label: 'Potions', icon: '🧪' },
+    { id: 'throwable', label: 'Throwables', icon: '🏺' },
     { id: 'item', label: 'Quest Items', icon: '📜' }
   ];
   
@@ -80,6 +81,8 @@ export function renderInventory(state) {
   let hintText = "Tab/Shift+Tab to switch tabs • ";
   if (state.ui.inventoryTab === 'potion') {
     hintText += "Enter to use • ";
+  } else if (state.ui.inventoryTab === 'throwable') {
+    hintText += "Enter to throw • ";
   } else if (state.ui.inventoryTab !== 'all') {
     hintText += "Enter to equip/unequip • ";
   } else {
@@ -201,6 +204,20 @@ export function renderInventory(state) {
           <div class="desc">${item.item.desc}</div>
         </div>
       `;
+    } else if (item.type === "throwable") {
+      // Throwable pots
+      const countText = item.count > 1 ? ` x${item.count}` : "";
+      let damageText = ` (DMG ${item.item.damage || 5})`;
+      if (item.item.statusEffect) {
+        damageText += `, ${item.item.statusEffect}`;
+      }
+      
+      div.innerHTML = `
+        <div>
+          <div class="name">⚱ ${item.item.name}${countText}</div>
+          <div class="desc">${item.item.desc}${damageText}</div>
+        </div>
+      `;
     } else if (item.type === "item") {
       // Generic quest/misc items
       const countText = item.count > 1 ? ` x${item.count}` : "";
@@ -305,6 +322,23 @@ export function useInventoryItem(state) {
       emit(EventType.Equipped, { item: item.item, slot: `ring${slot+1}` });
       state.log(`Equipped ${item.item.name} to ring slot ${slot+1}!`, "note");
     }
+  } else if (item.type === "throwable") {
+    // Activate throw mode with cursor
+    closeInventory(state);
+    
+    // Store the throwable item for when throw is executed
+    state.pendingThrowable = {
+      item: item.item,
+      inventoryIndex: actualIndex
+    };
+    
+    // Activate cursor for targeting
+    import('../movement/cursor.js').then(cursorModule => {
+      cursorModule.activateCursor('throw');
+      state.log(`Aiming ${item.item.name}... Use arrows to aim, Enter to throw, Escape to cancel`, "note");
+    });
+    
+    return; // Don't consume the item yet
   } else if (item.type === "potion") {
     // Use potion
     const potion = item.item;
@@ -420,12 +454,30 @@ export function dropInventoryItem(state) {
     // Decrease stack count
     item.count--;
     state.player.potionCount--;
+  } else if (item.type === "throwable" && item.count > 1) {
+    // Drop just one from the stack
+    const tile = "⚱";
+    if (state.chunk.map[state.player.y][state.player.x] === ".") {
+      state.chunk.map[state.player.y][state.player.x] = tile;
+      state.chunk.items.push({
+        type: "throwable",
+        x: state.player.x,
+        y: state.player.y,
+        item: { ...item.item }  // Clone the throwable
+      });
+    }
+    
+    state.log(`Dropped ${item.item.name} (${item.count - 1} remaining).`, "note");
+    
+    // Decrease stack count
+    item.count--;
   } else {
     // Drop entire item/last potion in stack
     const tile = item.type === "weapon" ? "/" : 
                   item.type === "armor" ? "]" : 
                   item.type === "headgear" ? "^" : 
-                  item.type === "ring" ? "○" : "!";
+                  item.type === "ring" ? "○" : 
+                  item.type === "throwable" ? "⚱" : "!";
     if (state.chunk.map[state.player.y][state.player.x] === ".") {
       state.chunk.map[state.player.y][state.player.x] = tile;
       state.chunk.items.push({

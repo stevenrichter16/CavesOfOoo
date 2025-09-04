@@ -200,6 +200,20 @@ export function executeCursorAction() {
     }
   }
   
+  // Handle throw mode
+  if (mode === 'throw') {
+    const state = window.STATE;
+    if (!state || !state.pendingThrowable) return false;
+    
+    // Execute the throw
+    import('../combat/throwables.js').then(throwModule => {
+      throwModule.executeThrow(state, x, y);
+    });
+    
+    deactivateCursor();
+    return true;
+  }
+  
   // In examine mode, check what's at the cursor position
   if (mode === 'examine') {
     const info = getInfoAtCursor();

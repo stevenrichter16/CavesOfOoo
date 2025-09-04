@@ -1,4 +1,58 @@
 export function makePlayer() { 
+  // Generate unique IDs for starting items
+  const generateItemId = () => `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Starting inventory with throwable pots
+  const startingInventory = [
+    {
+      type: "throwable",
+      item: {
+        id: "clay_pot",
+        name: "Clay Pot",
+        desc: "A simple clay pot that shatters on impact",
+        damage: 5,
+        tier: 1,
+        value: 10,
+        stackable: true
+      },
+      id: generateItemId(),
+      count: 5  // Start with 5 clay pots
+    },
+    {
+      type: "throwable", 
+      item: {
+        id: "sugar_pot",
+        name: "Sugar Pot",
+        desc: "A crystallized sugar pot that explodes into sharp shards",
+        damage: 8,
+        tier: 1,
+        value: 15,
+        stackable: true
+      },
+      id: generateItemId(),
+      count: 3  // Start with 3 sugar pots
+    },
+    {
+      type: "throwable",
+      item: {
+        id: "fire_pot",
+        name: "Fire Pot",
+        desc: "A pot filled with flammable oil that ignites on impact",
+        damage: 6,
+        tier: 1,
+        value: 20,
+        damageType: 'fire',
+        statusEffect: 'burn',
+        statusChance: 0.8,
+        statusDuration: 3,
+        statusValue: 2,
+        stackable: true
+      },
+      id: generateItemId(),
+      count: 3  // Start with 3 fire pots for testing candy dust explosions
+    }
+  ];
+  
   return { 
     x: 2, y: 2, hp: 20, hpMax: 20, str: 5, def: 1, spd: 3,
     level: 1, xp: 0, xpNext: 10,
@@ -7,7 +61,7 @@ export function makePlayer() {
     weapon: null, armor: null, headgear: null,
     rings: [null, null],  // Two ring slots
     gold: 0,  // Starting gold
-    inventory: [], potionCount: 0,
+    inventory: startingInventory, potionCount: 0,
     // statusEffects handled by Status Map in statusSystem.js
     turnsSinceRest: 0,
     // Quest tracking with automatic starter quest

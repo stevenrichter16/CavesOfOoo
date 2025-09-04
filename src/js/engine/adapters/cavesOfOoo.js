@@ -213,7 +213,7 @@ function applyAreaEffect(state, source, act) {
         if (state.render) {
           state.render();
         }
-      }, 200 + (index * 150)); // Stagger chain explosions for dramatic effect
+      }, 50 + (index * 50)); // Quick chain explosions for immediate effect
     });
     
     // Also trigger render after initial explosion
@@ -517,3 +517,6 @@ export function processDamageWithEngine(state, attacker, defender, damage) {
   applyActions(state, defender, ctx.queue);
   return ctx.event.damage.amount;
 }
+
+// Export applyAreaEffect for external use (like throwables)
+export { applyAreaEffect as applyAreaEffectPublic };

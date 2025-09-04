@@ -47,6 +47,19 @@ function showCursorInfo(STATE) {
   const cursorState = getCursorState();
   if (!cursorState.active) return;
   
+  // Show mode-specific info
+  if (cursorState.mode === 'throw') {
+    if (STATE.pendingThrowable && STATE.pendingThrowable.item) {
+      const info = getInfoAtCursor();
+      if (info && info.monster) {
+        log(STATE, `Throw ${STATE.pendingThrowable.item.name} at ${info.monster.name}? (Enter to throw, Esc to cancel)`, "combat");
+      } else {
+        log(STATE, `Aiming ${STATE.pendingThrowable.item.name}... (arrows to aim, Enter to throw, Esc to cancel)`, "note");
+      }
+    }
+    return;
+  }
+  
   const info = getInfoAtCursor();
   if (info && info.monster) {
     let quickInfo = `Examining: ${info.monster.name} (${info.monster.hp}/${info.monster.hpMax} HP)`;
@@ -101,6 +114,8 @@ export function initKeyboardControls() {
     const cursorState = getCursorState();
     if (cursorState && cursorState.active) {
       handleCursorControls(STATE, e);
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
     
@@ -930,10 +945,19 @@ async function handleCursorControls(STATE, e) {
   }
   // Actions
   else if (k === "Enter") {
+    // Check if we're in throw mode - if so, just execute the throw
+    const cursorState = getCursorState();
+    if (cursorState.mode === 'throw') {
+      executeCursorAction();
+      render(STATE);
+      e.preventDefault();
+      return;
+    }
+    
     const info = getInfoAtCursor();
     
     if (info) {
-      // Show dropdown menu for any tile
+      // Show dropdown menu for any tile (except in throw mode)
       import('../ui/dropdown.js').then(({ createDropdown }) => {
         import('../movement/pathfinding.js').then(({ findPath, isWalkable }) => {
           const menuOptions = [];

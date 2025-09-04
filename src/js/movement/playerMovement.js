@@ -250,7 +250,7 @@ export function interactTile(state, x, y, openVendorShop = null) {
       }
       
       const loot = Math.random();
-      if (loot < 0.25) {
+      if (loot < 0.20) {
         const weapon = choice(WEAPONS);
         const newItem = { 
           type: "weapon", 
@@ -259,7 +259,7 @@ export function interactTile(state, x, y, openVendorShop = null) {
         };
         state.player.inventory.push(newItem);
         log(state, `Chest contains: ${weapon.name}!`, "good");
-      } else if (loot < 0.45) {
+      } else if (loot < 0.35) {
         const armor = choice(ARMORS);
         const newItem = { 
           type: "armor", 
@@ -268,7 +268,7 @@ export function interactTile(state, x, y, openVendorShop = null) {
         };
         state.player.inventory.push(newItem);
         log(state, `Chest contains: ${armor.name}!`, "good");
-      } else if (loot < 0.65) {
+      } else if (loot < 0.50) {
         const headgear = choice(HEADGEAR);
         state.player.inventory.push({ 
           type: "headgear", 
@@ -276,7 +276,7 @@ export function interactTile(state, x, y, openVendorShop = null) {
           id: generateItemId() 
         });
         log(state, `Chest contains: ${headgear.name}!`, "good");
-      } else if (loot < 0.85) {
+      } else if (loot < 0.65) {
         const ring = choice(RINGS);
         state.player.inventory.push({ 
           type: "ring", 
@@ -284,6 +284,28 @@ export function interactTile(state, x, y, openVendorShop = null) {
           id: generateItemId() 
         });
         log(state, `Chest contains: ${ring.name}!`, "good");
+      } else if (loot < 0.80) {
+        // Throwable pots!
+        import('../items/throwables.js').then(module => {
+          const potTier = Math.random() < 0.7 ? 1 : Math.random() < 0.9 ? 2 : 3;
+          const potIds = Object.keys(module.THROWABLE_POTS).filter(id => 
+            module.THROWABLE_POTS[id].tier === potTier
+          );
+          const potId = choice(potIds);
+          const pot = module.THROWABLE_POTS[potId];
+          const count = 3 + Math.floor(Math.random() * 5); // 3-7 pots
+          
+          // Copy all pot properties including damageType and statusEffect
+          const potCopy = { ...pot, id: potId };
+          
+          state.player.inventory.push({
+            type: "throwable",
+            item: potCopy,
+            id: generateItemId(),
+            count: count
+          });
+          log(state, `Chest contains: ${pot.name} x${count}!`, "good");
+        });
       } else {
         const potion = choice(POTIONS);
         addPotionToInventory(state, potion);
