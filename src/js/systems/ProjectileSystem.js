@@ -269,6 +269,7 @@ class ProjectileSystem {
       'fire': ['*', 'x', '+', 'X', '*'],
       'ice': ['*', 'o', 'O', '*'],
       'poison': ['o', '@', 'o', '@'],
+      'electric': ['z', 'Z', 'x', 'Z', 'z'],
       'default': ['o', 'O', '0', 'O', 'o'],
       'arrow': ['-', '>', '=', '>'],
       'magic': ['*', '+', 'x', '+']
@@ -285,6 +286,7 @@ class ProjectileSystem {
       'fire': 'crit',
       'ice': 'freeze',
       'poison': 'poison',
+      'electric': 'magic',
       'magic': 'magic',
       'default': 'damage'
     };
@@ -371,6 +373,7 @@ class ProjectileSystem {
       'fire': ['*', 'x', 'X', '+'],
       'ice': ['*', '+', '*'],
       'poison': ['@', 'o', '@'],
+      'electric': ['z', 'Z', 'x', 'Z'],
       'default': ['x', '+', '*'],
       'magic': ['*', '+', 'x', '*']
     };

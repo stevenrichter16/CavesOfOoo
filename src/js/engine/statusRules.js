@@ -23,6 +23,103 @@ rule({
   }
 });
 
+// Check for lethal shock when moving onto water
+rule({
+  id: 'electric_water_instant_kill_on_move',
+  phase: 'movement',
+  priority: 100,
+  when: (ctx) => {
+    // Check if entity has shock status
+    const hasShock = P.hasStatus('shock')(ctx) || P.hasAnyTag('electric')(ctx);
+    
+    // Check if we're in a movement event and moved FROM non-water TO water
+    if (ctx.event?.kind !== 'move') return false;
+    
+    // Get the from and to positions
+    const fromX = ctx.event?.from?.x;
+    const fromY = ctx.event?.from?.y;
+    const toX = ctx.event?.to?.x;
+    const toY = ctx.event?.to?.y;
+    
+    // Check what tiles we're moving from and to
+    const fromTile = ctx.state?.chunk?.map?.[fromY]?.[fromX];
+    const toTile = ctx.state?.chunk?.map?.[toY]?.[toX];
+    
+    // We want to trigger if moving FROM non-water TO water while shocked
+    const movingFromNonWater = fromTile !== '~';
+    const movingToWater = toTile === '~';
+    
+    if (hasShock && movingFromNonWater && movingToWater) {
+      console.log(`[ENGINE-RULE] Shocked entity stepping from ${fromTile} into water! Instant kill!`);
+      return true;
+    }
+    
+    return false;
+  },
+  then: (ctx) => {
+    console.log(`[ENGINE-RULE] ELECTROCUTION! Entity with shock status stepped into water`);
+    // Deal massive damage
+    A.damage(99999, 'electrocution')(ctx);
+    
+    // Log message based on entity
+    const entityName = ctx.entity.name || (ctx.entity.id === 'player' ? 'You' : 'Entity');
+    const verb = entityName === 'You' ? 'are' : 'was';
+    ctx.queue.push({ 
+      type: 'log', 
+      message: `⚡💀 ${entityName} ${verb} ELECTROCUTED stepping into water while shocked! 💀⚡`, 
+      style: 'bad' 
+    });
+    
+    // We can't emit FloatingText directly from here, so just rely on the damage action
+    // The massive damage will trigger the death event and show damage numbers
+  }
+});
+
+// Check for instant kill when shock is applied to entity already on water
+rule({
+  id: 'shock_applied_on_water_instant_kill',
+  phase: 'apply',
+  priority: 100,
+  when: (ctx) => {
+    // Check if we're applying shock status
+    if (ctx.event?.kind !== 'applyStatus') return false;
+    if (ctx.event?.status?.id !== 'shock') return false;
+    
+    // Check if entity is currently on water
+    const currentTile = ctx.state?.chunk?.map?.[ctx.entity.y]?.[ctx.entity.x];
+    const onWater = currentTile === '~';
+    
+    if (onWater) {
+      console.log(`[ENGINE-RULE] Applying shock to entity already on water! Instant kill!`);
+      return true;
+    }
+    
+    return false;
+  },
+  then: (ctx) => {
+    console.log(`[ENGINE-RULE] ELECTROCUTION! Shock applied while standing in water`);
+    // Deal massive damage after a short delay to let the status apply first
+    ctx.queue.push({ 
+      type: 'delayedAction',
+      delay: 100,
+      action: {
+        type: 'damage',
+        amount: 99999,
+        dtype: 'electrocution'
+      }
+    });
+    
+    // Log message
+    const entityName = ctx.entity.name || (ctx.entity.id === 'player' ? 'You' : 'Entity');
+    const verb = entityName === 'You' ? 'are' : 'was';
+    ctx.queue.push({ 
+      type: 'log', 
+      message: `⚡💀 ${entityName} ${verb} ELECTROCUTED! Shocked while standing in water! 💀⚡`, 
+      style: 'bad' 
+    });
+  }
+});
+
 // DOT tick (guarded)
 rule({
   id: 'dot_tick',

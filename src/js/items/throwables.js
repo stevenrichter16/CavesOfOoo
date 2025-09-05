@@ -112,6 +112,42 @@ export const THROWABLE_POTS = {
     }
   },
   
+  shock_pot: {
+    name: "Shock Pot",
+    desc: "A jar filled with electric eels that releases lightning on impact",
+    damage: 8,
+    tier: 2,
+    value: 35,
+    damageType: 'electric',
+    statusEffect: 'shock',
+    statusChance: 1.0,  // Always apply shock on direct hit
+    statusDuration: 3,
+    statusValue: 4,
+    stackable: true,
+    projectileConfig: {
+      type: 'electric',
+      speed: 80,
+      arcHeight: 0.4,
+      trail: true,
+      impactSymbols: ['z', 'Z', 'x', '+'],
+      animationSymbols: ['o', 'z', 'Z', 'z', 'o'],
+      displayKind: 'magic'
+    },
+    tileInteractions: {
+      '~': {
+        action: 'electrify',
+        message: "BZZZZT! The water becomes electrified!",
+        areaEffect: {
+          radius: 2,
+          damage: 10,
+          damageType: 'electric',
+          effect: 'electrify_water',
+          excludeSource: false
+        }
+      }
+    }
+  },
+  
   // Tier 3 pots
   royal_jelly_pot: {
     name: "Royal Jelly Pot",

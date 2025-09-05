@@ -184,13 +184,25 @@ async function processThrowEffects(state, targetX, targetY, item, inventoryIndex
     // Log the throw
     state.log(`You throw the ${item.name} at ${target.name}!`, "combat");
     
-    // Apply status effect if the pot has one
-    if (item.statusEffect && Math.random() < (item.statusChance || 0.2)) {
+    // Apply status effect if the pot has one AND target is still alive
+    if (item.statusEffect && target.alive && Math.random() < (item.statusChance || 0.2)) {
       applyStatusEffect(target, item.statusEffect, item.statusDuration || 3, item.statusValue || 0);
       const statusMsg = item.statusEffect === 'burn' ? 'burning' : 
                        item.statusEffect === 'freeze' ? 'frozen' :
-                       item.statusEffect === 'poison' ? 'poisoned' : item.statusEffect;
+                       item.statusEffect === 'poison' ? 'poisoned' :
+                       item.statusEffect === 'shock' ? 'shocked' : item.statusEffect;
       state.log(`${target.name} is ${statusMsg}!`, "magic");
+      
+      // Extra visual feedback for electric shock
+      if (item.statusEffect === 'shock') {
+        emit(EventType.FloatingText, {
+          x: targetX,
+          y: targetY,
+          text: 'ZAP!',
+          kind: 'crit',
+          duration: 600
+        });
+      }
     }
     
     // Visual feedback

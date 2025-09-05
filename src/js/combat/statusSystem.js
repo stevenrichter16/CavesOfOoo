@@ -171,17 +171,54 @@ export function applyStatusEffect(entity, type, turns, value = 0) {
   let modifiedValue = value;
   let modifiedTurns = turns;
   
-  // Wet amplifies shock damage and duration (check using Map)
+  // Check for instant kill conditions when applying shock
   if (type === 'shock') {
     const existingEffects = Status.get(entityId) || {};
-    const isWet = existingEffects['water_slow'] || existingEffects['wet'];
-    if (isWet) {
-      // Instant kill when wet + shocked
-      if (window.STATE?.log) {
+    const hasWet = existingEffects['wet'] || false;
+    const hasWaterSlow = existingEffects['water_slow'] || false;
+    
+    // Also check if entity is currently standing on water
+    const currentTile = window.STATE?.chunk?.map?.[entity.y]?.[entity.x];
+    const onWater = currentTile === '~';
+    
+    console.log(`[STATUS-SYSTEM] Shock application check:`);
+    console.log(`[STATUS-SYSTEM]   • Has wet status: ${hasWet}`);
+    console.log(`[STATUS-SYSTEM]   • Has water_slow: ${hasWaterSlow}`);
+    console.log(`[STATUS-SYSTEM]   • On water tile: ${onWater} (tile: ${currentTile})`);
+    console.log(`[STATUS-SYSTEM]   • Entity position: (${entity.x}, ${entity.y})`);
+    console.log(`[STATUS-SYSTEM]   • Existing effects:`, Object.keys(existingEffects));
+    
+    if (hasWet || hasWaterSlow || onWater) {
+      // Instant kill when wet + shocked OR shocked while on water
+      if (window.STATE) {
         const entityName = entity === window.STATE.player ? "You" : entity.name || "Enemy";
-        //window.STATE.log(window.STATE, "⚡💀 ELECTROCUTED! Being wet and shocked is lethal! 💀⚡", "bad");
+        const verb = entityName === "You" ? "are" : "was";
+        const reason = onWater ? "standing in water" : "wet";
+        
+        console.log(`[STATUS-SYSTEM] ⚡💀 INSTANT KILL TRIGGERED! Entity is ${reason}`);
+        window.STATE.log(`⚡💀 ${entityName} ${verb} ELECTROCUTED! Shocked while ${reason}! 💀⚡`, "bad");
+        
+        // Apply massive damage to instantly kill
+        entity.hp = 0;
+        entity.alive = false;
+        
+        // Emit death event directly (avoid async import)
+        emit(EventType.EntityDied, { 
+          id: entityId, 
+          name: entityName, 
+          cause: 'electrocution' 
+        });
+        
+        // Trigger immediate render
+        if (window.STATE.render && typeof window.STATE.render === 'function') {
+          window.STATE.render();
+        }
+        
+        // Don't apply the status effect since they're dead
+        return;
       }
-      // Note: Instant kill logic commented out per original
+    } else {
+      console.log(`[STATUS-SYSTEM] No instant kill conditions met for shock`);
     }
   }
   

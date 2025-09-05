@@ -50,6 +50,25 @@ export function makePlayer() {
       },
       id: generateItemId(),
       count: 3  // Start with 3 fire pots for testing candy dust explosions
+    },
+    {
+      type: "throwable",
+      item: {
+        id: "shock_pot",
+        name: "Shock Pot",
+        desc: "A jar filled with electric eels that releases lightning on impact",
+        damage: 8,
+        tier: 2,
+        value: 35,
+        damageType: 'electric',
+        statusEffect: 'shock',
+        statusChance: 0.5,
+        statusDuration: 2,
+        statusValue: 3,
+        stackable: true
+      },
+      id: generateItemId(),
+      count: 3  // Start with 3 shock pots
     }
   ];
   
@@ -77,7 +96,7 @@ export function makePlayer() {
 
 export function makeMonster(kind, x, y, tier = 1) {
   const templates = {
-    goober: { glyph: "g", name: "candy goober", hp: 6, str: 3, def: 0, spd: 2, xp: 2, ai: "chase" },
+    goober: { glyph: "g", name: "candy goober", hp: 60, str: 3, def: 0, spd: 2, xp: 2, ai: "chase" },
     icething: { glyph: "i", name: "ice-thing", hp: 8, str: 4, def: 1, spd: 1, xp: 3, ai: "chase" },
     sootling: { glyph: "s", name: "sootling", hp: 5, str: 3, def: 0, spd: 4, xp: 2, ai: "wander" },
     firefly: { glyph: "f", name: "firefly", hp: 3, str: 2, def: 0, spd: 6, xp: 1, ai: "skittish" },

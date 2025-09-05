@@ -1,6 +1,6 @@
 // src/engine/adapters/cavesOfOoo.js
 import { runPhase, runPhases } from '../sim.js';
-import { getEntityId, getStatusEffectsAsArray, Status } from '../../combat/statusSystem.js';
+import { getEntityId, getStatusEffectsAsArray, Status, applyStatusEffect } from '../../combat/statusSystem.js';
 import { emit } from '../../utils/events.js';
 import { EventType } from '../../utils/eventTypes.js';
 
@@ -154,6 +154,206 @@ function applyAreaEffect(state, source, act) {
         state.chunk.map[y][x] === '%') {
       console.log(`[ENGINE] Removing exploded candy dust at origin (${x},${y})`);
       state.chunk.map[y][x] = '.';
+    }
+  }
+  
+  // Check for water electrification
+  if (damageType === 'electric' && state.chunk?.map) {
+    const electrifiedTiles = [];
+    // Find all connected water tiles
+    const visited = new Set();
+    const queue = [[x, y]];
+    
+    while (queue.length > 0) {
+      const [cx, cy] = queue.shift();
+      const key = `${cx},${cy}`;
+      
+      if (visited.has(key)) continue;
+      visited.add(key);
+      
+      // Check if this position is water
+      if (cy >= 0 && cy < state.chunk.map.length &&
+          cx >= 0 && cx < state.chunk.map[0].length &&
+          state.chunk.map[cy][cx] === '~') {
+        electrifiedTiles.push({ x: cx, y: cy });
+        
+        // Check adjacent tiles (within radius)
+        const adjacentDirs = [[-1,0], [1,0], [0,-1], [0,1]];
+        for (const [dx, dy] of adjacentDirs) {
+          const nx = cx + dx;
+          const ny = cy + dy;
+          const dist = Math.sqrt((nx - x) * (nx - x) + (ny - y) * (ny - y));
+          if (dist <= radius && !visited.has(`${nx},${ny}`)) {
+            queue.push([nx, ny]);
+          }
+        }
+      }
+    }
+    
+    // First pass: Immediately check and mark all entities in electrified water
+    const shockedEntities = [];
+    let immediateKills = false;
+    electrifiedTiles.forEach(tile => {
+      // Check player
+      if (state.player && state.player.x === tile.x && state.player.y === tile.y) {
+        shockedEntities.push({ entity: state.player, x: tile.x, y: tile.y, isPlayer: true });
+        // Immediate visual feedback
+        emit(EventType.FloatingText, {
+          x: state.player.x,
+          y: state.player.y,
+          text: 'ZAP!',
+          kind: 'crit',
+          duration: 600
+        });
+      }
+      
+      // Check monsters - apply immediate damage and mark dead ones
+      if (state.chunk?.monsters) {
+        state.chunk.monsters.forEach(monster => {
+          if (monster.x === tile.x && monster.y === tile.y && monster.alive) {
+            // Apply immediate damage
+            const oldHp = monster.hp;
+            monster.hp = Math.max(0, monster.hp - damage);
+            
+            if (monster.hp <= 0) {
+              monster.alive = false;
+              immediateKills = true;
+              console.log(`[ENGINE] ${monster.name} instantly killed by electric water`);
+              
+              // Award XP for electric kill
+              if (state.player) {
+                state.player.xp = (state.player.xp || 0) + (monster.xpValue || 10);
+                state.player.kills = (state.player.kills || 0) + 1;
+              }
+              
+              if (state.log) state.log(`${monster.name} was electrocuted!`, "good");
+            } else {
+              shockedEntities.push({ entity: monster, x: tile.x, y: tile.y, isPlayer: false });
+            }
+            
+            // Immediate visual feedback
+            emit(EventType.FloatingText, {
+              x: monster.x,
+              y: monster.y,
+              text: monster.hp <= 0 ? 'DEAD!' : 'ZAP!',
+              kind: 'crit',
+              duration: 600
+            });
+          }
+        });
+      }
+    });
+    
+    // Immediately render to remove dead enemies
+    if (immediateKills && state.render && typeof state.render === 'function') {
+      state.render();
+    }
+    
+    // Apply electric effect to all water tiles and entities in them
+    let anyKills = false;
+    electrifiedTiles.forEach((tile, index) => {
+      // Animate electricity on water tiles
+      setTimeout(() => {
+        console.log(`[ENGINE] Electrifying water at (${tile.x},${tile.y})`);
+        
+        // Show electric animation on water
+        emit(EventType.FloatingText, {
+          x: tile.x,
+          y: tile.y,
+          text: 'z',
+          kind: 'magic',
+          duration: 500
+        });
+        
+        // Apply damage and status to any entity on this water tile
+        if (state.player && state.player.x === tile.x && state.player.y === tile.y) {
+          applyStatusEffect(state.player, 'shock', 3, 4);
+          state.player.hp -= damage;
+          
+          // Show shock effect on player
+          emit(EventType.FloatingText, {
+            x: state.player.x,
+            y: state.player.y,
+            text: 'SHOCKED!',
+            kind: 'magic',
+            duration: 800
+          });
+          
+          // Damage number
+          emit(EventType.FloatingText, {
+            x: state.player.x,
+            y: state.player.y,
+            text: `-${damage}`,
+            kind: 'damage',
+            duration: 600
+          });
+          
+          if (state.log) state.log("You're shocked by the electrified water!", "danger");
+        }
+        
+        // Check monsters (skip if already dead from immediate damage)
+        if (state.chunk?.monsters) {
+          state.chunk.monsters.forEach(monster => {
+            if (monster.x === tile.x && monster.y === tile.y && monster.alive && monster.hp > 0) {
+              // Only apply status effect in second pass (damage was already applied)
+              applyStatusEffect(monster, 'shock', 3, 4);
+              
+              // Show continuing shock effect on monster
+              emit(EventType.FloatingText, {
+                x: monster.x,
+                y: monster.y,
+                text: 'SHOCKED!',
+                kind: 'magic',
+                duration: 800
+              });
+              
+              if (state.log) state.log(`${monster.name} is shocked by the electrified water!`, "combat");
+            }
+          });
+        }
+        
+        // If this is the last tile and we had any kills, trigger render
+        if (index === electrifiedTiles.length - 1 && anyKills) {
+          if (state.render && typeof state.render === 'function') {
+            state.render();
+          }
+        }
+      }, index * 50); // Cascade effect
+    });
+    
+    // Create immediate and continuous electric animation on shocked entities
+    for (let i = 0; i < 8; i++) {
+      setTimeout(() => {
+        // Animate shocked entities immediately with more frequent updates
+        shockedEntities.forEach(shocked => {
+          if (shocked.entity.hp > 0 && (shocked.entity.alive !== false)) {
+            const entitySymbols = ['!', 'z', 'Z', 'x', '*'];
+            emit(EventType.FloatingText, {
+              x: shocked.entity.x,
+              y: shocked.entity.y,
+              text: entitySymbols[i % entitySymbols.length],
+              kind: i % 2 === 0 ? 'crit' : 'magic',
+              duration: 250
+            });
+          }
+        });
+      }, i * 250); // More frequent animations
+    }
+    
+    // Create continuous electric animation on water tiles for a few seconds
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        electrifiedTiles.forEach(tile => {
+          const symbols = ['z', 'Z', '~', 'z'];
+          emit(EventType.FloatingText, {
+            x: tile.x,
+            y: tile.y,
+            text: symbols[i % symbols.length],
+            kind: 'magic',
+            duration: 400
+          });
+        });
+      }, 500 + i * 400);
     }
   }
   

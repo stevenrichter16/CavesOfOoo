@@ -1,5 +1,5 @@
 // src/engine/rules.js
-/** @typedef {'apply'|'predamage'|'tick'|'postdamage'} Phase */
+/** @typedef {'preturn'|'movement'|'apply'|'predamage'|'damage'|'postdamage'|'tick'|'cleanup'} Phase */
 
 const RULES = [];
 
