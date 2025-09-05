@@ -112,6 +112,28 @@ export const THROWABLE_POTS = {
     }
   },
   
+  // Alias for mint_pot for consistency
+  ice_pot: {
+    name: "Ice Pot",
+    desc: "A freezing pot that deals cold damage",
+    damage: 10,
+    tier: 2,
+    value: 30,
+    statusEffect: 'freeze',
+    statusChance: 0.3,
+    statusDuration: 2,
+    stackable: true,
+    projectileConfig: {
+      type: 'ice',
+      speed: 100,
+      arcHeight: 0.5,
+      trail: false,
+      impactSymbols: ['*', '+', '*'],
+      animationSymbols: ['*', 'o', 'O', '*'],
+      displayKind: 'freeze'
+    }
+  },
+  
   shock_pot: {
     name: "Shock Pot",
     desc: "A jar filled with electric eels that releases lightning on impact",
@@ -196,13 +218,22 @@ export function getThrowablePot(id) {
 }
 
 /**
+ * Get all throwable pots
+ * @returns {Object} All throwable pot configurations
+ */
+export function getAllThrowablePots() {
+  return THROWABLE_POTS;
+}
+
+/**
  * Calculate damage for a thrown pot
  */
 export function calculateThrowDamage(pot, attacker) {
   let damage = pot.damage || 5;
   
-  // Add attacker's strength bonus (half of melee)
-  const strBonus = Math.floor((attacker.str || 10) / 4);
+  // Add attacker's strength bonus (half of melee strength bonus)
+  // This gives throwables a reasonable strength scaling without being as strong as melee
+  const strBonus = Math.floor((attacker.str || 0) / 2);
   damage += strBonus;
   
   // Add any equipment bonuses
