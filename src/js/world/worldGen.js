@@ -20,11 +20,11 @@ export function addWaterFeature(map, sr) {
   const waterType = sr.next();
   
   if (waterType < 0.4) {
-    // Create a pond
+    // Create a small pond (reduced size)
     const centerX = sr.between(5, W - 5);
     const centerY = sr.between(5, H - 5);
-    const radiusX = sr.between(2, 5);
-    const radiusY = sr.between(2, 4);
+    const radiusX = sr.between(1, 3);  // Reduced from 2-5
+    const radiusY = sr.between(1, 2);  // Reduced from 2-4
     
     for (let y = Math.max(1, centerY - radiusY); y < Math.min(H - 1, centerY + radiusY); y++) {
       for (let x = Math.max(1, centerX - radiusX); x < Math.min(W - 1, centerX + radiusX); x++) {
@@ -34,7 +34,7 @@ export function addWaterFeature(map, sr) {
         
         if (dist < 1.0) {
           // Make it water with some randomness for natural edges
-          if (dist < 0.7 || sr.next() < 0.6) {
+          if (dist < 0.7 || sr.next() < 0.4) {  // Reduced chance from 0.6
             map[y][x] = "~";
           }
         }
@@ -63,17 +63,15 @@ export function addWaterFeature(map, sr) {
     // Meander across the map
     let steps = 0;
     while (x > 0 && x < W - 1 && y > 0 && y < H - 1 && steps < 100) {
-      // Carve water and adjacent tiles for width
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx, ny = y + dy;
-          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
-            if (Math.abs(dx) + Math.abs(dy) <= 1) { // Main creek
-              map[ny][nx] = "~";
-            } else if (sr.next() < 0.3) { // Occasional wider spots
-              map[ny][nx] = "~";
-            }
-          }
+      // Carve a narrow water path
+      map[y][x] = "~";
+      
+      // Occasionally add adjacent water for slight width variation
+      if (sr.next() < 0.2) {  // 20% chance for wider spots
+        const dir = sr.pick([[1,0], [-1,0], [0,1], [0,-1]]);
+        const nx = x + dir[0], ny = y + dir[1];
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+          map[ny][nx] = "~";
         }
       }
       
@@ -89,18 +87,19 @@ export function addWaterFeature(map, sr) {
       steps++;
     }
   } else {
-    // Create scattered water pools
-    const poolCount = sr.between(3, 6);
+    // Create very small scattered water pools
+    const poolCount = sr.between(2, 4);  // Reduced from 3-6
     for (let i = 0; i < poolCount; i++) {
       const x = sr.between(2, W - 2);
       const y = sr.between(2, H - 2);
-      const size = sr.between(1, 3);
+      const size = sr.between(1, 2);  // Reduced from 1-3
       
       for (let dy = -size; dy <= size; dy++) {
         for (let dx = -size; dx <= size; dx++) {
           const nx = x + dx, ny = y + dy;
           if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
-            if (Math.abs(dx) + Math.abs(dy) <= size) {
+            // More restrictive - only adjacent tiles for size 2
+            if (Math.abs(dx) + Math.abs(dy) < size) {
               map[ny][nx] = "~";
             }
           }
@@ -113,20 +112,20 @@ export function addWaterFeature(map, sr) {
 export function carveRoom(map, room) {
   for (let y = room.y; y < room.y + room.h; y++) {
     for (let x = room.x; x < room.x + room.w; x++) {
-      if (y >= 0 && y < H && x >= 0 && x < W) map[y][x] = "~";
+      if (y >= 0 && y < H && x >= 0 && x < W) map[y][x] = ".";
     }
   }
 }
 
 export function carveCorridor(map, x1, y1, x2, y2) {
   while (x1 !== x2 || y1 !== y2) {
-    if (y1 >= 0 && y1 < H && x1 >= 0 && x1 < W) map[y1][x1] = "~";
+    if (y1 >= 0 && y1 < H && x1 >= 0 && x1 < W) map[y1][x1] = ".";
     if (x1 < x2) x1++;
     else if (x1 > x2) x1--;
     else if (y1 < y2) y1++;
     else if (y1 > y2) y1--;
   }
-  if (y2 >= 0 && y2 < H && x2 >= 0 && x2 < W) map[y2][x2] = "~";
+  if (y2 >= 0 && y2 < H && x2 >= 0 && x2 < W) map[y2][x2] = ".";
 }
 
 export function ensureEdgeExits(map, sr) {
@@ -412,8 +411,8 @@ export function genChunk(seed, cx, cy) {
     }
   }
   
-  // Add water features (40% chance per chunk)
-  if (sr.next() < 0.4) {
+  // Add water features (15% chance per chunk - reduced from 40%)
+  if (sr.next() < 0.15) {
     addWaterFeature(map, sr);
   }
   
