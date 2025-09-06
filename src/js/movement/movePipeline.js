@@ -4,8 +4,13 @@ import { EventType } from '../utils/eventTypes.js';
 import { entityAt, isPassable, tryEdgeTravel } from '../utils/queries.js';
 import { attack } from '../combat/combat.js';
 import { isNPCHostileToPlayer } from '../social/disguise.js';
+import { adaptRunPlayerMove, initializePipelineAdapter } from './pipelineAdapter.js';
 
-export function runPlayerMove(state, action) {
+// Initialize the pipeline adapter on module load
+initializePipelineAdapter();
+
+// Original implementation
+function runPlayerMoveOriginal(state, action) {
   if (!action || action.type !== 'move') return false;
 
   const p = state.player;
@@ -125,3 +130,6 @@ export function runPlayerMove(state, action) {
   });
   return true; // action consumed even if blocked
 }
+
+// Export the adapted version that can switch between old and new implementation
+export const runPlayerMove = adaptRunPlayerMove(runPlayerMoveOriginal);

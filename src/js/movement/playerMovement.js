@@ -120,9 +120,13 @@ export function loadOrGenChunk(state, cx, cy) {
   // Ensure items array exists
   if (!state.chunk.items) state.chunk.items = [];
   
-  // Spawn quest content for this chunk
-  import('../world/questChunks.js').then(module => {
-    module.spawnQuestContent(state, cx, cy);
+  // Emit chunk entered event for quest spawning
+  import('../systems/EventBus.js').then(module => {
+    const eventBus = module.getGameEventBus();
+    eventBus.emit('ChunkEntered', {
+      chunk: { x: cx, y: cy },
+      state: state
+    });
   });
   
   // If this is the graveyard, populate it

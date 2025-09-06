@@ -42,7 +42,8 @@ import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/so
 import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../social/dialogueTreesV2.js';
 import { candyKingdomDialoguesV3 } from '../data/candyKingdomDialoguesV3.js';
 import { starchyDialogues } from '../data/starchyDialogues.js';
-import { spawnQuestContent, onEnemyDefeated, onItemCollected } from '../world/questChunks.js';
+import { onEnemyDefeated, onItemCollected } from '../world/questChunks.js';
+import { getQuestSpawner } from '../systems/QuestSpawner.js';
 import * as questItems from '../items/questItems.js';  // Import quest items for immediate availability
 import { initCursorInspect } from '../ui/cursorInspect.js';
 
@@ -635,6 +636,10 @@ export function newWorld() {
   
   // Initialize social system for existing entities
   initializeSocialSystem(state);
+  
+  // Initialize quest spawner system
+  const questSpawner = getQuestSpawner();
+  console.log('🎯 [GAME] Quest spawner system initialized');
   
   // Load v3.0 Adventure Time authentic dialogue trees
   loadExpandedCandyKingdomDialogues(candyKingdomDialoguesV3);

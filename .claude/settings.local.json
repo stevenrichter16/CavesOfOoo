@@ -15,7 +15,9 @@
       "Bash(npm test:*)",
       "Bash(lsof:*)",
       "WebFetch(domain:adventuretime.fandom.com)",
-      "Bash(npx vitest run:*)"
+      "Bash(npx vitest run:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

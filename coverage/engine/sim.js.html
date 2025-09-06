@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90.32% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>56/62</span>
+                <span class='fraction'>0/62</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">80% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>12/15</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90.32% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>56/62</span>
+                <span class='fraction'>0/62</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -124,136 +124,136 @@
 <a name='L59'></a><a href='#L59'>59</a>
 <a name='L60'></a><a href='#L60'>60</a>
 <a name='L61'></a><a href='#L61'>61</a>
-<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">46x</span>
-<span class="cline-any cline-yes">46x</span>
-<span class="cline-any cline-yes">46x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">14x</span>
+<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-yes">46x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">46x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">31x</span>
-<span class="cline-any cline-yes">31x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span></td><td class="text"><pre class="prettyprint lang-js">// src/engine/sim.js
-import { getRulesForPhase } from './rules.js';
-&nbsp;
-export const PHASE_ORDER = ['preturn','apply','predamage','damage','postdamage','tick','cleanup'];
-&nbsp;
-/**
- * ctx: {
- *   entity: { statuses[], materials[] }, env:{...}, event:{...},
- *   queue:[], rand:fn, attacker?:{...}
- * }
- */
-export function runPhase(phase, ctx, options = {}) {
-  const { debug = false, stopOnError = false } = options;
-  ctx.queue = ctx.queue || [];
-  const rules = getRulesForPhase(phase);
-&nbsp;
-  console.log(`\n[ENGINE-PHASE] ═══ ${phase.toUpperCase()} PHASE ═══`);
-  console.log(`[ENGINE-PHASE] Evaluating ${rules.length} rule(s)...`);
-&nbsp;
-  let matchedCount = 0;
-  for (const r of rules) {
-    try {
-      const matches = r.when(ctx);
-      if (matches) {
-        matchedCount++;
-        console.log(`[ENGINE-PHASE] ✓ Rule #${matchedCount}: '${r.id}' MATCHED`);
-        const before = ctx.queue.length;
-        r.then(ctx);
-        const added = ctx.queue.length - before;
-        if (added &gt; 0) {
-          const actions = ctx.queue.slice(before);
-          console.log(`[ENGINE-PHASE]   → Actions queued: ${actions.map(a =&gt; a.type).join(', ')}`);
-        } else {
-          console.log(`[ENGINE-PHASE]   → Direct modification (no actions queued)`);
-        }
-        const newActs = ctx.queue.slice(before);
-        if (newActs.some(a =&gt; a.type === 'stopPhase')) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >// src/engine/sim.js<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" >import { getRulesForPhase } from './rules.js';</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export const PHASE_ORDER = ['preturn','movement','apply','predamage','damage','postdamage','tick','cleanup'];</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/**</span>
+<span class="cstat-no" title="statement not covered" > * ctx: {</span>
+<span class="cstat-no" title="statement not covered" > *   entity: { statuses[], materials[] }, env:{...}, event:{...},</span>
+<span class="cstat-no" title="statement not covered" > *   queue:[], rand:fn, attacker?:{...}</span>
+<span class="cstat-no" title="statement not covered" > * }</span>
+<span class="cstat-no" title="statement not covered" > */</span>
+<span class="cstat-no" title="statement not covered" >export function runPhase(phase, ctx, options = {}) {</span>
+<span class="cstat-no" title="statement not covered" >  const { debug = false, stopOnError = false } = options;</span>
+<span class="cstat-no" title="statement not covered" >  ctx.queue = ctx.queue || [];</span>
+<span class="cstat-no" title="statement not covered" >  const rules = getRulesForPhase(phase);</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  console.log(`\n[ENGINE-PHASE] ═══ ${phase.toUpperCase()} PHASE ═══`);</span>
+<span class="cstat-no" title="statement not covered" >  console.log(`[ENGINE-PHASE] Evaluating ${rules.length} rule(s)...`);</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  let matchedCount = 0;</span>
+<span class="cstat-no" title="statement not covered" >  for (const r of rules) {</span>
+<span class="cstat-no" title="statement not covered" >    try {</span>
+<span class="cstat-no" title="statement not covered" >      const matches = r.when(ctx);</span>
+<span class="cstat-no" title="statement not covered" >      if (matches) {</span>
+<span class="cstat-no" title="statement not covered" >        matchedCount++;</span>
+<span class="cstat-no" title="statement not covered" >        console.log(`[ENGINE-PHASE] ✓ Rule #${matchedCount}: '${r.id}' MATCHED`);</span>
+<span class="cstat-no" title="statement not covered" >        const before = ctx.queue.length;</span>
+<span class="cstat-no" title="statement not covered" >        r.then(ctx);</span>
+<span class="cstat-no" title="statement not covered" >        const added = ctx.queue.length - before;</span>
+<span class="cstat-no" title="statement not covered" >        if (added &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >          const actions = ctx.queue.slice(before);</span>
+<span class="cstat-no" title="statement not covered" >          console.log(`[ENGINE-PHASE]   → Actions queued: ${actions.map(a =&gt; a.type).join(', ')}`);</span>
+<span class="cstat-no" title="statement not covered" >        } else {</span>
+<span class="cstat-no" title="statement not covered" >          console.log(`[ENGINE-PHASE]   → Direct modification (no actions queued)`);</span>
+<span class="cstat-no" title="statement not covered" >        }</span>
+<span class="cstat-no" title="statement not covered" >        const newActs = ctx.queue.slice(before);</span>
+<span class="cstat-no" title="statement not covered" >        if (newActs.some(a =&gt; a.type === 'stopPhase')) {</span>
 <span class="cstat-no" title="statement not covered" >          console.log(`[ENGINE-PHASE] ⚠ Phase interrupted by '${r.id}'`);</span>
 <span class="cstat-no" title="statement not covered" >          break;</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
-      }
-    } <span class="branch-0 cbranch-no" title="branch not covered" >catch (err) {</span>
+<span class="cstat-no" title="statement not covered" >      }</span>
+<span class="cstat-no" title="statement not covered" >    } catch (err) {</span>
 <span class="cstat-no" title="statement not covered" >      console.error(`[ENGINE-PHASE] ❌ Error in rule '${r.id}':`, err.message);</span>
 <span class="cstat-no" title="statement not covered" >      if (stopOnError) throw err;</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-  }
-  
-  if (matchedCount === 0) {
-    console.log(`[ENGINE-PHASE] No rules matched for this phase`);
-  }
-  console.log(`[ENGINE-PHASE] Phase complete with ${ctx.queue.length} total actions`);
-  return ctx.queue;
-}
-&nbsp;
-export function runPhases(phases, ctx, options = {}) {
-  for (const p of phases) {
-    runPhase(p, ctx, options);
-    const stopAll = ctx.queue?.some(a =&gt; a.type === 'stopAllPhases');
-    if (stopAll) <span class="branch-0 cbranch-no" title="branch not covered" >break;</span>
-  }
-  return ctx.queue;
-}</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >  </span>
+<span class="cstat-no" title="statement not covered" >  if (matchedCount === 0) {</span>
+<span class="cstat-no" title="statement not covered" >    console.log(`[ENGINE-PHASE] No rules matched for this phase`);</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >  console.log(`[ENGINE-PHASE] Phase complete with ${ctx.queue.length} total actions`);</span>
+<span class="cstat-no" title="statement not covered" >  return ctx.queue;</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export function runPhases(phases, ctx, options = {}) {</span>
+<span class="cstat-no" title="statement not covered" >  for (const p of phases) {</span>
+<span class="cstat-no" title="statement not covered" >    runPhase(p, ctx, options);</span>
+<span class="cstat-no" title="statement not covered" >    const stopAll = ctx.queue?.some(a =&gt; a.type === 'stopAllPhases');</span>
+<span class="cstat-no" title="statement not covered" >    if (stopAll) break;</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >  return ctx.queue;</span>
+<span class="cstat-no" title="statement not covered" >}</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-31T21:46:49.696Z
+                at 2025-09-06T13:10:53.582Z
             </div>
         <script src="../prettify.js"></script>
         <script>

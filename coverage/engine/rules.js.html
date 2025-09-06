@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>47/47</span>
+                <span class='fraction'>0/47</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">87.75% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>43/49</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>14/14</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>47/47</span>
+                <span class='fraction'>0/47</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -109,106 +109,106 @@
 <a name='L44'></a><a href='#L44'>44</a>
 <a name='L45'></a><a href='#L45'>45</a>
 <a name='L46'></a><a href='#L46'>46</a>
-<a name='L47'></a><a href='#L47'>47</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">45x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">20x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">// src/engine/rules.js
-/** @typedef {'apply'|'predamage'|'tick'|'postdamage'} Phase */
-&nbsp;
-const RULES = [];
-&nbsp;
-/** Define a rule */
-export function rule(def) {
-  RULES.push({
-    id: def.id <span class="branch-0 cbranch-no" title="branch not covered" >|| `rule_${RULES.length}`,</span>
-    phase: def.phase <span class="branch-0 cbranch-no" title="branch not covered" >|| 'tick',</span>
-    priority: def.priority <span class="branch-0 cbranch-no" title="branch not covered" >?? 0,</span>
-    when: def.when <span class="branch-0 cbranch-no" title="branch not covered" >|| (() =&gt; false),</span>
-    then: def.then <span class="branch-0 cbranch-no" title="branch not covered" >|| (() =&gt; {})</span>
-  });
-}
-&nbsp;
-/** Get rules for a phase, ordered by priority (desc) */
-export function getRulesForPhase(phase /** @type {Phase} */) {
-  return RULES.filter(r =&gt; r.phase === phase).sort((a, b) =&gt; b.priority - a.priority);
-}
-&nbsp;
-/* ---------- Predicates (P) ---------- */
-export const P = {
-  hasStatus: (id) =&gt; (ctx) =&gt; ctx.entity.statuses?.some(s =&gt; s.id === id) || false,
-  hasAnyTag: (tag) =&gt; (ctx) =&gt;
-    (ctx.entity.statuses?.some(s =&gt; s.tags?.includes(tag)) ||
-     ctx.entity.materials?.some(m =&gt; m.tags?.includes(tag))) || false,
-  dmgTypeIs: (type) =&gt; (ctx) =&gt; ctx.event?.damage?.type === type,
-  exposedToFire: () =&gt; (ctx) =&gt;
-    P.hasStatus('burning')(ctx) || (ctx.env?.temperatureC <span class="branch-0 cbranch-no" title="branch not covered" >?? 0)</span> &gt;= (ctx.env?.autoIgniteAtC ?? 800),
-  and: (...ps) =&gt; (ctx) =&gt; ps.every(p =&gt; p(ctx)),
-  or:  (...ps) =&gt; (ctx) =&gt; ps.some(p =&gt; p(ctx)),
-};
-&nbsp;
-/* ---------- Actions (A) ---------- */
-export const A = {
-  addStatus: (id, props={}) =&gt; (ctx) =&gt; ctx.queue.push({ type:'addStatus', id, props }),
-  removeStatus: (id) =&gt; (ctx) =&gt; ctx.queue.push({ type:'removeStatus', id }),
-  damage: (amount, dtype) =&gt; (ctx) =&gt; ctx.queue.push({ type:'damage', amount, dtype }),
-  scaleIncomingDamage: (mult) =&gt; (ctx) =&gt; {
-    if (ctx.event?.damage) {
-      ctx.event.damage.amount = Math.max(0, Math.floor(ctx.event.damage.amount * mult));
-    }
-  },
-  consumeCoating: (id, qty='all') =&gt; (ctx) =&gt; ctx.queue.push({ type:'consumeCoating', id, qty }),
-  spawn: (what, props) =&gt; (ctx) =&gt; ctx.queue.push({ type:'spawn', what, props }),
-};</pre></td></tr></table></pre>
+<a name='L47'></a><a href='#L47'>47</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >// src/engine/rules.js</span></span></span>
+<span class="cstat-no" title="statement not covered" >/** @typedef {'preturn'|'movement'|'apply'|'predamage'|'damage'|'postdamage'|'tick'|'cleanup'} Phase */</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const RULES = [];</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** Define a rule */</span>
+<span class="cstat-no" title="statement not covered" >export function rule(def) {</span>
+<span class="cstat-no" title="statement not covered" >  RULES.push({</span>
+<span class="cstat-no" title="statement not covered" >    id: def.id || `rule_${RULES.length}`,</span>
+<span class="cstat-no" title="statement not covered" >    phase: def.phase || 'tick',</span>
+<span class="cstat-no" title="statement not covered" >    priority: def.priority ?? 0,</span>
+<span class="cstat-no" title="statement not covered" >    when: def.when || (() =&gt; false),</span>
+<span class="cstat-no" title="statement not covered" >    then: def.then || (() =&gt; {})</span>
+<span class="cstat-no" title="statement not covered" >  });</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** Get rules for a phase, ordered by priority (desc) */</span>
+<span class="cstat-no" title="statement not covered" >export function getRulesForPhase(phase /** @type {Phase} */) {</span>
+<span class="cstat-no" title="statement not covered" >  return RULES.filter(r =&gt; r.phase === phase).sort((a, b) =&gt; b.priority - a.priority);</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/* ---------- Predicates (P) ---------- */</span>
+<span class="cstat-no" title="statement not covered" >export const P = {</span>
+<span class="cstat-no" title="statement not covered" >  hasStatus: (id) =&gt; (ctx) =&gt; ctx.entity.statuses?.some(s =&gt; s.id === id) || false,</span>
+<span class="cstat-no" title="statement not covered" >  hasAnyTag: (tag) =&gt; (ctx) =&gt;</span>
+<span class="cstat-no" title="statement not covered" >    (ctx.entity.statuses?.some(s =&gt; s.tags?.includes(tag)) ||</span>
+<span class="cstat-no" title="statement not covered" >     ctx.entity.materials?.some(m =&gt; m.tags?.includes(tag))) || false,</span>
+<span class="cstat-no" title="statement not covered" >  dmgTypeIs: (type) =&gt; (ctx) =&gt; ctx.event?.damage?.type === type,</span>
+<span class="cstat-no" title="statement not covered" >  exposedToFire: () =&gt; (ctx) =&gt;</span>
+<span class="cstat-no" title="statement not covered" >    P.hasStatus('burning')(ctx) || (ctx.env?.temperatureC ?? 0) &gt;= (ctx.env?.autoIgniteAtC ?? 800),</span>
+<span class="cstat-no" title="statement not covered" >  and: (...ps) =&gt; (ctx) =&gt; ps.every(p =&gt; p(ctx)),</span>
+<span class="cstat-no" title="statement not covered" >  or:  (...ps) =&gt; (ctx) =&gt; ps.some(p =&gt; p(ctx)),</span>
+<span class="cstat-no" title="statement not covered" >};</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/* ---------- Actions (A) ---------- */</span>
+<span class="cstat-no" title="statement not covered" >export const A = {</span>
+<span class="cstat-no" title="statement not covered" >  addStatus: (id, props={}) =&gt; (ctx) =&gt; ctx.queue.push({ type:'addStatus', id, props }),</span>
+<span class="cstat-no" title="statement not covered" >  removeStatus: (id) =&gt; (ctx) =&gt; ctx.queue.push({ type:'removeStatus', id }),</span>
+<span class="cstat-no" title="statement not covered" >  damage: (amount, dtype) =&gt; (ctx) =&gt; ctx.queue.push({ type:'damage', amount, dtype }),</span>
+<span class="cstat-no" title="statement not covered" >  scaleIncomingDamage: (mult) =&gt; (ctx) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    if (ctx.event?.damage) {</span>
+<span class="cstat-no" title="statement not covered" >      ctx.event.damage.amount = Math.max(0, Math.floor(ctx.event.damage.amount * mult));</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  },</span>
+<span class="cstat-no" title="statement not covered" >  consumeCoating: (id, qty='all') =&gt; (ctx) =&gt; ctx.queue.push({ type:'consumeCoating', id, qty }),</span>
+<span class="cstat-no" title="statement not covered" >  spawn: (what, props) =&gt; (ctx) =&gt; ctx.queue.push({ type:'spawn', what, props }),</span>
+<span class="cstat-no" title="statement not covered" >};</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-08-31T21:46:49.696Z
+                at 2025-09-06T13:10:53.582Z
             </div>
         <script src="../prettify.js"></script>
         <script>
