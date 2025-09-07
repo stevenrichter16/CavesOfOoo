@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced NPC Social System Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #2a2a2a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            gap: 20px;
+        }
+        
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        canvas {
+            border: 2px solid #555;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+        
+        #info-panel {
+            width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .panel {
+            background: #333;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .panel h3 {
+            margin: 0 0 10px 0;
+            color: #ff69b4;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+        
+        #controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        
+        #advanced-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 5px;
+        }
+        
+        button {
+            background: #4a5a6a;
+            color: #fff;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        
+        button:hover {
+            background: #5a6a7a;
+        }
+        
+        .test-scenario {
+            background: #3a4a5a;
+            border-left: 3px solid #ff69b4;
+        }
+        
+        .memory-item {
+            margin: 3px 0;
+            padding: 3px;
+            background: #2a2a2a;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .rumor-flow {
+            font-size: 11px;
+            color: #88ff88;
+        }
+        
+        #rumor-network {
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .npc-memory {
+            margin: 5px 0;
+            padding: 5px;
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+        
+        .accuracy-bar {
+            height: 10px;
+            background: linear-gradient(to right, red 0%, yellow 50%, green 100%);
+            border-radius: 3px;
+            position: relative;
+        }
+        
+        .accuracy-marker {
+            position: absolute;
+            top: -2px;
+            width: 2px;
+            height: 14px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="640" height="640"></canvas>
+        
+        <div class="panel">
+            <h3>🧪 Complex Test Scenarios</h3>
+            <div id="advanced-controls">
+                <button onclick="testRumorChain()" class="test-scenario">
+                    🔗 Test Rumor Chain Degradation
+                </button>
+                <button onclick="testMemoryPriority()" class="test-scenario">
+                    🧠 Test Memory Priority System
+                </button>
+                <button onclick="testFactionPropagation()" class="test-scenario">
+                    ⚔️ Test Faction Reputation Cascade
+                </button>
+                <button onclick="testRumorMutation()" class="test-scenario">
+                    🔄 Test Rumor Evolution
+                </button>
+                <button onclick="testSelectiveSharing()" class="test-scenario">
+                    🤐 Test Selective Rumor Sharing
+                </button>
+                <button onclick="testCrimeWitness()" class="test-scenario">
+                    👁️ Test Crime Witness System
+                </button>
+                <button onclick="createRumorBomb()" class="test-scenario">
+                    💣 Create Rumor Bomb (10 rumors)
+                </button>
+                <button onclick="testDistanceDecay()" class="test-scenario">
+                    📏 Test Distance-Based Spreading
+                </button>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <button onclick="generateCombatRumor()">⚔️ Combat Rumor</button>
+            <button onclick="generateTradeRumor()">💰 Trade Rumor</button>
+            <button onclick="generateAssassinationRumor()">🗡️ Assassination</button>
+            <button onclick="generateDiscoveryRumor()">💎 Discovery</button>
+            <button onclick="clearAllRumors()">🗑️ Clear Rumors</button>
+            <button onclick="resetRelations()">🤝 Reset Relations</button>
+        </div>
+    </div>
+    
+    <div id="info-panel">
+        <div class="panel">
+            <h3>📊 Rumor Network Visualization</h3>
+            <div id="rumor-network"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>🧠 NPC Memory States</h3>
+            <div id="memory-states"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>📈 Rumor Accuracy Tracking</h3>
+            <div id="accuracy-tracking"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>🔄 Rumor Flow Log</h3>
+            <div id="rumor-flow" style="max-height: 150px; overflow-y: auto;"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>🎯 Test Results</h3>
+            <div id="test-results" style="font-size: 12px;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { CandyTestWorld } from './src/testWorld/CandyTestWorld.js';
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const TILE_SIZE = 32;
+        
+        let world;
+        let animationFrame = 0;
+        let rumorFlowLog = [];
+        
+        // Make logRumorFlow globally accessible
+        window.logRumorFlow = function(from, to, rumor) {
+            const entry = {
+                time: new Date().toLocaleTimeString(),
+                from,
+                to,
+                rumor: rumor.type,
+                accuracy: (rumor.accuracy * 100).toFixed(0) + '%'
+            };
+            
+            // Detailed console logging - fully visible without expansion needed
+            console.group(`📢 RUMOR SHARED: ${from} → ${to}`);
+            
+            // Output as formatted JSON STRING (always visible, no expansion needed)
+            console.log('%cFull Details:', 'color: #4CAF50; font-weight: bold');
+            console.log(JSON.stringify({
+                from: from,
+                to: to,
+                rumorId: rumor.id,
+                type: rumor.type,
+                severity: rumor.severity,
+                details: rumor.details,
+                accuracy: `${(rumor.accuracy * 100).toFixed(1)}%`,
+                spreadCount: rumor.spreadCount || 0,
+                sentiment: rumor.sentiment,
+                position: rumor.position,
+                timestamp: rumor.timestamp ? new Date(rumor.timestamp).toLocaleTimeString() : 'N/A'
+            }, null, 2));  // Pretty printed with 2-space indent
+            
+            // Alternative: Log each property individually (also always visible)
+            console.log(`  📍 From: ${from} → To: ${to}`);
+            console.log(`  🆔 Rumor ID: ${rumor.id}`);
+            console.log(`  📝 Type: ${rumor.type} | Severity: ${rumor.severity}`);
+            console.log(`  💬 Details: "${rumor.details}"`);
+            console.log(`  📊 Accuracy: ${(rumor.accuracy * 100).toFixed(1)}% | Spread Count: ${rumor.spreadCount || 0}`);
+            console.log(`  🎭 Sentiment: ${rumor.sentiment || 'neutral'}`);
+            if (rumor.position) {
+                console.log(`  📌 Position: (${rumor.position.x}, ${rumor.position.y})`);
+            }
+            
+            console.groupEnd();
+            
+            rumorFlowLog.unshift(entry);
+            if (rumorFlowLog.length > 20) rumorFlowLog.pop();
+            
+            updateRumorFlowDisplay();
+        };
+        
+        // Initialize world
+        async function init() {
+            world = new CandyTestWorld();
+            window.world = world; // For debugging
+            
+            // Add more NPCs for complex testing
+            addExtraNPCs();
+            
+            // Initialize NPC properties
+            world.npcs.forEach(npc => {
+                if (npc.hp === undefined) npc.hp = 100;
+                if (!npc.evaluateHostilityTo) {
+                    npc.evaluateHostilityTo = function(entity) {
+                        const relation = this.getRelationTo(entity);
+                        return {
+                            hostile: relation < -0.3,
+                            hostilityLevel: Math.abs(relation),
+                            reason: relation < -0.3 ? 'low_relation' : null
+                        };
+                    };
+                }
+                
+                // Patch shareRumorsWith to handle both Rumor instances and plain objects
+                const originalShare = npc.shareRumorsWith;
+                if (originalShare) {
+                    npc.shareRumorsWith = function(other) {
+                        try {
+                            // Try the original method first
+                            return originalShare.call(this, other);
+                        } catch (e) {
+                            // If it fails, use fallback for plain objects
+                            if (e.message && e.message.includes('createSpreadCopy')) {
+                                const relation = this.getRelationTo ? this.getRelationTo(other) : 0;
+                                if (relation < -0.3) return false;
+                                
+                                const rumorsToShare = this.memory.rumors.filter(r => 
+                                    !other.memory.rumorIds.has(r.id)
+                                );
+                                
+                                let shared = false;
+                                for (const rumor of rumorsToShare) {
+                                    const spreadCopy = rumor.createSpreadCopy ? 
+                                        rumor.createSpreadCopy() :
+                                        {
+                                            ...rumor,
+                                            id: rumor.id,
+                                            accuracy: Math.max(0.1, (rumor.accuracy || 1) - 0.15),
+                                            spreadCount: (rumor.spreadCount || 0) + 1
+                                        };
+                                    
+                                    const wasHeard = other.hearRumor(spreadCopy);
+                                    if (wasHeard) {
+                                        shared = true;
+                                        
+                                        // Log successful sharing
+                                        if (window.logRumorFlow) {
+                                            window.logRumorFlow(this.name, other.name, spreadCopy);
+                                        }
+                                    }
+                                }
+                                return shared;
+                            }
+                            throw e;
+                        }
+                    };
+                }
+            });
+            
+            // Track rumor sharing
+            trackRumorSharing();
+            
+            // Start game loop
+            gameLoop();
+            
+            // Update panels frequently
+            setInterval(updateAdvancedPanels, 500);
+        }
+        
+        function addExtraNPCs() {
+            // Add more NPCs for complex testing
+            const { NPC } = world.constructor.__proto__.constructor;
+            
+            // Add a spy who shares everything
+            const spy = {
+                id: 'spy-sam',
+                name: 'Spy Sam',
+                role: 'spy',
+                factions: ['ice_spies'],
+                x: 5,
+                y: 5,
+                hp: 100,
+                perception: 0.9,
+                movementType: 'wander',
+                memory: {
+                    rumors: [],
+                    rumorIds: new Set(),
+                    maxRumors: 20, // Spies remember more
+                    lastUpdate: Date.now(),
+                    factionImpacts: {}
+                }
+            };
+            
+            // Add custom behavior methods
+            spy.getDialogue = function(player) {
+                if (this.memory.rumors.length > 0) {
+                    const secrets = this.memory.rumors.filter(r => r.severity >= 3);
+                    if (secrets.length > 0) {
+                        return `Psst... I know ${secrets.length} secrets. Want to trade information?`;
+                    }
+                }
+                return "I hear many things in my travels...";
+            };
+            
+            spy.shareRumorsWith = function(other) {
+                // Spies share everything with everyone (no faction restriction)
+                // They ignore normal social rules about not sharing negative info
+                const toShare = this.memory.rumors.filter(r => 
+                    !other.memory.rumorIds.has(r.id)
+                );
+                
+                if (toShare.length > 0) {
+                    console.log(`🕵️ Spy ${this.name} shares ${toShare.length} rumors (ignoring social rules)`);
+                }
+                
+                toShare.forEach(rumor => {
+                    // Use the rumor's createSpreadCopy method if it exists
+                    const spreadCopy = rumor.createSpreadCopy ? 
+                        rumor.createSpreadCopy() : 
+                        {
+                            ...rumor,
+                            accuracy: Math.max(0.1, rumor.accuracy - 0.15),
+                            spreadCount: (rumor.spreadCount || 0) + 1
+                        };
+                    
+                    const wasHeard = other.hearRumor(spreadCopy);
+                    
+                    // Log the sharing if successful
+                    if (wasHeard && window.logRumorFlow) {
+                        window.logRumorFlow(this.name, other.name, spreadCopy);
+                    }
+                });
+            };
+            
+            world.npcs.push(spy);
+            
+            // Add a gossip who embellishes rumors
+            const gossip = {
+                id: 'gossip-greta',
+                name: 'Gossip Greta',
+                role: 'gossip',
+                factions: ['candy_citizens'],
+                x: 15,
+                y: 15,
+                hp: 100,
+                perception: 0.3,
+                movementType: 'wander',
+                memory: {
+                    rumors: [],
+                    rumorIds: new Set(),
+                    maxRumors: 15,
+                    lastUpdate: Date.now(),
+                    factionImpacts: {}
+                }
+            };
+            
+            gossip.hearRumor = function(rumor) {
+                // Gossips embellish severity
+                const embellished = {
+                    ...rumor,
+                    severity: Math.min(4, rumor.severity + 1),
+                    details: rumor.details + " (or so I heard!)",
+                    accuracy: rumor.accuracy * 0.7 // Less accurate
+                };
+                
+                if (!this.memory.rumorIds.has(rumor.id)) {
+                    this.memory.rumors.push(embellished);
+                    this.memory.rumorIds.add(rumor.id);
+                    
+                    // Trim if over limit
+                    while (this.memory.rumors.length > this.memory.maxRumors) {
+                        const removed = this.memory.rumors.shift();
+                        this.memory.rumorIds.delete(removed.id);
+                    }
+                }
+            };
+            
+            world.npcs.push(gossip);
+            
+            // Helper methods for all NPCs
+            world.npcs.forEach(npc => {
+                console.log(`🔧 Initializing NPC: ${npc.name || npc.id}`);
+                
+                if (!npc.memory) {
+                    npc.memory = {
+                        rumors: [],
+                        rumorIds: new Set(),
+                        maxRumors: npc.memory?.maxRumors || 10,
+                        lastUpdate: Date.now(),
+                        factionImpacts: {}
+                    };
+                    console.log(`  ✓ Added memory to ${npc.name}`);
+                }
+                
+                // Always add/override hearRumor to ensure logging works
+                const originalHearRumor = npc.hearRumor;
+                if (originalHearRumor && typeof originalHearRumor === 'function') {
+                    // Wrap existing method
+                    npc.hearRumor = function(rumor) {
+                        // Check if already known first
+                        if (this.memory && this.memory.rumorIds && this.memory.rumorIds.has(rumor.id)) {
+                            console.log(`🔄 ${this.name} already knows rumor ${rumor.id}`);
+                            return false;
+                        }
+                        
+                        const result = originalHearRumor.call(this, rumor);
+                        
+                        if (result) {
+                            console.log(`👂 ${this.name} HEARD NEW RUMOR:`, {
+                                npcName: this.name,
+                                memoryNow: `${this.memory.rumors.length}/${this.memory.maxRumors}`,
+                                rumorId: rumor.id,
+                                type: rumor.type,
+                                severity: rumor.severity,
+                                accuracy: rumor.accuracy ? `${(rumor.accuracy * 100).toFixed(1)}%` : '100%',
+                                details: rumor.details
+                            });
+                        }
+                        
+                        return result;
+                    };
+                } else {
+                    npc.hearRumor = function(rumor) {
+                        if (!this.memory.rumorIds.has(rumor.id)) {
+                            console.log(`👂 ${this.name} HEARD RUMOR:`, {
+                                npcName: this.name,
+                                memoryBefore: `${this.memory.rumors.length}/${this.memory.maxRumors}`,
+                                rumorId: rumor.id,
+                                type: rumor.type,
+                                severity: rumor.severity,
+                                accuracy: `${(rumor.accuracy * 100).toFixed(1)}%`,
+                                details: rumor.details
+                            });
+                            
+                            this.memory.rumors.push(rumor);
+                            this.memory.rumorIds.add(rumor.id);
+                            
+                            // Check if memory overflow
+                            if (this.memory.rumors.length > this.memory.maxRumors) {
+                                const removed = [];
+                                while (this.memory.rumors.length > this.memory.maxRumors) {
+                                    const forgotten = this.memory.rumors.shift();
+                                    this.memory.rumorIds.delete(forgotten.id);
+                                    removed.push(forgotten);
+                                }
+                                
+                                console.log(`🧠 ${this.name} MEMORY OVERFLOW - Forgot ${removed.length} rumor(s):`, {
+                                    npcName: this.name,
+                                    memoryNow: `${this.memory.rumors.length}/${this.memory.maxRumors}`,
+                                    forgotten: removed.map(r => ({
+                                        id: r.id,
+                                        type: r.type,
+                                        severity: r.severity
+                                    }))
+                                });
+                            }
+                            return true; // Return true when rumor was heard
+                        } else {
+                            console.log(`🔄 ${this.name} already knows rumor ${rumor.id}`);
+                            return false; // Return false for duplicates
+                        }
+                    };
+                }
+                
+                // Add shareRumorsWith if it doesn't exist
+                if (!npc.shareRumorsWith) {
+                    npc.shareRumorsWith = function(other) {
+                        // Only share with non-hostile NPCs
+                        const relation = this.getRelationTo ? this.getRelationTo(other) : 0;
+                        if (relation < -0.3) return; // Don't share with enemies
+                        
+                        const toShare = this.memory.rumors.filter(r => {
+                            // Don't share if other already knows
+                            if (other.memory.rumorIds.has(r.id)) return false;
+                            
+                            // Don't share negative rumors about the recipient's factions
+                            if (r.sentiment < -0.2 && r.factions?.length > 0) {
+                                const targetsFriendlyFaction = r.factions.some(f => 
+                                    other.factions?.includes(f)
+                                );
+                                
+                                if (targetsFriendlyFaction) {
+                                    // Only share if we're close allies (relation > 0.8)
+                                    if (relation < 0.8) {
+                                        console.log(`🚫 ${this.name} won't share negative rumor about ${r.factions} with ${other.name} (their faction)`);
+                                        return false; // Don't share negative rumor about their faction
+                                    }
+                                }
+                            }
+                            
+                            return true;
+                        });
+                        
+                        toShare.forEach(rumor => {
+                            // Use the rumor's createSpreadCopy method if it exists
+                            const spreadCopy = rumor.createSpreadCopy ? 
+                                rumor.createSpreadCopy() : 
+                                {
+                                    ...rumor,
+                                    id: rumor.id, // Keep same ID
+                                    accuracy: Math.max(0.1, (rumor.accuracy || 1) - 0.15),
+                                    spreadCount: (rumor.spreadCount || 0) + 1
+                                };
+                            
+                            if (other.hearRumor) {
+                                const wasHeard = other.hearRumor(spreadCopy);
+                                
+                                // Log the sharing if successful
+                                if (wasHeard && window.logRumorFlow) {
+                                    window.logRumorFlow(this.name, other.name, spreadCopy);
+                                }
+                            }
+                        });
+                    };
+                }
+                
+                if (!npc.getRelationTo) {
+                    npc.getRelationTo = function(entity) {
+                        if (!this._relations) this._relations = new Map();
+                        const key = entity.factions ? entity.factions.join(',') : entity.name;
+                        return this._relations.get(key) || 0;
+                    };
+                }
+                
+                if (!npc.adjustRelationTo) {
+                    npc.adjustRelationTo = function(entity, amount) {
+                        if (!this._relations) this._relations = new Map();
+                        const key = entity.factions ? entity.factions.join(',') : entity.name;
+                        const current = this._relations.get(key) || 0;
+                        this._relations.set(key, Math.max(-1, Math.min(1, current + amount)));
+                    };
+                }
+            });
+        }
+        
+        function trackRumorSharing() {
+            // Override processRumorSharing to track flow
+            const originalProcess = world.processRumorSharing.bind(world);
+            world.processRumorSharing = function() {
+                console.log('🔄 PROCESSING RUMOR SHARING CYCLE');
+                
+                // Log NPC positions and memory states
+                const npcStates = this.npcs.map(npc => ({
+                    name: npc.name,
+                    position: `(${npc.x}, ${npc.y})`,
+                    rumors: npc.memory.rumors.length,
+                    memory: `${npc.memory.rumors.length}/${npc.memory.maxRumors}`
+                }));
+                console.log('📍 NPC States:', npcStates);
+                
+                // Check proximities
+                const proximityPairs = [];
+                for (let i = 0; i < this.npcs.length; i++) {
+                    for (let j = i + 1; j < this.npcs.length; j++) {
+                        const npc1 = this.npcs[i];
+                        const npc2 = this.npcs[j];
+                        const distance = Math.sqrt(
+                            Math.pow(npc1.x - npc2.x, 2) + 
+                            Math.pow(npc1.y - npc2.y, 2)
+                        );
+                        
+                        if (distance <= 5) {
+                            proximityPairs.push({
+                                pair: `${npc1.name} <-> ${npc2.name}`,
+                                distance: distance.toFixed(1)
+                            });
+                        }
+                    }
+                }
+                
+                if (proximityPairs.length > 0) {
+                    console.log('👥 NPCs in sharing range:', proximityPairs);
+                }
+                
+                originalProcess();
+                updateRumorNetwork();
+            };
+        }
+        
+        function updateRumorFlowDisplay() {
+            const container = document.getElementById('rumor-flow');
+            container.innerHTML = rumorFlowLog.map(entry => 
+                `<div class="rumor-flow">
+                    ${entry.time}: ${entry.from} → ${entry.to}: 
+                    ${entry.rumor} (${entry.accuracy})
+                </div>`
+            ).join('');
+        }
+        
+        function updateAdvancedPanels() {
+            updateMemoryStates();
+            updateAccuracyTracking();
+            updateRumorNetwork();
+        }
+        
+        function updateMemoryStates() {
+            const container = document.getElementById('memory-states');
+            let html = '';
+            
+            world.npcs.forEach(npc => {
+                const rumors = npc.memory.rumors;
+                const capacity = (rumors.length / npc.memory.maxRumors * 100).toFixed(0);
+                
+                html += `
+                    <div class="npc-memory">
+                        <strong>${npc.name}</strong> (${npc.role})
+                        <div>Memory: ${rumors.length}/${npc.memory.maxRumors} (${capacity}% full)</div>
+                        ${rumors.slice(0, 3).map(r => `
+                            <div class="memory-item">
+                                • ${r.type}: "${r.details.substring(0, 40)}..."
+                                <br>Accuracy: ${(r.accuracy * 100).toFixed(0)}% | 
+                                Spread: ${r.spreadCount || 0}x
+                            </div>
+                        `).join('')}
+                        ${rumors.length > 3 ? `<div>...and ${rumors.length - 3} more</div>` : ''}
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html || 'No memories yet';
+        }
+        
+        function updateAccuracyTracking() {
+            const container = document.getElementById('accuracy-tracking');
+            const allRumors = new Map();
+            
+            // Collect all versions of each rumor
+            world.npcs.forEach(npc => {
+                npc.memory.rumors.forEach(rumor => {
+                    if (!allRumors.has(rumor.id)) {
+                        allRumors.set(rumor.id, []);
+                    }
+                    allRumors.get(rumor.id).push({
+                        npc: npc.name,
+                        accuracy: rumor.accuracy,
+                        spreadCount: rumor.spreadCount || 0
+                    });
+                });
+            });
+            
+            let html = '';
+            allRumors.forEach((versions, rumorId) => {
+                const avgAccuracy = versions.reduce((sum, v) => sum + v.accuracy, 0) / versions.length;
+                const maxSpread = Math.max(...versions.map(v => v.spreadCount));
+                
+                html += `
+                    <div style="margin: 10px 0;">
+                        <div>Rumor ${rumorId.substring(0, 8)}...</div>
+                        <div class="accuracy-bar">
+                            <div class="accuracy-marker" style="left: ${avgAccuracy * 100}%"></div>
+                        </div>
+                        <div style="font-size: 10px;">
+                            Avg: ${(avgAccuracy * 100).toFixed(0)}% | 
+                            Spread: ${maxSpread}x | 
+                            Carriers: ${versions.length}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html || 'No rumors to track';
+        }
+        
+        function updateRumorNetwork() {
+            const container = document.getElementById('rumor-network');
+            const network = new Map();
+            
+            // Build network of who knows what
+            world.npcs.forEach(npc => {
+                const connections = [];
+                npc.memory.rumors.forEach(rumor => {
+                    // Find who else knows this rumor
+                    world.npcs.forEach(other => {
+                        if (other.id !== npc.id && other.memory.rumorIds.has(rumor.id)) {
+                            connections.push(other.name);
+                        }
+                    });
+                });
+                
+                if (connections.length > 0) {
+                    network.set(npc.name, [...new Set(connections)]);
+                }
+            });
+            
+            let html = '<div style="font-family: monospace;">';
+            network.forEach((connections, npcName) => {
+                html += `<div>${npcName} ↔ ${connections.join(', ')}</div>`;
+            });
+            html += '</div>';
+            
+            container.innerHTML = html || 'No rumor connections yet';
+        }
+        
+        // Complex test scenarios
+        window.testRumorChain = function() {
+            console.log('🧪 === STARTING RUMOR CHAIN TEST ===');
+            
+            const rumor = world.createRumor({
+                type: 'assassination',
+                severity: 4,
+                details: 'The King was poisoned at dinner!',
+                position: { x: 10, y: 10 },
+                accuracy: 1.0
+            });
+            
+            console.log('🆕 CRITICAL RUMOR CREATED FOR CHAIN TEST:', {
+                id: rumor.id,
+                type: rumor.type,
+                severity: rumor.severity,
+                details: rumor.details,
+                maxSpreadDistance: rumor.maxSpreadDistance
+            });
+            
+            // Start chain with Bob
+            const bob = world.npcs.find(n => n.id === 'guard-bob');
+            bob.hearRumor(rumor);
+            
+            showTestResult('Rumor Chain Test Started', 
+                'Watch as the rumor spreads and degrades. Check accuracy tracking panel.');
+            
+            // Force rapid spreading for testing
+            let spreads = 0;
+            const interval = setInterval(() => {
+                console.log(`⏱️ Forcing spread cycle ${spreads + 1}/10`);
+                world.processRumorSharing();
+                spreads++;
+                if (spreads > 10) {
+                    clearInterval(interval);
+                    console.log('🏁 === RUMOR CHAIN TEST COMPLETE ===');
+                    
+                    // Summary
+                    const summary = world.npcs.map(npc => {
+                        const hasRumor = npc.memory.rumors.find(r => r.id === rumor.id);
+                        return {
+                            name: npc.name,
+                            hasRumor: !!hasRumor,
+                            accuracy: hasRumor ? `${(hasRumor.accuracy * 100).toFixed(1)}%` : 'N/A',
+                            spreadCount: hasRumor ? hasRumor.spreadCount : 'N/A'
+                        };
+                    });
+                    console.log('📊 FINAL RUMOR DISTRIBUTION:', summary);
+                }
+            }, 500);
+        };
+        
+        window.testMemoryPriority = function() {
+            // Fill Tim's memory with minor rumors
+            const tim = world.npcs.find(n => n.id === 'citizen-tim');
+            
+            for (let i = 0; i < 8; i++) {
+                tim.hearRumor(world.createRumor({
+                    type: 'trade',
+                    severity: 1,
+                    details: `Minor trade news ${i}`,
+                    position: { x: 10, y: 10 }
+                }));
+            }
+            
+            showTestResult('Memory at 80% capacity', 
+                `Tim has ${tim.memory.rumors.length} minor rumors`);
+            
+            // Now add critical rumors
+            for (let i = 0; i < 5; i++) {
+                tim.hearRumor(world.createRumor({
+                    type: 'assassination',
+                    severity: 4,
+                    details: `Critical news ${i}!`,
+                    position: { x: 10, y: 10 }
+                }));
+            }
+            
+            // Check what got retained
+            const critical = tim.memory.rumors.filter(r => r.severity >= 3).length;
+            const minor = tim.memory.rumors.filter(r => r.severity <= 2).length;
+            
+            showTestResult('Memory Priority Test Complete', 
+                `Retained: ${critical} critical, ${minor} minor rumors (of ${tim.memory.maxRumors} max)`);
+        };
+        
+        window.testFactionPropagation = function() {
+            // Attack a guard and see faction impact
+            const bob = world.npcs.find(n => n.id === 'guard-bob');
+            const initialRelations = {};
+            
+            world.npcs.forEach(npc => {
+                initialRelations[npc.name] = npc.getRelationTo(world.player);
+            });
+            
+            // Create attack rumor
+            const rumor = world.createRumor({
+                type: 'combat',
+                severity: 3,
+                details: 'Someone attacked Guard Bob!',
+                factions: ['player'],
+                sentiment: -0.8,
+                position: { x: bob.x, y: bob.y }
+            });
+            
+            // Spread to all guards
+            world.npcs.filter(n => n.factions && n.factions.includes('banana_guard'))
+                .forEach(guard => guard.hearRumor(rumor));
+            
+            const newRelations = {};
+            world.npcs.forEach(npc => {
+                newRelations[npc.name] = npc.getRelationTo(world.player);
+            });
+            
+            showTestResult('Faction Propagation Test', 
+                'Relations changed: ' + JSON.stringify(newRelations, null, 2));
+        };
+        
+        window.testRumorMutation = function() {
+            const original = world.createRumor({
+                type: 'discovery',
+                severity: 2,
+                details: 'Found some gems in a cave',
+                position: { x: 10, y: 10 },
+                accuracy: 1.0
+            });
+            
+            // Give to Gossip Greta
+            const greta = world.npcs.find(n => n.id === 'gossip-greta');
+            if (greta) {
+                greta.hearRumor(original);
+                
+                const mutated = greta.memory.rumors[greta.memory.rumors.length - 1];
+                showTestResult('Rumor Mutation Test', 
+                    `Original: "${original.details}" (severity: ${original.severity})
+                    \nMutated: "${mutated.details}" (severity: ${mutated.severity})`);
+            }
+        };
+        
+        window.testSelectiveSharing = function() {
+            console.log('🧪 === TESTING SELECTIVE RUMOR SHARING ===');
+            
+            // Clear all rumors first
+            world.npcs.forEach(npc => {
+                npc.memory.rumors = [];
+                npc.memory.rumorIds.clear();
+            });
+            
+            // Create negative rumor about banana guards
+            const negativeRumor = world.createRumor({
+                type: 'corruption',
+                severity: 3,
+                details: 'Banana guards taking bribes!',
+                factions: ['banana_guard'],
+                sentiment: -0.9
+            });
+            
+            // Create positive rumor about banana guards
+            const positiveRumor = world.createRumor({
+                type: 'heroic_act',
+                severity: 2,
+                details: 'Banana guards saved the princess!',
+                factions: ['banana_guard'],
+                sentiment: 0.8
+            });
+            
+            // Give both rumors to Citizen Tim
+            const tim = world.npcs.find(n => n.id === 'citizen-tim');
+            const bob = world.npcs.find(n => n.id === 'guard-bob');
+            
+            console.log('📝 Giving rumors to Tim...');
+            tim.hearRumor(negativeRumor);
+            tim.hearRumor(positiveRumor);
+            
+            console.log(`📊 Tim has ${tim.memory.rumors.length} rumors`);
+            console.log(`📊 Bob's factions: ${bob.factions.join(', ')}`);
+            
+            // Try to share with guard (negative should be blocked, positive should share)
+            const beforeCount = bob.memory.rumors.length;
+            console.log(`📊 Bob has ${beforeCount} rumors before sharing`);
+            
+            tim.shareRumorsWith(bob);
+            
+            const afterCount = bob.memory.rumors.length;
+            console.log(`📊 Bob has ${afterCount} rumors after sharing`);
+            
+            // Check what Bob received
+            const receivedNegative = bob.memory.rumors.some(r => r.sentiment < 0);
+            const receivedPositive = bob.memory.rumors.some(r => r.sentiment > 0);
+            
+            console.log(`✅ Positive rumor shared: ${receivedPositive}`);
+            console.log(`🚫 Negative rumor blocked: ${!receivedNegative}`);
+            
+            const success = receivedPositive && !receivedNegative;
+            
+            showTestResult('Selective Sharing Test', 
+                `Negative blocked: ${!receivedNegative ? '✅' : '❌'}, Positive shared: ${receivedPositive ? '✅' : '❌'} - ${success ? 'SUCCESS' : 'FAILED'}`);
+        };
+        
+        window.testCrimeWitness = function() {
+            // Simulate crime near NPCs
+            const witnesses = world.npcs.filter(npc => {
+                const dist = Math.abs(npc.x - world.player.x) + Math.abs(npc.y - world.player.y);
+                return dist <= 5;
+            });
+            
+            const crimeRumor = world.createRumor({
+                type: 'theft',
+                severity: 2,
+                details: `Someone stole from a merchant at (${world.player.x}, ${world.player.y})!`,
+                factions: ['player'],
+                sentiment: -0.5,
+                position: { x: world.player.x, y: world.player.y }
+            });
+            
+            witnesses.forEach(w => {
+                w.hearRumor(crimeRumor);
+                w.adjustRelationTo(world.player, -0.2);
+            });
+            
+            showTestResult('Crime Witness Test', 
+                `${witnesses.length} NPCs witnessed the crime and adjusted relations`);
+        };
+        
+        window.createRumorBomb = function() {
+            const types = ['combat', 'trade', 'discovery', 'theft', 'assassination'];
+            const severities = [1, 2, 3, 4];
+            
+            for (let i = 0; i < 10; i++) {
+                const rumor = world.createRumor({
+                    type: types[Math.floor(Math.random() * types.length)],
+                    severity: severities[Math.floor(Math.random() * severities.length)],
+                    details: `Test rumor ${i}: Something happened!`,
+                    position: { 
+                        x: Math.floor(Math.random() * 20), 
+                        y: Math.floor(Math.random() * 20) 
+                    }
+                });
+                
+                // Give to random NPC
+                const randomNpc = world.npcs[Math.floor(Math.random() * world.npcs.length)];
+                randomNpc.hearRumor(rumor);
+            }
+            
+            showTestResult('Rumor Bomb Created', 
+                '10 random rumors distributed. Watch memory management and spreading patterns.');
+        };
+        
+        window.testDistanceDecay = function() {
+            // Create rumors at different distances
+            const positions = [
+                { x: 10, y: 10, expected: 'Should spread everywhere' },
+                { x: 0, y: 0, expected: 'Should spread to corner only' },
+                { x: 19, y: 19, expected: 'Should spread to far corner' }
+            ];
+            
+            positions.forEach((pos, i) => {
+                const rumor = world.createRumor({
+                    type: 'discovery',
+                    severity: 3, // Major = 100 unit range
+                    details: `Discovery at (${pos.x}, ${pos.y})`,
+                    position: pos
+                });
+                
+                // Count NPCs in range
+                const inRange = world.npcs.filter(npc => {
+                    const dist = Math.sqrt(
+                        Math.pow(npc.x - pos.x, 2) + 
+                        Math.pow(npc.y - pos.y, 2)
+                    );
+                    return dist <= 100;
+                });
+                
+                showTestResult(`Distance Test ${i+1}`, 
+                    `${inRange.length} NPCs in range. ${pos.expected}`);
+            });
+        };
+        
+        window.clearAllRumors = function() {
+            world.npcs.forEach(npc => {
+                npc.memory.rumors = [];
+                npc.memory.rumorIds.clear();
+            });
+            rumorFlowLog = [];
+            showTestResult('Cleared', 'All rumors and memories cleared');
+        };
+        
+        window.resetRelations = function() {
+            world.npcs.forEach(npc => {
+                npc._relations = new Map();
+            });
+            showTestResult('Reset', 'All NPC relations reset to neutral');
+        };
+        
+        window.generateDiscoveryRumor = function() {
+            const rumor = world.createRumor({
+                type: 'discovery',
+                severity: 2,
+                details: 'Rare candy crystals found in the dungeon!',
+                position: { x: 10, y: 10 }
+            });
+            
+            const tim = world.npcs.find(n => n.id === 'citizen-tim');
+            tim.hearRumor(rumor);
+            showTestResult('Discovery Rumor', 'Given to Citizen Tim');
+        };
+        
+        function showTestResult(title, message) {
+            const container = document.getElementById('test-results');
+            container.innerHTML = `
+                <strong>${title}</strong><br>
+                ${message}<br>
+                <small>${new Date().toLocaleTimeString()}</small>
+            `;
+        }
+        
+        // Standard rumor generation
+        window.generateCombatRumor = function() {
+            const rumor = world.createRumor({
+                type: 'combat',
+                severity: 2,
+                details: 'Bandits spotted near town!',
+                position: { x: 10, y: 5 }
+            });
+            
+            console.log('🆕 RUMOR CREATED:', {
+                id: rumor.id,
+                type: rumor.type,
+                severity: rumor.severity,
+                details: rumor.details,
+                accuracy: '100%',
+                position: rumor.position,
+                timestamp: new Date(rumor.timestamp).toLocaleTimeString()
+            });
+            
+            const bob = world.npcs.find(n => n.id === 'guard-bob');
+            if (bob) {
+                console.log('📍 Giving rumor to Bob at position:', bob.x, bob.y);
+                bob.hearRumor(rumor);
+                showTestResult('Combat Rumor', 'Given to Guard Bob');
+            } else {
+                console.error('❌ Could not find Guard Bob!');
+                showTestResult('Combat Rumor', 'ERROR: Guard Bob not found');
+            }
+        };
+        
+        window.generateTradeRumor = function() {
+            const rumor = world.createRumor({
+                type: 'trade',
+                severity: 1,
+                details: 'Candy prices rising!',
+                position: { x: 15, y: 10 }
+            });
+            const sally = world.npcs.find(n => n.id === 'merchant-sally');
+            sally.hearRumor(rumor);
+            showTestResult('Trade Rumor', 'Given to Merchant Sally');
+        };
+        
+        window.generateAssassinationRumor = function() {
+            const rumor = world.createRumor({
+                type: 'assassination',
+                severity: 4,
+                details: 'The Candy King has been attacked!',
+                position: { x: 10, y: 10 }
+            });
+            const tim = world.npcs.find(n => n.id === 'citizen-tim');
+            tim.hearRumor(rumor);
+            showTestResult('Assassination Rumor', 'Given to Citizen Tim');
+        };
+        
+        // Simple render function
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#333';
+            for (let x = 0; x < 20; x++) {
+                for (let y = 0; y < 20; y++) {
+                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+            
+            // Draw NPCs
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            world.npcs.forEach(npc => {
+                const x = npc.x * TILE_SIZE + TILE_SIZE/2;
+                const y = npc.y * TILE_SIZE + TILE_SIZE/2;
+                
+                // Color based on memory fullness
+                const fullness = npc.memory.rumors.length / npc.memory.maxRumors;
+                ctx.fillStyle = `hsl(${120 - fullness * 120}, 70%, 50%)`;
+                ctx.fillRect(npc.x * TILE_SIZE, npc.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                
+                // Draw NPC
+                ctx.fillStyle = '#fff';
+                ctx.fillText(npc.name[0], x, y);
+                
+                // Draw rumor count
+                if (npc.memory.rumors.length > 0) {
+                    ctx.font = '12px Arial';
+                    ctx.fillText(npc.memory.rumors.length.toString(), x + 10, y - 10);
+                    ctx.font = '20px Arial';
+                }
+            });
+            
+            // Draw player
+            ctx.fillStyle = '#4444ff';
+            ctx.fillRect(world.player.x * TILE_SIZE, world.player.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('P', world.player.x * TILE_SIZE + TILE_SIZE/2, world.player.y * TILE_SIZE + TILE_SIZE/2);
+        }
+        
+        function gameLoop() {
+            animationFrame++;
+            
+            if (animationFrame % 60 === 0) {
+                world.update();
+            }
+            
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Movement
+        document.addEventListener('keydown', async (e) => {
+            if (!world) return;
+            
+            let dx = 0, dy = 0;
+            switch(e.key) {
+                case 'ArrowUp': dy = -1; break;
+                case 'ArrowDown': dy = 1; break;
+                case 'ArrowLeft': dx = -1; break;
+                case 'ArrowRight': dx = 1; break;
+                default: return;
+            }
+            
+            e.preventDefault();
+            await world.executePlayerMove(dx, dy);
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

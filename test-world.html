@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candy Kingdom Test World</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #2a2a2a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            gap: 20px;
+        }
+        
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        canvas {
+            border: 2px solid #555;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+        
+        #info-panel {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .panel {
+            background: #333;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .panel h3 {
+            margin: 0 0 10px 0;
+            color: #ff69b4;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+        
+        #dialogue {
+            background: #2a3a4a;
+            padding: 10px;
+            border-radius: 5px;
+            min-height: 60px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        #rumor-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .rumor {
+            margin: 5px 0;
+            padding: 5px;
+            background: #2a2a2a;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .rumor.critical { border-left: 3px solid #ff4444; }
+        .rumor.major { border-left: 3px solid #ff8844; }
+        .rumor.moderate { border-left: 3px solid #ffaa44; }
+        .rumor.minor { border-left: 3px solid #aaaaaa; }
+        
+        #controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #4a5a6a;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        button:hover {
+            background: #5a6a7a;
+        }
+        
+        button:active {
+            background: #3a4a5a;
+        }
+        
+        #npc-info {
+            font-size: 12px;
+        }
+        
+        .npc-entry {
+            margin: 5px 0;
+            padding: 5px;
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+        
+        .npc-name {
+            font-weight: bold;
+            color: #88ff88;
+        }
+        
+        .hostile {
+            color: #ff4444;
+        }
+        
+        .friendly {
+            color: #44ff44;
+        }
+        
+        .neutral {
+            color: #aaaaaa;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="640" height="640"></canvas>
+        <div id="controls">
+            <button onclick="generateCombatRumor()">Generate Combat Rumor</button>
+            <button onclick="generateTradeRumor()">Generate Trade Rumor</button>
+            <button onclick="generateAssassinationRumor()">Generate Assassination Rumor</button>
+            <button onclick="stealFromNearbyNPC()">Steal (S)</button>
+            <button onclick="helpNearbyNPC()">Help (H)</button>
+            <button onclick="attackNearbyNPC()">Attack (A)</button>
+        </div>
+    </div>
+    
+    <div id="info-panel">
+        <div class="panel">
+            <h3>Dialogue</h3>
+            <div id="dialogue">Move with Arrow Keys. Walk into NPCs to talk. Press buttons or use shortcuts.</div>
+        </div>
+        
+        <div class="panel">
+            <h3>NPCs</h3>
+            <div id="npc-info"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>Active Rumors</h3>
+            <div id="rumor-list"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>Legend</h3>
+            <div style="font-size: 12px;">
+                🟦 Player<br>
+                👮 Guard Bob (Patrol)<br>
+                💰 Merchant Sally (Shop)<br>
+                🚶 Citizen Tim (Wander)<br>
+                🟫 Buildings<br>
+                🟩 Grass<br>
+                ⬜ Path
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { CandyTestWorld } from './src/testWorld/CandyTestWorld.js';
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const TILE_SIZE = 32;
+        
+        let world;
+        let animationFrame = 0;
+        
+        // Initialize world
+        async function init() {
+            world = new CandyTestWorld();
+            window.world = world; // For debugging
+            
+            // Add helper methods to NPCs if they don't exist
+            world.npcs.forEach(npc => {
+                // Initialize hp if it doesn't exist
+                if (npc.hp === undefined) {
+                    npc.hp = 100;
+                    console.log('Added hp to', npc.name);
+                }
+                
+                if (!npc.evaluateHostilityTo) {
+                    npc.evaluateHostilityTo = function(entity) {
+                        const relation = this.getRelationTo(entity);
+                        const hostile = relation < -0.3;
+                        return {
+                            hostile: hostile,
+                            hostilityLevel: hostile ? Math.abs(relation) : 0,
+                            reason: hostile ? 'low_relation' : null
+                        };
+                    };
+                }
+                
+                // Make sure getDialogue exists
+                if (!npc.getDialogue) {
+                    console.log('Adding default getDialogue to', npc.name);
+                    npc.getDialogue = function(player) {
+                        return `Hello, I'm ${this.name}!`;
+                    };
+                }
+            });
+            
+            // Start game loop
+            gameLoop();
+            
+            // Update info panels
+            setInterval(updateInfoPanels, 500);
+        }
+        
+        // Render the world
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw terrain
+            for (let y = 0; y < world.height; y++) {
+                for (let x = 0; x < world.width; x++) {
+                    const tile = world.terrain[y][x];
+                    
+                    switch(tile) {
+                        case 'building':
+                        case 'shop':
+                        case 'guardpost':
+                            ctx.fillStyle = '#654321';
+                            break;
+                        case 'path':
+                            ctx.fillStyle = '#d4c4a0';
+                            break;
+                        case 'grass':
+                            ctx.fillStyle = '#4a7c59';
+                            break;
+                        default:
+                            ctx.fillStyle = '#333333';
+                    }
+                    
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    
+                    // Draw grid
+                    ctx.strokeStyle = '#00000022';
+                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+            
+            // Draw special locations
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Shop sign
+            ctx.fillStyle = '#000000';
+            ctx.fillText('💰', 17 * TILE_SIZE + TILE_SIZE/2, 10 * TILE_SIZE + TILE_SIZE/2);
+            
+            // Guard post
+            ctx.fillText('🏛️', 10 * TILE_SIZE + TILE_SIZE/2, 4 * TILE_SIZE + TILE_SIZE/2);
+            
+            // Draw NPCs
+            world.npcs.forEach(npc => {
+                // Skip if NPC has hp and it's 0 or less
+                if (npc.hp !== undefined && npc.hp <= 0) return;
+                
+                const x = npc.x * TILE_SIZE + TILE_SIZE/2;
+                const y = npc.y * TILE_SIZE + TILE_SIZE/2;
+                
+                // Draw NPC emoji
+                ctx.font = '24px Arial';
+                let emoji = '🚶';
+                if (npc.id === 'guard-bob') emoji = '👮';
+                else if (npc.id === 'merchant-sally') emoji = '💰';
+                
+                ctx.fillText(emoji, x, y);
+                
+                // Draw name
+                ctx.font = '10px Arial';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(npc.name, x, y + 20);
+                
+                // Show if hostile
+                if (npc.evaluateHostilityTo(world.player).hostile) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillText('!', x + 15, y - 10);
+                }
+                
+                // Show if has rumors (pulsing indicator)
+                if (npc.memory.rumors.length > 0) {
+                    ctx.fillStyle = `rgba(255, 255, 0, ${0.5 + Math.sin(animationFrame * 0.1) * 0.3})`;
+                    ctx.fillText('💬', x - 15, y - 10);
+                }
+            });
+            
+            // Draw player
+            ctx.font = '24px Arial';
+            ctx.fillText('🟦', 
+                world.player.x * TILE_SIZE + TILE_SIZE/2, 
+                world.player.y * TILE_SIZE + TILE_SIZE/2
+            );
+        }
+        
+        // Game loop
+        function gameLoop() {
+            animationFrame++;
+            
+            // Update world
+            if (animationFrame % 30 === 0) { // Update every 0.5 seconds
+                world.update();
+            }
+            
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Update info panels
+        function updateInfoPanels() {
+            updateNPCInfo();
+            updateRumorList();
+        }
+        
+        function updateNPCInfo() {
+            const container = document.getElementById('npc-info');
+            let html = '';
+            
+            world.npcs.forEach(npc => {
+                if (npc.hp <= 0) return;
+                
+                const hostility = npc.evaluateHostilityTo(world.player);
+                const relation = npc.getRelationTo(world.player);
+                
+                let statusClass = 'neutral';
+                let status = 'Neutral';
+                if (hostility.hostile) {
+                    statusClass = 'hostile';
+                    status = 'Hostile';
+                } else if (relation > 0.3) {
+                    statusClass = 'friendly';
+                    status = 'Friendly';
+                }
+                
+                html += `
+                    <div class="npc-entry">
+                        <span class="npc-name">${npc.name}</span> 
+                        (<span class="${statusClass}">${status}</span>)<br>
+                        📍 (${npc.x}, ${npc.y}) | 
+                        💭 ${npc.memory.rumors.length} rumors
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function updateRumorList() {
+            const container = document.getElementById('rumor-list');
+            const allRumors = new Map();
+            
+            // Collect all unique rumors
+            world.npcs.forEach(npc => {
+                npc.memory.rumors.forEach(rumor => {
+                    if (!allRumors.has(rumor.id)) {
+                        allRumors.set(rumor.id, {
+                            ...rumor,
+                            carriers: []
+                        });
+                    }
+                    allRumors.get(rumor.id).carriers.push(npc.name);
+                });
+            });
+            
+            let html = '';
+            allRumors.forEach(rumor => {
+                const severityClass = ['', 'minor', 'moderate', 'major', 'critical'][rumor.severity] || '';
+                html += `
+                    <div class="rumor ${severityClass}">
+                        <strong>${rumor.type}:</strong> ${rumor.details}<br>
+                        <small>Accuracy: ${(rumor.accuracy * 100).toFixed(0)}% | 
+                        Known by: ${rumor.carriers.join(', ')}</small>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html || '<div class="rumor">No active rumors</div>';
+        }
+        
+        // Show dialogue
+        function showDialogue(text) {
+            const dialogue = document.getElementById('dialogue');
+            dialogue.innerHTML = `<div>${new Date().toLocaleTimeString()}: ${text}</div>` + dialogue.innerHTML;
+            
+            // Keep only last 10 messages
+            const messages = dialogue.querySelectorAll('div');
+            if (messages.length > 10) {
+                messages[messages.length - 1].remove();
+            }
+        }
+        
+        // Input handling
+        document.addEventListener('keydown', async (e) => {
+            if (!world) return;
+            
+            let dx = 0, dy = 0;
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                    dy = -1;
+                    break;
+                case 'ArrowDown':
+                    dy = 1;
+                    break;
+                case 'ArrowLeft':
+                    dx = -1;
+                    break;
+                case 'ArrowRight':
+                    dx = 1;
+                    break;
+                case 's':
+                case 'S':
+                    stealFromNearbyNPC();
+                    return;
+                case 'h':
+                case 'H':
+                    helpNearbyNPC();
+                    return;
+                case 'a':
+                case 'A':
+                    attackNearbyNPC();
+                    return;
+                default:
+                    return;
+            }
+            
+            e.preventDefault();
+            
+            // Try to move
+            const result = await world.executePlayerMove(dx, dy);
+            
+            // Check if we bumped into an NPC
+            if (!result.success && result.reason === 'NPC blocking') {
+                // Find the NPC at that position
+                const targetX = world.player.x + dx;
+                const targetY = world.player.y + dy;
+                console.log('Looking for NPC at', targetX, targetY);
+                console.log('NPCs:', world.npcs.map(n => ({name: n.name, x: n.x, y: n.y})));
+                
+                const npcAtTarget = world.npcs.find(npc => 
+                    npc.x === targetX && npc.y === targetY
+                );
+                
+                if (npcAtTarget) {
+                    console.log('Found NPC:', npcAtTarget.name);
+                    // Get dialogue from the NPC
+                    const dialogue = npcAtTarget.getDialogue ? 
+                        npcAtTarget.getDialogue(world.player) : 
+                        `Hello, I'm ${npcAtTarget.name}!`;
+                    showDialogue(`${npcAtTarget.name}: "${dialogue}"`);
+                } else {
+                    console.log('No NPC found at target position');
+                }
+            } else if (result.combat) {
+                showDialogue('⚔️ Combat initiated!');
+            } else if (!result.success) {
+                // Don't spam "Cannot move there!" for every blocked movement
+                if (result.reason !== 'NPC blocking') {
+                    showDialogue(`Cannot move there! (${result.reason})`);
+                }
+            }
+        });
+        
+        // Rumor generation functions
+        window.generateCombatRumor = function() {
+            const rumor = world.createRumor({
+                type: 'combat',
+                severity: 2 + Math.floor(Math.random() * 2),
+                details: 'Bandits have been spotted near the town!',
+                position: { x: 10, y: 5 },
+                sentiment: -0.5
+            });
+            
+            // Give to Bob
+            const bob = world.npcs.find(npc => npc.id === 'guard-bob');
+            bob.hearRumor(rumor);
+            showDialogue('📢 Generated combat rumor and gave it to Guard Bob');
+        };
+        
+        window.generateTradeRumor = function() {
+            const rumor = world.createRumor({
+                type: 'trade',
+                severity: 1 + Math.floor(Math.random() * 2),
+                details: 'Candy prices are rising in the Fire Kingdom!',
+                position: { x: 15, y: 10 },
+                sentiment: 0
+            });
+            
+            // Give to Sally
+            const sally = world.npcs.find(npc => npc.id === 'merchant-sally');
+            sally.hearRumor(rumor);
+            showDialogue('📢 Generated trade rumor and gave it to Merchant Sally');
+        };
+        
+        window.generateAssassinationRumor = function() {
+            const rumor = world.createRumor({
+                type: 'assassination',
+                severity: 4,
+                details: 'The Candy King has been attacked!',
+                position: { x: 10, y: 10 },
+                sentiment: -0.9
+            });
+            
+            // Give to Tim
+            const tim = world.npcs.find(npc => npc.id === 'citizen-tim');
+            tim.hearRumor(rumor);
+            showDialogue('📢 Generated assassination rumor and gave it to Citizen Tim');
+        };
+        
+        window.stealFromNearbyNPC = function() {
+            const nearbyNPC = findNearbyNPC();
+            if (nearbyNPC) {
+                const result = world.playerStealFrom(nearbyNPC);
+                if (result.success) {
+                    showDialogue(`🔓 Successfully stole from ${nearbyNPC.name}!`);
+                } else {
+                    showDialogue(`🚨 Caught stealing from ${nearbyNPC.name}!`);
+                }
+            } else {
+                showDialogue('No NPC nearby to steal from');
+            }
+        };
+        
+        window.helpNearbyNPC = function() {
+            const nearbyNPC = findNearbyNPC();
+            if (nearbyNPC) {
+                world.playerHelpNPC(nearbyNPC);
+                showDialogue(`💚 You helped ${nearbyNPC.name}! Relations improved.`);
+            } else {
+                showDialogue('No NPC nearby to help');
+            }
+        };
+        
+        window.attackNearbyNPC = function() {
+            const nearbyNPC = findNearbyNPC();
+            if (nearbyNPC) {
+                const result = world.playerAttackNPC(nearbyNPC);
+                showDialogue(`⚔️ Attacked ${nearbyNPC.name}! Damage: ${result.damage}`);
+            } else {
+                showDialogue('No NPC nearby to attack');
+            }
+        };
+        
+        function findNearbyNPC() {
+            console.log('Player position:', world.player.x, world.player.y);
+            console.log('Checking NPCs:', world.npcs.map(n => ({
+                name: n.name, 
+                x: n.x, 
+                y: n.y,
+                hp: n.hp,
+                dist: Math.abs(n.x - world.player.x) + Math.abs(n.y - world.player.y)
+            })));
+            
+            const nearby = world.npcs.find(npc => {
+                const dist = Math.abs(npc.x - world.player.x) + Math.abs(npc.y - world.player.y);
+                console.log(`Checking ${npc.name}: dist=${dist}, hp=${npc.hp}, valid=${dist <= 1 && npc.hp > 0}`);
+                // Remove hp check for now since NPCs don't have it
+                return dist <= 1;
+            });
+            
+            console.log('Found nearby NPC:', nearby ? nearby.name : 'none');
+            return nearby;
+        }
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 import { EventBus } from '../systems/EventBus.js';
 import { entityAt, isPassable, tryEdgeTravel } from '../utils/queries.js';
 import { attack } from '../combat/combat.js';
-import { isNPCHostileToPlayer } from '../social/disguise.js';
+import { isNPCHostileToPlayer } from '../../social/movement/MovementAdapter.js';
 import { isFrozen } from '../combat/statusSystem.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
@@ -83,8 +83,12 @@ export class MovementPipeline {
     // Copy metrics to result
     context.result.metrics = context.metrics;
     
-    // Emit final result event
-    await this.eventBus.emitAsync('MovementComplete', context.result);
+    // Emit final result event with full context for NPC processing
+    await this.eventBus.emitAsync('MovementComplete', {
+      result: context.result,
+      state: context.state,
+      player: context.player
+    });
     
     return context.result;
   }
@@ -133,6 +137,7 @@ export class MovementPipeline {
         step: null,
         interacted: false,
         attacked: false,
+        combat: false,  // Add combat flag
         pickedUpItems: [],
         changedChunk: false,
         metrics: {}
@@ -278,6 +283,7 @@ export class MovementPipeline {
       // Attack hostile NPC
       attack(state, context.player, npc);
       context.result.attacked = true;
+      context.result.combat = true;  // Set combat flag for compatibility
       context.cancelled = true;
       context.result.reason = 'Attacked hostile NPC';
       return;

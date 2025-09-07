@@ -1,12 +1,14 @@
 /**
  * QuestSpawner - Manages spawning of quest-related content when entering chunks
- * Handles monsters, items, destructibles, locations, and harvestables for quests
+ * Handles monsters, items, destructibles, locations, harvestables, and NPCs for quests
  */
 import { getGameEventBus } from './EventBus.js';
+import { NPCSpawner } from '../../social/npcSpawner.js';
+import { NPC } from '../../social/npc.js';
 
 // Configuration constants
 export const QUEST_SPAWNER_CONFIG = {
-  spawnTypes: ['monsters', 'items', 'destructibles', 'locations', 'harvestables', 'containers'],
+  spawnTypes: ['monsters', 'items', 'destructibles', 'locations', 'harvestables', 'containers', 'npcs'],
   specialLocations: {
     pupGang: { x: 0, y: 1 },
     licoriceWoods: { x: -1, y: 1 },
@@ -21,6 +23,9 @@ export class QuestSpawner {
   constructor(eventBus = null) {
     this.eventBus = eventBus || getGameEventBus();
     this.spawnConfigs = new Map();
+    this.questNPCConfigs = new Map(); // Quest-specific NPC spawn configs
+    this.locationConfigs = new Map(); // Location-based spawn configs
+    this.npcSpawner = new NPCSpawner(); // Instance for faction-aware NPC spawning
     this.handlers = {}; // Store handler references for cleanup
     this.setupEventHandlers();
   }
@@ -69,6 +74,24 @@ export class QuestSpawner {
    */
   registerSpawnConfig(questId, config) {
     this.spawnConfigs.set(questId, config);
+  }
+
+  /**
+   * Register quest-specific NPC spawn configuration
+   * @param {string} questId - Quest identifier
+   * @param {Object} config - NPC spawn configuration
+   */
+  registerQuestNPCSpawn(questId, config) {
+    this.questNPCConfigs.set(questId, config);
+  }
+
+  /**
+   * Register location-based NPC spawn configuration for quests
+   * @param {string} locationId - Location identifier
+   * @param {Object} config - Location spawn configuration
+   */
+  registerLocationSpawn(locationId, config) {
+    this.locationConfigs.set(locationId, config);
   }
 
   /**
@@ -395,6 +418,217 @@ export class QuestSpawner {
     
     return false;
   }
+
+  /**
+   * Spawn quest-specific NPCs
+   * @param {Object} state - Game state
+   * @param {string} questId - Quest identifier
+   */
+  spawnQuestNPCs(state, questId) {
+    const config = this.questNPCConfigs.get(questId);
+    if (!config) {
+      console.warn(`[QuestSpawner] No NPC config found for quest: ${questId}`);
+      return;
+    }
+
+    try {
+      if (!state.npcs) {
+        state.npcs = [];
+      }
+
+      const spawnedNPCs = [];
+
+      // Process each NPC type in the config
+      for (const npcConfig of config.npcs) {
+        const count = npcConfig.count || 1;
+        
+        for (let i = 0; i < count; i++) {
+          // Create NPC using Phase 1 system
+          const npcData = {
+            id: `quest_${questId}_${npcConfig.role}_${i}`,
+            name: npcConfig.name || `${npcConfig.role}_${i}`,
+            factions: npcConfig.factions || [],
+            role: npcConfig.role,
+            kingdomId: npcConfig.kingdomId || config.location,
+            x: npcConfig.position?.x || Math.floor(Math.random() * 20),
+            y: npcConfig.position?.y || Math.floor(Math.random() * 20),
+            chunkX: state.cx || 0,
+            chunkY: state.cy || 0,
+            questId: questId // Mark as quest NPC for cleanup
+          };
+
+          // Add faction weights if specified
+          if (npcConfig.factionWeights) {
+            npcData.factionWeights = npcConfig.factionWeights;
+          }
+
+          // Add disguise if specified
+          if (npcConfig.disguise) {
+            npcData.disguise = npcConfig.disguise;
+          }
+
+          // Add movement properties if specified
+          if (npcConfig.patrolCenter) {
+            npcData.patrolCenter = npcConfig.patrolCenter;
+          }
+          if (npcConfig.patrolRadius) {
+            npcData.patrolRadius = npcConfig.patrolRadius;
+          }
+          if (npcConfig.perception) {
+            npcData.perception = npcConfig.perception;
+          }
+
+          // Create NPC instance
+          const npc = new NPC(npcData);
+          
+          // Set stats after creation if specified
+          if (npcConfig.stats?.hp) {
+            npc.hp = npcConfig.stats.hp;
+          }
+          if (npcConfig.stats?.hpMax) {
+            npc.hpMax = npcConfig.stats.hpMax;
+          } else if (npcConfig.stats?.hp) {
+            npc.hpMax = npcConfig.stats.hp;
+          }
+          
+          spawnedNPCs.push(npc);
+          state.npcs.push(npc);
+        }
+      }
+
+      // Emit spawn event
+      this.eventBus.emit('QuestNPCsSpawned', {
+        questId,
+        npcs: [...spawnedNPCs], // Clone array
+        location: config.location
+      });
+
+    } catch (error) {
+      console.error(`[QuestSpawner] Error spawning quest NPCs for ${questId}:`, error);
+    }
+  }
+
+  /**
+   * Spawn NPCs for a location with modifications
+   * @param {Object} state - Game state
+   * @param {string} locationId - Location identifier
+   */
+  spawnLocationNPCs(state, locationId) {
+    const config = this.locationConfigs.get(locationId);
+    if (!config) {
+      console.warn(`[QuestSpawner] No location config found for: ${locationId}`);
+      return;
+    }
+
+    try {
+      if (!state.npcs) {
+        state.npcs = [];
+      }
+
+      // Create a modified spawner config based on location modifications
+      const baseLocation = config.location;
+      const modifications = config.modifications || {};
+      const npcCount = config.npcCount || 5;
+
+      // Get base roles from NPCSpawner if available, or use modifications
+      let roleConfig = [];
+      
+      if (modifications.roleModifications) {
+        // Build role config from modifications
+        for (const roleMod of modifications.roleModifications) {
+          roleConfig.push({
+            role: roleMod.role,
+            weight: roleMod.weight || (roleMod.weightMultiplier ? 0.1 * roleMod.weightMultiplier : 0.1),
+            factions: roleMod.factions || [`${baseLocation}_citizens`],
+            behavior: roleMod.behavior
+          });
+        }
+      } else {
+        // Default role config for unknown locations
+        roleConfig = [
+          { role: 'citizen', weight: 0.6, factions: [`${baseLocation}_citizens`] },
+          { role: 'guard', weight: 0.4, factions: [`${baseLocation}_guard`] }
+        ];
+      }
+
+      // Spawn NPCs using the role configuration
+      const spawnedNPCs = [];
+      for (let i = 0; i < npcCount; i++) {
+        // Select role based on weights
+        const totalWeight = roleConfig.reduce((sum, r) => sum + r.weight, 0);
+        let randomValue = Math.random() * totalWeight;
+        let selectedRole = roleConfig[0];
+
+        for (const roleConf of roleConfig) {
+          randomValue -= roleConf.weight;
+          if (randomValue <= 0) {
+            selectedRole = roleConf;
+            break;
+          }
+        }
+
+        // Create NPC
+        const npcData = {
+          id: `location_${locationId}_${selectedRole.role}_${i}`,
+          name: `${selectedRole.role}_${i}`,
+          factions: selectedRole.factions,
+          role: selectedRole.role,
+          kingdomId: baseLocation,
+          x: Math.floor(Math.random() * 20),
+          y: Math.floor(Math.random() * 20),
+          chunkX: state.cx || 0,
+          chunkY: state.cy || 0,
+          locationSpawn: locationId // Mark as location spawn
+        };
+
+        const npc = new NPC(npcData);
+        spawnedNPCs.push(npc);
+        state.npcs.push(npc);
+      }
+
+      // Emit spawn event
+      this.eventBus.emit('LocationNPCsSpawned', {
+        locationId,
+        npcs: [...spawnedNPCs], // Clone array
+        location: config.location
+      });
+
+    } catch (error) {
+      console.error(`[QuestSpawner] Error spawning location NPCs for ${locationId}:`, error);
+    }
+  }
+
+  /**
+   * Clean up quest-specific NPCs
+   * @param {Object} state - Game state
+   * @param {string} questId - Quest identifier
+   */
+  cleanupQuestNPCs(state, questId) {
+    if (!state.npcs) return;
+
+    try {
+      // Mark quest NPCs as removed instead of deleting them immediately
+      // to avoid array mutation issues during iteration
+      for (const npc of state.npcs) {
+        if (npc.questId === questId) {
+          npc.removed = true;
+          npc.hp = 0; // Also mark as dead for safety
+        }
+      }
+
+      // Actually remove them in a separate pass
+      state.npcs = state.npcs.filter(npc => npc.questId !== questId);
+
+      // Emit cleanup event
+      this.eventBus.emit('QuestNPCsCleaned', {
+        questId
+      });
+
+    } catch (error) {
+      console.error(`[QuestSpawner] Error cleaning up quest NPCs for ${questId}:`, error);
+    }
+  }
+
   /**
    * Clean up event handlers
    */

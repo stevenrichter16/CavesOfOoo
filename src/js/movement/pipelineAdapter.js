@@ -6,6 +6,7 @@
 
 import { movementPipeline } from './MovementPipeline.js';
 import { gameEventBus } from '../systems/EventBus.js';
+import { processNPCMovement } from '../../social/movement/MovementAdapter.js';
 
 // Store original runPlayerMove for fallback
 let originalRunPlayerMove = null;
@@ -15,6 +16,10 @@ let originalRunPlayerMove = null;
  * Can be controlled via environment or settings
  */
 export function isNewPipelineEnabled() {
+  // Check if we're in a browser environment
+  if (typeof process === 'undefined') {
+    return true; // Default to new pipeline in browser
+  }
   return process.env.USE_NEW_MOVEMENT !== 'false';
 }
 
@@ -103,6 +108,15 @@ function handleMovementComplete(data, result) {
     console.log('Movement complete:', data);
     if (data.result?.metrics) {
       console.log('Pipeline metrics:', data.result.metrics);
+    }
+  }
+  
+  // Process NPC turns after player movement
+  if (data.state && data.result?.moved) {
+    try {
+      processNPCMovement(data.state);
+    } catch (error) {
+      console.error('Error processing NPC movement:', error);
     }
   }
 }
