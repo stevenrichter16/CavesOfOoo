@@ -15,6 +15,15 @@ import {
   SUSPICIOUS_COMBOS,
   DEFAULT_FACTIONS
 } from './npcConstants.js';
+import { 
+  MIN_PERCEPTION_VALUE,
+  MAX_PERCEPTION_VALUE,
+  DEFAULT_NPC_HP,
+  DEFAULT_NPC_HP_MAX,
+  DEFAULT_CHUNK_X,
+  DEFAULT_CHUNK_Y
+} from './integration/constants.js';
+import { getErrorHandler, ErrorCode } from './utils/ErrorHandler.js';
 
 /**
  * NPC class with multi-faction support
@@ -36,6 +45,10 @@ export class NPC {
     this.role = config.role || 'citizen';
     this.perception = config.perception || SPAWN_CONFIG.DEFAULT_PERCEPTION;
     
+    // Combat properties for movement integration
+    this.hp = config.hp ?? DEFAULT_NPC_HP;
+    this.hpMax = config.hpMax ?? DEFAULT_NPC_HP_MAX;
+    
     // Position properties for movement integration
     // Accept either position object or x,y directly
     // Use nullish coalescing to handle 0 as valid position
@@ -48,8 +61,8 @@ export class NPC {
     }
     this.lastX = this.x;
     this.lastY = this.y;
-    this.chunkX = config.chunkX || 0;
-    this.chunkY = config.chunkY || 0;
+    this.chunkX = config.chunkX ?? DEFAULT_CHUNK_X;
+    this.chunkY = config.chunkY ?? DEFAULT_CHUNK_Y;
     
     // Movement-related properties
     this.patrolCenter = config.patrolCenter || null;
@@ -57,13 +70,23 @@ export class NPC {
     this.moveSpeed = config.moveSpeed || 1;
     
     // Validate and clamp perception range (allow super-human perception for magical NPCs)
-    if (this.perception < 0) {
-      console.warn(`[NPC] Invalid negative perception ${this.perception}, setting to 0`);
-      this.perception = 0;
+    if (this.perception < MIN_PERCEPTION_VALUE) {
+      const errorHandler = getErrorHandler();
+      errorHandler.logWarning(
+        ErrorCode.NPC_INVALID_DATA,
+        `Invalid negative perception ${this.perception}, setting to ${MIN_PERCEPTION_VALUE}`,
+        { npcId: this.id, perception: this.perception }
+      );
+      this.perception = MIN_PERCEPTION_VALUE;
     }
-    if (this.perception > 2) {
-      console.warn(`[NPC] Extremely high perception ${this.perception}, clamping to 2`);
-      this.perception = 2;
+    if (this.perception > MAX_PERCEPTION_VALUE) {
+      const errorHandler = getErrorHandler();
+      errorHandler.logWarning(
+        ErrorCode.NPC_INVALID_DATA,
+        `Extremely high perception ${this.perception}, clamping to ${MAX_PERCEPTION_VALUE}`,
+        { npcId: this.id, perception: this.perception }
+      );
+      this.perception = MAX_PERCEPTION_VALUE;
     }
     
     // Handle faction inheritance
@@ -105,7 +128,33 @@ export class NPC {
       rumorIds: new Set(), // Fast O(1) lookup for duplicate checking
       maxRumors: 10,
       lastUpdate: Date.now(),
-      factionImpacts: {} // Track impact of rumors on faction relations
+      factionImpacts: {}, // Track impact of rumors on faction relations
+      // Method to add rumors safely
+      addRumor: function(rumor) {
+        if (!rumor) return false;
+        
+        // Check for duplicate by ID
+        if (rumor.id && this.rumorIds.has(rumor.id)) {
+          return false;
+        }
+        
+        // Add rumor
+        this.rumors.push(rumor);
+        if (rumor.id) {
+          this.rumorIds.add(rumor.id);
+        }
+        
+        // Enforce max rumors limit (remove oldest)
+        if (this.rumors.length > this.maxRumors) {
+          const removed = this.rumors.shift();
+          if (removed.id) {
+            this.rumorIds.delete(removed.id);
+          }
+        }
+        
+        this.lastUpdate = Date.now();
+        return true;
+      }
     };
     
     // Infer role from factions if not specified

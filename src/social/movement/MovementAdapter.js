@@ -4,9 +4,18 @@
 
 import { NPC } from '../npc.js';
 import { NPCMovementExecutor } from './NPCMovementExecutor.js';
+import { getErrorHandler, ErrorCode } from '../utils/ErrorHandler.js';
+import { 
+  INTERACTION_DISTANCE,
+  DEFAULT_LAW_LEVEL,
+  DEFAULT_NPC_HP,
+  DEFAULT_NPC_HP_MAX,
+  HOSTILE_ATTACK_RANGE
+} from '../integration/constants.js';
 
-// Singleton executor instance
+// Singleton instances
 let executorInstance = null;
+let errorHandler = null;
 
 /**
  * Get or create the NPC movement executor
@@ -19,12 +28,27 @@ export function getMovementExecutor() {
 }
 
 /**
+ * Get or create error handler instance
+ */
+function getErrorHandlerInstance() {
+  if (!errorHandler) {
+    errorHandler = getErrorHandler();
+  }
+  return errorHandler;
+}
+
+/**
  * Check if an NPC is hostile to the player using the new faction system
  * @param {Object} state - Game state
  * @param {Object} npcData - NPC data (might be old format or new NPC instance)
  * @returns {boolean}
  */
 export function isNPCHostileToPlayer(state, npcData) {
+  // Check explicit attitude first
+  if (npcData.attitude === 'hostile') {
+    return true;
+  }
+  
   // If it's already a new NPC instance, use it directly
   if (npcData instanceof NPC) {
     const playerEntity = {
@@ -33,7 +57,7 @@ export function isNPCHostileToPlayer(state, npcData) {
     };
     
     const hostility = npcData.evaluateHostilityTo(playerEntity, {
-      lawLevel: state.lawLevel || 0.5,
+      lawLevel: state.lawLevel || DEFAULT_LAW_LEVEL,
       kingdomId: state.currentKingdom
     });
     
@@ -50,7 +74,7 @@ export function isNPCHostileToPlayer(state, npcData) {
   };
   
   const hostility = npc.evaluateHostilityTo(playerEntity, {
-    lawLevel: state.lawLevel || 0.5,
+    lawLevel: state.lawLevel || DEFAULT_LAW_LEVEL,
     kingdomId: state.currentKingdom
   });
   
@@ -100,11 +124,20 @@ export function convertOldNPCToNew(oldNPC) {
       chunkY: oldNPC.chunkY || 0,
       role: oldNPC.role || 'citizen',
       kingdomId: oldNPC.kingdomId || 'candy',
-      hp: oldNPC.hp,
-      hpMax: oldNPC.hpMax
+      hp: oldNPC.hp ?? DEFAULT_NPC_HP,
+      hpMax: oldNPC.hpMax ?? DEFAULT_NPC_HP_MAX
     });
   } catch (error) {
-    console.error('Failed to convert NPC:', error);
+    const errorHandler = getErrorHandler();
+    errorHandler.logError(
+      ErrorCode.NPC_CONVERSION_FAILED,
+      error,
+      { 
+        npcId: oldNPC.id,
+        npcName: oldNPC.name,
+        faction: oldNPC.faction 
+      }
+    );
     return null;
   }
 }
@@ -163,7 +196,7 @@ export function canInteract(player, npc) {
     Math.pow(player.y - npc.y, 2)
   );
   
-  return distance <= 1.5; // Interaction distance
+  return distance <= INTERACTION_DISTANCE;
 }
 
 /**

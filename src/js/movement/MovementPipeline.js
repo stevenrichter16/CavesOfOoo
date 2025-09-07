@@ -15,6 +15,7 @@ import { getInventorySystem } from '../systems/InventorySystem.js';
 import { getPathfindingSystem } from '../pathfinding/PathfindingSystem.js';
 import { getMovementCostCalculator } from '../pathfinding/MovementCostCalculator.js';
 import { getPathCache } from '../pathfinding/PathCache.js';
+import { MIN_HP_FOR_INTERACTION } from '../../social/integration/constants.js';
 
 export class MovementPipeline {
   constructor(eventBus = new EventBus()) {
@@ -268,13 +269,25 @@ export class MovementPipeline {
     if (context.isEdgeTransition) return;
     
     // Check for NPC at target position
-    const npc = state.npcs?.find(n => 
-      n.x === targetX && 
-      n.y === targetY && 
-      n.hp > 0 &&
-      n.chunkX === state.cx &&
-      n.chunkY === state.cy
-    );
+    let npc;
+    
+    // Use spatial index if available (O(1) lookup)
+    if (state.npcSpatialIndex) {
+      npc = state.npcSpatialIndex.getAt(targetX, targetY, {
+        minHp: MIN_HP_FOR_INTERACTION,  // Only alive NPCs
+        chunkX: state.cx,
+        chunkY: state.cy
+      });
+    } else {
+      // Fallback to linear search (O(n) lookup)
+      npc = state.npcs?.find(n => 
+        n.x === targetX && 
+        n.y === targetY && 
+        n.hp >= MIN_HP_FOR_INTERACTION &&
+        n.chunkX === state.cx &&
+        n.chunkY === state.cy
+      );
+    }
 
     if (!npc) return;
 

@@ -17,7 +17,8 @@
       "WebFetch(domain:adventuretime.fandom.com)",
       "Bash(npx vitest run:*)",
       "Bash(cp:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(echo \"Exit code: $?\")"
     ],
     "deny": [],
     "ask": []
