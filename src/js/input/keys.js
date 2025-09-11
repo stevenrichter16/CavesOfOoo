@@ -120,7 +120,7 @@ export function initKeyboardControls() {
     }
     
     // Dialogue tree controls (priority over social menu)
-    if (STATE.ui.dialogueTreeOpen) {
+    if (STATE.ui && STATE.ui.dialogueTreeOpen) {
       if (handleDialogueInput(STATE, e.key)) {
         e.preventDefault();
         return;
@@ -128,7 +128,7 @@ export function initKeyboardControls() {
     }
     
     // Social menu controls
-    if (STATE.ui.socialMenuOpen) {
+    if (STATE.ui && STATE.ui.socialMenuOpen) {
       if (handleSocialInput(STATE, e.key)) {
         e.preventDefault();
         return;
@@ -261,10 +261,19 @@ function handleGameControls(STATE, e) {
     e.preventDefault();
   }
   else if (k.toLowerCase() === "r") {
+    // Save current chunk before restarting
     if (STATE.chunk) saveChunk(STATE.worldSeed, STATE.cx, STATE.cy, STATE.chunk);
-    window.STATE = newWorld();
-    document.getElementById("log").innerHTML = "";
-    render(window.STATE);
+    
+    // Create new world asynchronously
+    newWorld().then(newState => {
+      window.STATE = newState;
+      STATE = newState;  // Update local reference
+      document.getElementById("log").innerHTML = "";
+      render(STATE);
+    }).catch(err => {
+      console.error('Failed to restart game:', err);
+    });
+    
     e.preventDefault();
   }
   else if (k.toLowerCase() === "h") {

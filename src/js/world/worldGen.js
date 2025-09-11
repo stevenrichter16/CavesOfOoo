@@ -1,8 +1,25 @@
 import { W, H, BIOMES, BIOME_TIERS, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, FETCH_ITEMS } from '../core/config.js';
+
+// Use full viewport dimensions for chunks
+const CHUNK_WIDTH = W;  // 48
+const CHUNK_HEIGHT = H;  // 22
 import { clamp, seededRand, hashStr } from '../utils/utils.js';
 import { makeMonster } from '../entities/entities.js';
 import { generateGraveyardChunk } from './graveyardChunk.js';
 import { generateCandyMarketChunk } from './candyMarketChunk.js';
+import { generateCandyKingdomTownChunk } from './candyKingdomTown.js';
+import { generateNorthGateChunk } from './candyKingdomNorth.js';
+import { generateEastGateChunk } from './candyKingdomEast.js';
+import { 
+  generateSouthGateChunk,
+  generateWestGateChunk
+} from './candyKingdomChunks.js';
+import {
+  generateCandyForestNW,
+  generateCandyForestNE,
+  generateCandyForestSW,
+  generateCandyForestSE
+} from './candyForest.js';
 
 export function generateRooms(sr, count = 5) {
   const rooms = [];
@@ -97,7 +114,7 @@ export function addWaterFeature(map, sr) {
       for (let dy = -size; dy <= size; dy++) {
         for (let dx = -size; dx <= size; dx++) {
           const nx = x + dx, ny = y + dy;
-          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+          if (nx >= 0 && nx < CHUNK_WIDTH && ny >= 0 && ny < CHUNK_HEIGHT) {
             // More restrictive - only adjacent tiles for size 2
             if (Math.abs(dx) + Math.abs(dy) < size) {
               map[ny][nx] = "~";
@@ -230,7 +247,7 @@ export function generateVendorInventory(sr, biome) {
 
 function findFloorTile(map, sr) {
   for (let tries = 0; tries < 1000; tries++) {
-    const x = sr.int(W), y = sr.int(H);
+    const x = sr.int(CHUNK_WIDTH), y = sr.int(CHUNK_HEIGHT);
     if (map[y][x] === ".") return { x, y };
   }
   return null;
@@ -347,14 +364,37 @@ export function placeItems(map, sr, biome) {
 }
 
 export function genChunk(seed, cx, cy) {
-  // Check if this is the candy market chunk (starting position)
+  // Check if this is the candy kingdom town chunk (starting position)
   if (cx === 0 && cy === 0) {
-    return generateCandyMarketChunk(seed, cx, cy);
+    return generateCandyKingdomTownChunk(seed, cx, cy);
   }
   
-  // Check if this is the graveyard chunk
+  // Check for other Candy Kingdom chunks
+  if (cx === 0 && cy === -1) {
+    return generateNorthGateChunk(seed, cx, cy);
+  }
+  if (cx === 1 && cy === 0) {
+    return generateEastGateChunk(seed, cx, cy);
+  }
+  if (cx === 0 && cy === 1) {
+    return generateSouthGateChunk(seed, cx, cy);
+  }
   if (cx === -1 && cy === 0) {
-    return generateGraveyardChunk(seed, cx, cy);
+    return generateWestGateChunk(seed, cx, cy);
+  }
+  
+  // Check for Cotton Candy Forest chunks
+  if (cx === -1 && cy === -1) {
+    return generateCandyForestNW(seed, cx, cy);
+  }
+  if (cx === 1 && cy === -1) {
+    return generateCandyForestNE(seed, cx, cy);
+  }
+  if (cx === -1 && cy === 1) {
+    return generateCandyForestSW(seed, cx, cy);
+  }
+  if (cx === 1 && cy === 1) {
+    return generateCandyForestSE(seed, cx, cy);
   }
   
   const sr = seededRand(hashStr(`${seed}|${cx}|${cy}`));
@@ -364,24 +404,24 @@ export function genChunk(seed, cx, cy) {
   const zoneDanger = Math.floor(distance / 4); // Every 4 chunks = new danger zone
   
   // Generate base map structure - start with more floor tiles
-  const map = Array.from({ length: H }, () => Array.from({ length: W }, () => "#"));
+  const map = Array.from({ length: CHUNK_HEIGHT }, () => Array.from({ length: CHUNK_WIDTH }, () => "#"));
   
   // Generate larger rooms for more open space
   const rooms = generateRooms(sr, sr.between(5, 9));
   rooms.forEach(room => {
     // Make rooms larger
-    room.w = Math.min(room.w + sr.between(2, 4), W - room.x - 1);
-    room.h = Math.min(room.h + sr.between(1, 3), H - room.y - 1);
+    room.w = Math.min(room.w + sr.between(2, 4), CHUNK_WIDTH - room.x - 1);
+    room.h = Math.min(room.h + sr.between(1, 3), CHUNK_HEIGHT - room.y - 1);
     carveRoom(map, room);
   });
   
   // Connect rooms with wider corridors
   for (let i = 0; i < rooms.length - 1; i++) {
     const r1 = rooms[i], r2 = rooms[i + 1];
-    const x1 = clamp(Math.floor(r1.x + r1.w / 2), 0, W - 1);
-    const y1 = clamp(Math.floor(r1.y + r1.h / 2), 0, H - 1);
-    const x2 = clamp(Math.floor(r2.x + r2.w / 2), 0, W - 1);
-    const y2 = clamp(Math.floor(r2.y + r2.h / 2), 0, H - 1);
+    const x1 = clamp(Math.floor(r1.x + r1.w / 2), 0, CHUNK_WIDTH - 1);
+    const y1 = clamp(Math.floor(r1.y + r1.h / 2), 0, CHUNK_HEIGHT - 1);
+    const x2 = clamp(Math.floor(r2.x + r2.w / 2), 0, CHUNK_WIDTH - 1);
+    const y2 = clamp(Math.floor(r2.y + r2.h / 2), 0, CHUNK_HEIGHT - 1);
     
     // Carve main corridor
     carveCorridor(map, x1, y1, x2, y2);
@@ -392,7 +432,7 @@ export function genChunk(seed, cx, cy) {
   
   // Add more random paths for variety and openness
   for (let i = 0; i < sr.between(8, 15); i++) {
-    const x = sr.int(W), y = sr.int(H);
+    const x = sr.int(CHUNK_WIDTH), y = sr.int(CHUNK_HEIGHT);
     const steps = sr.between(15, 40);
     let cx = x, cy = y;
     for (let s = 0; s < steps; s++) {
@@ -400,14 +440,14 @@ export function genChunk(seed, cx, cy) {
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = cx + dx, ny = cy + dy;
-          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+          if (nx >= 0 && nx < CHUNK_WIDTH && ny >= 0 && ny < CHUNK_HEIGHT) {
             if (sr.next() < 0.7) map[ny][nx] = "."; // 70% chance to carve each adjacent tile
           }
         }
       }
       const dir = sr.pick([[1, 0], [-1, 0], [0, 1], [0, -1]]);
-      cx = clamp(cx + dir[0], 0, W - 1);
-      cy = clamp(cy + dir[1], 0, H - 1);
+      cx = clamp(cx + dir[0], 0, CHUNK_WIDTH - 1);
+      cy = clamp(cy + dir[1], 0, CHUNK_HEIGHT - 1);
     }
   }
   
@@ -603,15 +643,29 @@ export function genChunk(seed, cx, cy) {
     monsters, 
     biome: biome.id, 
     items,
+    npcs: [], // NPCs are added later by the game
+    cx: cx, // Add chunk coordinates
+    cy: cy,
     danger: zoneDanger // Store danger level for display
   };
 }
 
 export function findOpenSpot(map) {
-  for (let tries = 0; tries < 4000; tries++) {
-    const x = Math.floor(Math.random() * W);
-    const y = Math.floor(Math.random() * H);
-    if (map[y][x] === ".") return { x, y };
+  // Validate map exists and has proper dimensions
+  if (!map || !Array.isArray(map) || map.length === 0) {
+    console.error('Invalid map passed to findOpenSpot');
+    return { x: Math.floor(CHUNK_WIDTH / 2), y: Math.floor(CHUNK_HEIGHT / 2) };
   }
-  return null;
+  
+  for (let tries = 0; tries < 4000; tries++) {
+    const x = Math.floor(Math.random() * CHUNK_WIDTH);
+    const y = Math.floor(Math.random() * CHUNK_HEIGHT);
+    // Check bounds and that row exists
+    if (y < map.length && map[y] && x < map[y].length && map[y][x] === ".") {
+      return { x, y };
+    }
+  }
+  
+  // Fallback to center if no open spot found
+  return { x: Math.floor(CHUNK_WIDTH / 2), y: Math.floor(CHUNK_HEIGHT / 2) };
 }

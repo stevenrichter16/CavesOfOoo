@@ -6,6 +6,10 @@ import { spawnSocialNPC } from '../social/init.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 
+// Use full viewport dimensions
+const CHUNK_WIDTH = W;  // 48
+const CHUNK_HEIGHT = H;  // 22
+
 // Graveyard chunk coordinates
 export const GRAVEYARD_COORDS = { x: -1, y: 0 };
 
@@ -627,6 +631,7 @@ export function generateGraveyardChunk(worldSeed, cx, cy) {
     map: generateGraveyardMap(),
     monsters: [],
     items: [],
+    npcs: [],
     biome: 'candy_kingdom',
     cx: cx,
     cy: cy,

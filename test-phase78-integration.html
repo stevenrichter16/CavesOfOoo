@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 7/8 Integration Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .status { padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
+    .success { background: #d4edda; }
+    .error { background: #f8d7da; }
+    .info { background: #d1ecf1; }
+    button { padding: 10px; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Phase 7/8 Integration Test</h1>
+  
+  <div id="status"></div>
+  
+  <button onclick="testSystems()">Test World Systems</button>
+  <button onclick="testChunkGen()">Test Chunk Generation</button>
+  <button onclick="testSimulation()">Test Simulation</button>
+  <button onclick="testWeather()">Test Weather</button>
+  <button onclick="testTime()">Test Time</button>
+  
+  <div id="results"></div>
+
+  <script type="module">
+    import * as WorldIntegration from './src/js/world/gameIntegration.js';
+    
+    window.testSystems = async function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      try {
+        addResult('Initializing world systems...', 'info');
+        const systems = WorldIntegration.initWorldSystems();
+        addResult('✓ World systems initialized', 'success');
+        
+        addResult(`✓ ChunkSystem: ${systems.chunkSystem ? 'OK' : 'FAIL'}`, systems.chunkSystem ? 'success' : 'error');
+        addResult(`✓ WorldSimulation: ${systems.worldSimulation ? 'OK' : 'FAIL'}`, systems.worldSimulation ? 'success' : 'error');
+        addResult(`✓ TimeSystem: ${systems.timeSystem ? 'OK' : 'FAIL'}`, systems.timeSystem ? 'success' : 'error');
+        addResult(`✓ WeatherSystem: ${systems.weatherSystem ? 'OK' : 'FAIL'}`, systems.weatherSystem ? 'success' : 'error');
+        
+        WorldIntegration.startSimulation();
+        addResult('✓ Simulation started', 'success');
+        
+      } catch (e) {
+        addResult(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    };
+    
+    window.testChunkGen = async function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      try {
+        // Initialize if needed
+        if (!WorldIntegration.chunkSystem) {
+          WorldIntegration.initWorldSystems();
+        }
+        
+        addResult('Generating chunk...', 'info');
+        const chunk = await WorldIntegration.genChunk('test-seed', 0, 0);
+        
+        addResult(`✓ Chunk generated at (${chunk.cx}, ${chunk.cy})`, 'success');
+        addResult(`✓ Map size: ${chunk.map.length}x${chunk.map[0].length}`, 'success');
+        addResult(`✓ Biome: ${chunk.biome}`, 'success');
+        addResult(`✓ Monsters: ${chunk.monsters.length}`, 'success');
+        addResult(`✓ NPCs: ${chunk.npcs.length}`, 'success');
+        addResult(`✓ Items: ${chunk.items.length}`, 'success');
+        
+      } catch (e) {
+        addResult(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    };
+    
+    window.testSimulation = async function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      try {
+        if (!WorldIntegration.worldSimulation) {
+          WorldIntegration.initWorldSystems();
+        }
+        
+        const sim = WorldIntegration.worldSimulation;
+        
+        addResult('Testing simulation...', 'info');
+        
+        // Start simulation
+        WorldIntegration.startSimulation();
+        addResult(`✓ Simulation running: ${sim.isRunning}`, 'success');
+        
+        // Wait a bit
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const stats = sim.getSimulationStats();
+        addResult(`✓ Ticks: ${stats.tickCount}`, 'success');
+        addResult(`✓ TPS: ${stats.ticksPerSecond.toFixed(1)}`, 'success');
+        
+        WorldIntegration.stopSimulation();
+        addResult('✓ Simulation stopped', 'success');
+        
+      } catch (e) {
+        addResult(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    };
+    
+    window.testWeather = function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      try {
+        if (!WorldIntegration.weatherSystem) {
+          WorldIntegration.initWorldSystems();
+        }
+        
+        const weather = WorldIntegration.weatherSystem;
+        
+        addResult('Testing weather system...', 'info');
+        
+        weather.setWeather('clear');
+        addResult(`✓ Clear: ${WorldIntegration.getWeatherDisplay()}`, 'success');
+        
+        weather.setWeather('rain');
+        addResult(`✓ Rain: ${WorldIntegration.getWeatherDisplay()}`, 'success');
+        
+        weather.setWeather('storm');
+        addResult(`✓ Storm: ${WorldIntegration.getWeatherDisplay()}`, 'success');
+        
+        const effects = WorldIntegration.checkWeatherEffects({ x: 10, y: 10 });
+        if (effects) {
+          addResult(`✓ Weather effect: ${effects.type} for ${effects.duration} turns`, 'success');
+        }
+        
+      } catch (e) {
+        addResult(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    };
+    
+    window.testTime = function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      try {
+        if (!WorldIntegration.timeSystem) {
+          WorldIntegration.initWorldSystems();
+        }
+        
+        const time = WorldIntegration.timeSystem;
+        
+        addResult('Testing time system...', 'info');
+        
+        addResult(`✓ Current time: ${WorldIntegration.getTimeDisplay()}`, 'success');
+        
+        // Advance time
+        for (let i = 0; i < 12; i++) {
+          time.tick();
+        }
+        
+        addResult(`✓ After 1 hour: ${WorldIntegration.getTimeDisplay()}`, 'success');
+        
+        // Test day/night
+        addResult(`✓ Is daytime: ${time.isDaytime()}`, 'success');
+        addResult(`✓ Current period: ${time.getCurrentPeriod()}`, 'success');
+        
+      } catch (e) {
+        addResult(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    };
+    
+    function addResult(text, type) {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `status ${type}`;
+      div.textContent = text;
+      results.appendChild(div);
+    }
+  </script>
+</body>
+</html>

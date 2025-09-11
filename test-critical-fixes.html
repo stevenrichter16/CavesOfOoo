@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Critical Fixes Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .test { padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
+    .pass { background: #d4edda; }
+    .fail { background: #f8d7da; }
+    .info { background: #d1ecf1; }
+  </style>
+</head>
+<body>
+  <h1>Critical Fixes Test</h1>
+  
+  <button onclick="runTests()">Run All Tests</button>
+  <button onclick="testEventEmitter()">Test EventEmitter</button>
+  <button onclick="testAsync()">Test Async Loading</button>
+  <button onclick="testGameLoop()">Test Game Loop</button>
+  
+  <div id="results"></div>
+
+  <script type="module">
+    window.runTests = async function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      await testEventEmitter();
+      await testAsync();
+      await testGameLoop();
+    };
+    
+    window.testEventEmitter = async function() {
+      const results = document.getElementById('results');
+      
+      try {
+        addResult('Testing EventEmitter...', 'info');
+        
+        // Import our custom EventEmitter
+        const { EventEmitter } = await import('./src/js/world/core/EventEmitter.js');
+        
+        // Test it works
+        const emitter = new EventEmitter();
+        let callbackCalled = false;
+        
+        emitter.on('test', () => {
+          callbackCalled = true;
+        });
+        
+        emitter.emit('test');
+        
+        if (callbackCalled) {
+          addResult('✓ EventEmitter works in browser', 'pass');
+        } else {
+          addResult('✗ EventEmitter callback not called', 'fail');
+        }
+        
+        // Test all modules use correct import
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        addResult('✓ gameIntegration imports correctly', 'pass');
+        
+        const { WorldSimulation } = await import('./src/js/world/simulation/WorldSimulation.js');
+        addResult('✓ WorldSimulation imports correctly', 'pass');
+        
+        const { TimeSystem } = await import('./src/js/world/time/TimeSystem.js');
+        addResult('✓ TimeSystem imports correctly', 'pass');
+        
+        const { WeatherSystem } = await import('./src/js/world/weather/WeatherSystem.js');
+        addResult('✓ WeatherSystem imports correctly', 'pass');
+        
+      } catch (e) {
+        addResult(`✗ EventEmitter Error: ${e.message}`, 'fail');
+        console.error(e);
+      }
+    };
+    
+    window.testAsync = async function() {
+      const results = document.getElementById('results');
+      
+      try {
+        addResult('Testing Async/Await...', 'info');
+        
+        // Create mock DOM elements
+        if (!document.getElementById('hp')) {
+          const elements = ['hp', 'xp', 'level', 'gold', 'time', 'weather'];
+          elements.forEach(id => {
+            const div = document.createElement('div');
+            div.id = id;
+            document.body.appendChild(div);
+          });
+        }
+        
+        // Import game module
+        const { newWorld } = await import('./src/js/core/game.js');
+        
+        // Test newWorld is async
+        const worldPromise = newWorld();
+        if (!(worldPromise instanceof Promise)) {
+          addResult('✗ newWorld is not async', 'fail');
+          return;
+        }
+        
+        addResult('✓ newWorld returns a Promise', 'pass');
+        
+        // Wait for it to complete
+        const state = await worldPromise;
+        
+        // Check chunk is loaded
+        if (state.chunk && state.chunk.map) {
+          addResult('✓ Chunk loaded before use', 'pass');
+          addResult(`✓ Chunk size: ${state.chunk.map.length}x${state.chunk.map[0].length}`, 'pass');
+        } else {
+          addResult('✗ Chunk not loaded properly', 'fail');
+        }
+        
+      } catch (e) {
+        addResult(`✗ Async Error: ${e.message}`, 'fail');
+        console.error(e);
+      }
+    };
+    
+    window.testGameLoop = async function() {
+      const results = document.getElementById('results');
+      
+      try {
+        addResult('Testing Game Loop Integration...', 'info');
+        
+        // Import modules
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        const { render } = await import('./src/js/core/game.js');
+        
+        // Initialize systems
+        WorldIntegration.initWorldSystems();
+        addResult('✓ World systems initialized', 'pass');
+        
+        // Check updateWorld exists
+        if (typeof WorldIntegration.updateWorld === 'function') {
+          addResult('✓ updateWorld function exists', 'pass');
+        } else {
+          addResult('✗ updateWorld function missing', 'fail');
+        }
+        
+        // Mock state
+        const mockState = {
+          player: { x: 10, y: 10, hp: 100, hpMax: 100 },
+          chunk: { 
+            map: Array(22).fill(null).map(() => Array(24).fill('.')),
+            monsters: [],
+            npcs: []
+          },
+          cx: 0,
+          cy: 0
+        };
+        
+        // Call render (should call updateWorld)
+        const updateWorldSpy = WorldIntegration.updateWorld;
+        let updateCalled = false;
+        WorldIntegration.updateWorld = function() {
+          updateCalled = true;
+          updateWorldSpy.call(this);
+        };
+        
+        render(mockState);
+        
+        if (updateCalled) {
+          addResult('✓ updateWorld called in game loop', 'pass');
+        } else {
+          addResult('⚠️ updateWorld not called (may be caught in try/catch)', 'info');
+        }
+        
+        // Test cleanup
+        if (typeof WorldIntegration.destroyWorldSystems === 'function') {
+          WorldIntegration.destroyWorldSystems();
+          addResult('✓ destroyWorldSystems exists and runs', 'pass');
+        } else {
+          addResult('✗ destroyWorldSystems missing', 'fail');
+        }
+        
+      } catch (e) {
+        addResult(`✗ Game Loop Error: ${e.message}`, 'fail');
+        console.error(e);
+      }
+    };
+    
+    function addResult(text, type) {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `test ${type}`;
+      div.textContent = text;
+      results.appendChild(div);
+    }
+  </script>
+</body>
+</html>

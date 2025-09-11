@@ -38,6 +38,7 @@ import { applyStatusEffect } from '../combat/statusSystem.js';
 import { processNPCSocialTurn, initializeSocialSystem, spawnSocialNPC } from '../social/index.js';
 import { processHostileNPCs } from '../social/hostility.js';
 import { RelationshipSystem } from '../social/relationship.js';
+import * as WorldIntegration from '../world/gameIntegration.js';
 import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/social.js';
 import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../social/dialogueTreesV2.js';
 import { candyKingdomDialoguesV3 } from '../data/candyKingdomDialoguesV3.js';
@@ -201,17 +202,29 @@ export function handlePlayerMove(state, dx, dy) {
   state.FETCH_ITEMS = FETCH_ITEMS;
   state.openVendorShop = openVendorShop; // Pass vendor shop function
   
+  // Store old position before movement attempt
+  const oldX = state.player.x;
+  const oldY = state.player.y;
+  
   // Process movement through the movement system
   const consumed = PlayerMovement.handlePlayerMove(state, dx, dy);
   
   // If action was consumed (move attempted), run enemy turn  
   if (consumed) {
-    // Store old position for movement event
-    const oldX = state.player.x - dx;
-    const oldY = state.player.y - dy;
+    // Check if player actually moved
+    const playerMoved = (state.player.x !== oldX || state.player.y !== oldY);
     
     // Run movement phase rules (handles candy dust explosions, etc.)
     runMovementForEntity(state, state.player, oldX, oldY, state.player.x, state.player.y);
+    
+    // Only advance game time if player actually moved or took an action
+    if (playerMoved) {
+      try {
+        WorldIntegration.onPlayerAction();
+      } catch (e) {
+        // Silently fail if world systems not ready
+      }
+    }
     
     // Handle water tile effects (keep this for now as it's not in rules yet)
     const tile = state.chunk?.map?.[state.player.y]?.[state.player.x];
@@ -377,6 +390,11 @@ export function turnEnd(state) {
 
 // Render using Canvas only
 export function render(state) {
+  // Safety check for state
+  if (!state) {
+    return;
+  }
+  
   // Add cursor state to the state object for the renderer
   state.cursorState = getCursorState();
   state.isValidCursorPosition = isValidCursorPosition;
@@ -387,10 +405,26 @@ export function render(state) {
   // Update HUD and other DOM elements
   updateHUD(state);
   updateEquipmentPanel(state);
+  
+  // Update world simulation
+  try {
+    WorldIntegration.updateWorld();
+    WorldIntegration.updatePlayerPosition(state.player);
+    
+    // Sync NPCs with their entities so they actually move
+    WorldIntegration.syncNPCsWithEntities(state);
+  } catch (e) {
+    // Silently fail if world systems not ready
+  }
 }
 
 // Separate HUD update function for use with Canvas renderer
 function updateHUD(state) {
+  // Safety check for state and player
+  if (!state || !state.player) {
+    return;
+  }
+  
   const p = state.player;
   setText("hp", `HP ${p.hp}/${p.hpMax}`);
   setText("xp", `XP ${p.xp}/${p.xpNext}`);
@@ -450,7 +484,15 @@ function updateHUD(state) {
     }
   }
   
-  setText("time", `${TIMES[state.timeIndex]} / ${state.weather}`);
+  // Use new time and weather systems if available
+  try {
+    const timeStr = WorldIntegration.getTimeDisplay();
+    const weatherStr = WorldIntegration.getWeatherDisplay();
+    setText("time", `${timeStr} / ${weatherStr}`);
+  } catch (e) {
+    // Fallback to old system
+    setText("time", `${TIMES[state.timeIndex]} / ${state.weather}`);
+  }
   
   // Display friendly biome name
   const biome = state.chunk?.biome || "unknown";
@@ -564,7 +606,7 @@ function updateEquipmentPanel(state) {
   renderEquipmentPanel(state);
 }
 
-export function newWorld() {
+export async function newWorld() {
   const worldSeed = Math.floor(Math.random() * 2**31) >>> 0;
   const player = makePlayer();
   const state = {
@@ -617,10 +659,37 @@ export function newWorld() {
     openNPCInteraction: (state, npc) => openNPCInteraction(state, npc)
   };
   state.FETCH_ITEMS = FETCH_ITEMS; // Set reference for PlayerMovement module
-  PlayerMovement.loadOrGenChunk(state, 0, 0);
+  // Load initial chunk and wait for it
+  try {
+    await PlayerMovement.loadOrGenChunk(state, 0, 0);
+  } catch (e) {
+    console.error('Failed to load initial chunk, using fallback:', e);
+    // Fallback to sync generation if async fails
+    const { genChunk } = await import('../world/worldGen.js');
+    state.chunk = genChunk(state.worldSeed, 0, 0);
+  }
+  
+  // Ensure chunk has a valid map
+  if (!state.chunk || !state.chunk.map || !Array.isArray(state.chunk.map)) {
+    console.error('Chunk generation failed to create valid map, creating emergency chunk');
+    state.chunk = {
+      cx: 0,
+      cy: 0,
+      map: Array(H).fill().map(() => Array(24).fill('.')),
+      npcs: [],
+      monsters: [],
+      items: []
+    };
+  }
+  
   const spot = findOpenSpot(state.chunk.map) || { x: 2, y: 2 };
   player.x = spot.x;
   player.y = spot.y;
+  
+  // Set player position in world simulation
+  if (WorldIntegration.worldSimulation) {
+    WorldIntegration.addPlayer(player);
+  }
   
   // Restore itemCheck functions for player's accepted fetch quests
   if (player.quests && player.quests.fetchQuests) {
@@ -648,16 +717,71 @@ export function newWorld() {
   registerDialogueTree(starchyDialogues.npcType, starchyDialogues.biome, starchyDialogues);
   console.log('🎭 [GAME] Starchy dialogue tree registered');
   
-  // Populate the candy market if this is the starting area
-  if (state.cx === 0 && state.cy === 0 && state.chunk?.isMarket) {
+  // Register unique NPC dialogue trees
+  import('../data/uniqueNPCDialogues.js').then(module => {
+    const dialogues = module.uniqueNPCDialogues;
+    for (const [key, dialogue] of Object.entries(dialogues)) {
+      registerDialogueTree(dialogue.npcType, dialogue.biome, dialogue);
+    }
+    console.log('🎭 [GAME] Unique NPC dialogue trees registered');
+  });
+  
+  // Populate the candy kingdom chunks with NPCs
+  if (state.chunk?.isKingdomTown) {
+    import('../world/candyKingdomTown.js').then(module => {
+      module.spawnCandyKingdomNPCs(state);
+    });
+  } else if (state.chunk?.isKingdomChunk) {
+    // Spawn NPCs for adjacent Candy Kingdom chunks
+    if (state.cx === 0 && state.cy === -1) {
+      import('../world/candyKingdomNorth.js').then(module => {
+        module.spawnNorthGateNPCs(state);
+      });
+    } else if (state.cx === 1 && state.cy === 0) {
+      import('../world/candyKingdomEast.js').then(module => {
+        module.spawnEastGateNPCs(state);
+      });
+    } else if (state.cx === 0 && state.cy === 1) {
+      import('../world/candyKingdomChunks.js').then(module => {
+        module.spawnSouthGateNPCs(state);
+      });
+    } else if (state.cx === -1 && state.cy === 0) {
+      import('../world/candyKingdomChunks.js').then(module => {
+        module.spawnWestGateNPCs(state);
+      });
+    }
+  } else if (state.chunk?.isForest) {
+    // Spawn NPCs and monsters for Cotton Candy Forest chunks
+    import('../world/candyForest.js').then(module => {
+      if (state.cx === -1 && state.cy === -1) {
+        module.spawnForestNWNPCs(state);
+      } else if (state.cx === 1 && state.cy === -1) {
+        module.spawnForestNENPCs(state);
+      } else if (state.cx === -1 && state.cy === 1) {
+        module.spawnForestSWNPCs(state);
+      } else if (state.cx === 1 && state.cy === 1) {
+        module.spawnForestSENPCs(state);
+      }
+      
+      // Spawn forest monsters
+      const monsters = module.spawnForestMonsters(state, state.cx, state.cy);
+      if (monsters && monsters.length > 0) {
+        state.monsters = state.monsters || [];
+        state.monsters.push(...monsters);
+      }
+    });
+  } else if (state.cx === 0 && state.cy === 0 && state.chunk?.isMarket) {
     import('../world/candyMarketChunk.js').then(module => {
       module.populateCandyMarket(state);
     });
   } else if (state.cx === 0 && state.cy === 0) {
     // Fallback: Spawn some test NPCs if not a market chunk
     const npcSpots = [];
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
+    // Use actual map dimensions, not viewport dimensions
+    const mapHeight = state.chunk.map.length;
+    const mapWidth = state.chunk.map[0] ? state.chunk.map[0].length : 24;
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
         const tile = state.chunk.map[y][x];
         if (tile === '.' && Math.abs(x - player.x) > 2 && Math.abs(y - player.y) > 2) {
           npcSpots.push({ x, y });
@@ -797,7 +921,16 @@ export function newWorld() {
 }
 
 // Initialize game
-export function initGame() {
+export async function initGame() {
+  // Initialize Phase 7/8 world systems
+  try {
+    await WorldIntegration.initWorldSystems();
+    WorldIntegration.startSimulation();
+    console.log('World systems initialized');
+  } catch (e) {
+    console.error('Failed to initialize world systems:', e);
+  }
+  
   // Initialize Canvas renderer
   try {
     canvasRenderer = new CanvasRenderer('game-canvas');
@@ -838,7 +971,7 @@ export function initGame() {
     module.initParticles();
   });
   
-  STATE = newWorld();
+  STATE = await newWorld();
   window.STATE = STATE; // Make available globally for particle system and social system
   
   // Add debug helpers to the window for console debugging
@@ -925,10 +1058,10 @@ export function initGame() {
 // Keyboard controls moved to src/js/input/keys.js
 
 // Initialization code when DOM is loaded
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   // Button handlers
-  document.getElementById("restart").addEventListener("click", () => {
-    window.STATE = newWorld();
+  document.getElementById("restart").addEventListener("click", async () => {
+    window.STATE = await newWorld();
     document.getElementById("log").innerHTML = "";
     render(window.STATE);
   });

@@ -10,6 +10,7 @@ import { runPlayerMove } from './movePipeline.js';
 import { isFrozen } from '../combat/statusSystem.js';
 import { saveChunk, loadChunk } from '../utils/persistence.js';
 import { genChunk } from '../world/worldGen.js';
+import * as WorldIntegration from '../world/gameIntegration.js';
 import { levelUp } from '../entities/entities.js';
 import { choice } from '../utils/utils.js';
 import { applyStatusEffect } from '../combat/statusSystem.js';
@@ -104,18 +105,34 @@ export function waitTurn(state) {
  * Load or generate a chunk
  * Handles chunk transitions and restoration of fetch quest functions
  */
-export function loadOrGenChunk(state, cx, cy) {
-  // Save current chunk before switching
+export async function loadOrGenChunk(state, cx, cy) {
+  // Save current chunk before switching using the new system
   if (state.chunk) {
-    saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
+    try {
+      // Save to new system
+      await WorldIntegration.saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
+    } catch (e) {
+      // Fallback to old system
+      saveChunk(state.worldSeed, state.cx, state.cy, state.chunk);
+    }
   }
   
   state.cx = cx;
   state.cy = cy;
   
-  // Load existing or generate new chunk
-  const existing = loadChunk(state.worldSeed, cx, cy);
-  state.chunk = existing ? existing : genChunk(state.worldSeed, cx, cy);
+  // Try to use new chunk system, fallback to old
+  let chunk;
+  try {
+    chunk = await WorldIntegration.loadChunk(state.worldSeed, cx, cy);
+    if (!chunk) {
+      chunk = await WorldIntegration.genChunk(state.worldSeed, cx, cy);
+    }
+  } catch (e) {
+    // Fallback to old system
+    const existing = loadChunk(state.worldSeed, cx, cy);
+    chunk = existing ? existing : genChunk(state.worldSeed, cx, cy);
+  }
+  state.chunk = chunk;
   
   // Ensure items array exists
   if (!state.chunk.items) state.chunk.items = [];

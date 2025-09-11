@@ -18,7 +18,7 @@ let originalRunPlayerMove = null;
 export function isNewPipelineEnabled() {
   // Check if we're in a browser environment
   if (typeof process === 'undefined') {
-    return true; // Default to new pipeline in browser
+    return false; // Disable new pipeline due to input lag issues
   }
   return process.env.USE_NEW_MOVEMENT !== 'false';
 }

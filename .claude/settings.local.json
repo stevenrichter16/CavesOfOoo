@@ -18,7 +18,8 @@
       "Bash(npx vitest run:*)",
       "Bash(cp:*)",
       "Bash(rm:*)",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(touch:*)"
     ],
     "deny": [],
     "ask": []

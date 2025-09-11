@@ -16,10 +16,14 @@ export class CanvasRenderer {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     
-    // Set dimensions
+    // Set dimensions - use actual chunk dimensions for rendering
     this.tileSize = CANVAS_CONFIG.TILE_SIZE;
-    this.width = CANVAS_CONFIG.GRID_WIDTH;
-    this.height = CANVAS_CONFIG.GRID_HEIGHT;
+    // Use full viewport dimensions
+    this.chunkWidth = 48;
+    this.chunkHeight = 22;
+    // Use full dimensions for canvas size
+    this.width = this.chunkWidth;
+    this.height = this.chunkHeight;
     
     this.canvas.width = this.width * this.tileSize;
     this.canvas.height = this.height * this.tileSize;
@@ -176,9 +180,12 @@ export class CanvasRenderer {
     const { chunk, player } = gameState;
     const { map, monsters, items, biome } = chunk;
     
-    // Draw map tiles
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
+    // Draw map tiles - ensure we don't exceed actual map dimensions
+    const mapHeight = map.length;
+    const mapWidth = map[0] ? map[0].length : 0;
+    
+    for (let y = 0; y < Math.min(this.height, mapHeight); y++) {
+      for (let x = 0; x < Math.min(this.width, mapWidth); x++) {
         if (!map[y] || !map[y][x]) continue;
         
         const tile = map[y][x];
@@ -187,11 +194,14 @@ export class CanvasRenderer {
       }
     }
     
-    // Draw items
+    // Draw items - use actual map dimensions
     if (items && Array.isArray(items)) {
+      const mapWidth = map[0] ? map[0].length : 0;
+      const mapHeight = map.length;
+      
       items.forEach(item => {
-        if (item.x >= 0 && item.x < this.width && 
-            item.y >= 0 && item.y < this.height) {
+        if (item.x >= 0 && item.x < mapWidth && 
+            item.y >= 0 && item.y < mapHeight) {
           const glyph = this.getItemGlyph(item);
           const color = this.getItemColor(item.type);
           this.drawTile(item.x, item.y, glyph, color);
@@ -199,12 +209,15 @@ export class CanvasRenderer {
       });
     }
     
-    // Draw monsters
+    // Draw monsters - use actual map dimensions
     if (monsters && Array.isArray(monsters)) {
+      const mapWidth = map[0] ? map[0].length : 0;
+      const mapHeight = map.length;
+      
       monsters.forEach(monster => {
         if (monster.alive && 
-            monster.x >= 0 && monster.x < this.width && 
-            monster.y >= 0 && monster.y < this.height) {
+            monster.x >= 0 && monster.x < mapWidth && 
+            monster.y >= 0 && monster.y < mapHeight) {
           const color = this.getMonsterColor(monster);
           
           // Check for status effects
@@ -219,26 +232,46 @@ export class CanvasRenderer {
       });
     }
     
-    // Draw NPCs (only in current chunk)
+    // Draw NPCs (only in current chunk) - use actual map dimensions
     if (gameState.npcs && Array.isArray(gameState.npcs)) {
+      const mapWidth = map[0] ? map[0].length : 0;
+      const mapHeight = map.length;
+      
       gameState.npcs.forEach(npc => {
         // Only draw NPCs that are in the current chunk
         if (npc.hp > 0 && 
             npc.chunkX === gameState.cx &&
             npc.chunkY === gameState.cy &&
-            npc.x >= 0 && npc.x < this.width && 
-            npc.y >= 0 && npc.y < this.height) {
-          // Choose color based on faction
-          let color = '#8888ff'; // Default blue
-          if (npc.faction === 'merchants') color = '#ffcc00'; // Gold
-          else if (npc.faction === 'guards') color = '#4488ff'; // Blue
-          else if (npc.faction === 'bandits') color = '#ff4444'; // Red
-          else if (npc.faction === 'nobles') color = '#ff44ff'; // Purple
-          else if (npc.faction === 'peasants') color = '#888888'; // Gray
-          else if (npc.faction === 'wildlings') color = '#44ff44'; // Green
+            npc.x >= 0 && npc.x < mapWidth && 
+            npc.y >= 0 && npc.y < mapHeight) {
           
-          // NPCs use @ symbol like player but different colors
-          this.drawTile(npc.x, npc.y, '@', color, null);
+          // Check if this NPC has a custom sprite (like the gnome fairy)
+          if (npc.sprite === 'gnome_fairy') {
+            // Draw the gnome fairy sprite
+            import('../sprites/gnomeFairy.js').then(module => {
+              const pixelX = npc.x * this.tileSize;
+              const pixelY = npc.y * this.tileSize;
+              // Draw sprite scaled to fit tile (16x24 sprite in 16x16 tile)
+              module.drawGnomeSprite(this.ctx, pixelX, pixelY - 4, 1);
+            }).catch(() => {
+              // Fallback to regular character if sprite fails
+              const color = npc.color || '#2E7D32';
+              const char = npc.char || '🧚';
+              this.drawTile(npc.x, npc.y, char, color, null);
+            });
+          } else {
+            // Choose color based on faction for regular NPCs
+            let color = '#8888ff'; // Default blue
+            if (npc.faction === 'merchants') color = '#ffcc00'; // Gold
+            else if (npc.faction === 'guards') color = '#4488ff'; // Blue
+            else if (npc.faction === 'bandits') color = '#ff4444'; // Red
+            else if (npc.faction === 'nobles') color = '#ff44ff'; // Purple
+            else if (npc.faction === 'peasants') color = '#888888'; // Gray
+            else if (npc.faction === 'wildlings') color = '#44ff44'; // Green
+            
+            // NPCs use @ symbol like player but different colors
+            this.drawTile(npc.x, npc.y, '@', color, null);
+          }
         }
       });
     }

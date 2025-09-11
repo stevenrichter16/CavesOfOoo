@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Logic Fixes Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .test { padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
+    .pass { background: #d4edda; }
+    .fail { background: #f8d7da; }
+    .info { background: #d1ecf1; }
+  </style>
+</head>
+<body>
+  <h1>Logic Fixes Verification</h1>
+  
+  <button onclick="runAllTests()">Run All Tests</button>
+  
+  <div id="results"></div>
+
+  <script type="module">
+    window.runAllTests = async function() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+      
+      await testCoordinates();
+      await testTimeThrottling();
+      await testNPCSync();
+      await testChunkSave();
+      await testWeatherThrottling();
+    };
+    
+    async function testCoordinates() {
+      try {
+        addResult('Testing Coordinate System...', 'info');
+        
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        WorldIntegration.initWorldSystems();
+        
+        const { worldSimulation } = WorldIntegration.getSystems();
+        
+        // Spy on addPlayer
+        let capturedCoords = null;
+        const originalAdd = worldSimulation.addPlayer.bind(worldSimulation);
+        worldSimulation.addPlayer = function(player) {
+          capturedCoords = { x: player.x, y: player.y };
+          return originalAdd(player);
+        };
+        
+        // Test player at tile (10, 15)
+        WorldIntegration.updatePlayerPosition({ x: 10, y: 15 });
+        
+        if (capturedCoords && capturedCoords.x === 10 && capturedCoords.y === 15) {
+          addResult('✓ Coordinates correct: (10, 15) stays (10, 15)', 'pass');
+        } else {
+          addResult(`✗ Coordinates wrong: (10, 15) became (${capturedCoords?.x}, ${capturedCoords?.y})`, 'fail');
+        }
+        
+        WorldIntegration.destroyWorldSystems();
+      } catch (e) {
+        addResult(`✗ Coordinate test error: ${e.message}`, 'fail');
+      }
+    }
+    
+    async function testTimeThrottling() {
+      try {
+        addResult('Testing Time Throttling...', 'info');
+        
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        WorldIntegration.initWorldSystems();
+        
+        const { timeSystem } = WorldIntegration.getSystems();
+        const startTime = timeSystem.getGameTime();
+        
+        // Simulate 60 FPS for 100ms
+        const frameTime = 1000 / 60;
+        let frames = 0;
+        const start = Date.now();
+        
+        while (Date.now() - start < 100) {
+          WorldIntegration.updateWorld();
+          frames++;
+        }
+        
+        const endTime = timeSystem.getGameTime();
+        const minutesPassed = (endTime - startTime) / (1000 * 60);
+        
+        addResult(`✓ ${frames} frames in 100ms`, 'info');
+        
+        if (minutesPassed < 1) {
+          addResult(`✓ Time advanced ${minutesPassed.toFixed(2)} minutes (not ${frames * 5})`, 'pass');
+        } else {
+          addResult(`✗ Time advanced too fast: ${minutesPassed} minutes`, 'fail');
+        }
+        
+        // Test onPlayerAction
+        const beforeAction = timeSystem.getGameTime();
+        WorldIntegration.onPlayerAction();
+        const afterAction = timeSystem.getGameTime();
+        const actionMinutes = (afterAction - beforeAction) / (1000 * 60);
+        
+        if (actionMinutes === 5) {
+          addResult('✓ Player action advances 5 minutes', 'pass');
+        } else {
+          addResult(`✗ Player action advanced ${actionMinutes} minutes`, 'fail');
+        }
+        
+        WorldIntegration.destroyWorldSystems();
+      } catch (e) {
+        addResult(`✗ Time test error: ${e.message}`, 'fail');
+      }
+    }
+    
+    async function testNPCSync() {
+      try {
+        addResult('Testing NPC-Entity Sync...', 'info');
+        
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        WorldIntegration.initWorldSystems();
+        
+        const { entityManager } = WorldIntegration.getSystems();
+        
+        // Create test NPC
+        const npc = {
+          id: 'test-npc',
+          name: 'Bob',
+          x: 10,
+          y: 10,
+          entityId: null
+        };
+        
+        // Create entity
+        const entity = entityManager.createEntity({
+          type: 'npc',
+          name: npc.name,
+          x: npc.x,
+          y: npc.y,
+          behavior: 'wander'
+        });
+        npc.entityId = entity.id;
+        
+        // Move entity
+        entityManager.moveEntity(entity.id, 15, 20);
+        
+        // Sync NPC
+        WorldIntegration.syncNPCWithEntity(npc);
+        
+        if (npc.x === 15 && npc.y === 20) {
+          addResult('✓ NPC synced with entity position', 'pass');
+        } else {
+          addResult(`✗ NPC at (${npc.x}, ${npc.y}) != entity at (15, 20)`, 'fail');
+        }
+        
+        WorldIntegration.destroyWorldSystems();
+      } catch (e) {
+        addResult(`✗ NPC sync error: ${e.message}`, 'fail');
+      }
+    }
+    
+    async function testChunkSave() {
+      try {
+        addResult('Testing Chunk Save/Load...', 'info');
+        
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        WorldIntegration.initWorldSystems();
+        
+        const worldSeed = 'test-world-456';
+        const chunk = {
+          cx: 3,
+          cy: 5,
+          map: Array(22).fill(null).map(() => Array(24).fill('#')),
+          modified: false
+        };
+        
+        // Test save parameters
+        const { chunkSystem } = WorldIntegration.getSystems();
+        let savedSeed = null;
+        const originalSave = chunkSystem.saveChunk.bind(chunkSystem);
+        chunkSystem.saveChunk = async function(seed, chunkData) {
+          savedSeed = seed;
+          return originalSave(seed, chunkData);
+        };
+        
+        await WorldIntegration.saveChunk(worldSeed, 3, 5, chunk);
+        
+        if (savedSeed === worldSeed) {
+          addResult('✓ Chunk saved with correct worldSeed', 'pass');
+        } else {
+          addResult(`✗ Chunk saved with "${savedSeed}" instead of "${worldSeed}"`, 'fail');
+        }
+        
+        // Test modification tracking
+        WorldIntegration.modifyChunkTile(chunk, 10, 10, '.');
+        
+        if (chunk.modified && chunk.map[10][10] === '.') {
+          addResult('✓ Chunk modification tracked', 'pass');
+        } else {
+          addResult('✗ Chunk modification not tracked', 'fail');
+        }
+        
+        WorldIntegration.destroyWorldSystems();
+      } catch (e) {
+        addResult(`✗ Chunk save error: ${e.message}`, 'fail');
+      }
+    }
+    
+    async function testWeatherThrottling() {
+      try {
+        addResult('Testing Weather Throttling...', 'info');
+        
+        const WorldIntegration = await import('./src/js/world/gameIntegration.js');
+        WorldIntegration.initWorldSystems();
+        
+        const { weatherSystem } = WorldIntegration.getSystems();
+        weatherSystem.setWeather('rain');
+        
+        const player = { x: 10, y: 10 };
+        let checkCount = 0;
+        
+        // Call throttled version rapidly
+        for (let i = 0; i < 100; i++) {
+          const result = WorldIntegration.checkWeatherEffectsThrottled(player);
+          if (result !== null) {
+            checkCount++;
+          }
+        }
+        
+        if (checkCount <= 2) {
+          addResult(`✓ Weather checked ${checkCount} times (not 100)`, 'pass');
+        } else {
+          addResult(`✗ Weather checked ${checkCount} times (too many)`, 'fail');
+        }
+        
+        WorldIntegration.destroyWorldSystems();
+      } catch (e) {
+        addResult(`✗ Weather test error: ${e.message}`, 'fail');
+      }
+    }
+    
+    function addResult(text, type) {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `test ${type}`;
+      div.textContent = text;
+      results.appendChild(div);
+    }
+  </script>
+</body>
+</html>

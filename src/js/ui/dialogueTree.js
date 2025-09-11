@@ -8,6 +8,8 @@ import {
 } from '../social/dialogueTreesV2.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { getAvailableInteractions } from '../social/index.js';
+import { renderSocialMenu } from './social.js';
 
 let currentDialogueUI = null;
 
@@ -19,9 +21,17 @@ export function openDialogueTree(state, npc) {
   const node = startDialogue(state, state.player, npc);
   if (!node) {
     // Fallback to simple social menu if no dialogue tree
-    if (state.openNPCInteraction) {
-      state.openNPCInteraction(state, npc);
-    }
+    // Open social menu directly to avoid infinite loop
+    state.ui.socialMenuOpen = true;
+    state.ui.selectedNPCId = npc.id;
+    state.ui.socialActionIndex = 0;
+    
+    // Get available actions
+    const actions = getAvailableInteractions(state.player, npc);
+    state.ui.availableActions = actions;
+    
+    // Render social menu
+    renderSocialMenu(state, npc);
     return;
   }
   

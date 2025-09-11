@@ -8,6 +8,11 @@ import { getStatusModifier } from '../combat/statusSystem.js';
  * Render the equipment panel showing all equipped items and stats
  */
 export function renderEquipmentPanel(state) {
+  // Safety check for state and player
+  if (!state || !state.player) {
+    return;
+  }
+  
   const slotsEl = document.getElementById("equipmentSlots");
   const statsEl = document.getElementById("totalStats");
   

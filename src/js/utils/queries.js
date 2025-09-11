@@ -5,6 +5,10 @@ import { EventType } from './eventTypes.js';
 import { loadChunk, saveChunk } from './persistence.js';
 import { genChunk as generateChunk } from '../world/worldGen.js';
 
+// Use full viewport dimensions for chunks
+const CHUNK_WIDTH = 48;
+const CHUNK_HEIGHT = 22;
+
 export function entityAt(state, x, y) {
   // Check for monsters at this position
   if (state.chunk && state.chunk.monsters) {
@@ -22,7 +26,8 @@ export function entityAt(state, x, y) {
 
 export function isPassable(state, x, y) {
   // Allow edge travel by not blocking out-of-bounds
-  if (x < 0 || x >= W || y < 0 || y >= H) return true;
+  // Use actual map dimensions, not viewport dimensions
+  if (x < 0 || x >= CHUNK_WIDTH || y < 0 || y >= CHUNK_HEIGHT) return true;
   
   // Check map tile
   const tile = state.chunk?.map?.[y]?.[x];
@@ -38,7 +43,7 @@ export function isPassable(state, x, y) {
 // Alias for isBlocked (inverse of isPassable)
 export function isBlocked(state, x, y) {
   // Allow edge travel
-  if (x < 0 || x >= W || y < 0 || y >= H) return false;
+  if (x < 0 || x >= CHUNK_WIDTH || y < 0 || y >= CHUNK_HEIGHT) return false;
   
   // Within bounds - check if NOT passable
   return !isPassable(state, x, y);
@@ -48,7 +53,7 @@ export function isBlocked(state, x, y) {
 // Used for projectiles which should hit entities but not pass through walls
 export function isBlockedByTerrain(state, x, y) {
   // Out of bounds blocks projectiles
-  if (x < 0 || x >= W || y < 0 || y >= H) return true;
+  if (x < 0 || x >= CHUNK_WIDTH || y < 0 || y >= CHUNK_HEIGHT) return true;
   
   // Check map tile
   const tile = state.chunk?.map?.[y]?.[x];
@@ -71,10 +76,10 @@ function findWallOpening(state, player, side) {
     // Search along top edge (y = 0)
     const y = 0;
     // First try near the player's x position
-    for (let offset = 0; offset <= Math.floor(W/2); offset++) {
+    for (let offset = 0; offset <= Math.floor(CHUNK_WIDTH/2); offset++) {
       for (const dx of [offset, -offset]) {
         const x = player.x + dx;
-        if (x >= 0 && x < W && map[y][x] !== '#') {
+        if (x >= 0 && x < CHUNK_WIDTH && map[y][x] !== '#') {
           player.x = x;
           player.y = y;
           return;
@@ -82,12 +87,12 @@ function findWallOpening(state, player, side) {
       }
     }
   } else if (side === 'bottom') {
-    // Search along bottom edge (y = H-1)
-    const y = H - 1;
-    for (let offset = 0; offset <= Math.floor(W/2); offset++) {
+    // Search along bottom edge (y = CHUNK_HEIGHT-1)
+    const y = CHUNK_HEIGHT - 1;
+    for (let offset = 0; offset <= Math.floor(CHUNK_WIDTH/2); offset++) {
       for (const dx of [offset, -offset]) {
         const x = player.x + dx;
-        if (x >= 0 && x < W && map[y][x] !== '#') {
+        if (x >= 0 && x < CHUNK_WIDTH && map[y][x] !== '#') {
           player.x = x;
           player.y = y;
           return;
@@ -97,10 +102,10 @@ function findWallOpening(state, player, side) {
   } else if (side === 'left') {
     // Search along left edge (x = 0)
     const x = 0;
-    for (let offset = 0; offset <= Math.floor(H/2); offset++) {
+    for (let offset = 0; offset <= Math.floor(CHUNK_HEIGHT/2); offset++) {
       for (const dy of [offset, -offset]) {
         const y = player.y + dy;
-        if (y >= 0 && y < H && map[y][x] !== '#') {
+        if (y >= 0 && y < CHUNK_HEIGHT && map[y][x] !== '#') {
           player.x = x;
           player.y = y;
           return;
@@ -108,12 +113,12 @@ function findWallOpening(state, player, side) {
       }
     }
   } else if (side === 'right') {
-    // Search along right edge (x = W-1)
-    const x = W - 1;
-    for (let offset = 0; offset <= Math.floor(H/2); offset++) {
+    // Search along right edge (x = CHUNK_WIDTH-1)
+    const x = CHUNK_WIDTH - 1;
+    for (let offset = 0; offset <= Math.floor(CHUNK_HEIGHT/2); offset++) {
       for (const dy of [offset, -offset]) {
         const y = player.y + dy;
-        if (y >= 0 && y < H && map[y][x] !== '#') {
+        if (y >= 0 && y < CHUNK_HEIGHT && map[y][x] !== '#') {
           player.x = x;
           player.y = y;
           return;
@@ -128,7 +133,7 @@ function findWallOpening(state, player, side) {
       for (let dx = -r; dx <= r; dx++) {
         const checkY = player.y + dy;
         const checkX = player.x + dx;
-        if (checkY >= 0 && checkY < H && checkX >= 0 && checkX < W) {
+        if (checkY >= 0 && checkY < CHUNK_HEIGHT && checkX >= 0 && checkX < CHUNK_WIDTH) {
           if (map[checkY][checkX] !== '#') {
             player.x = checkX;
             player.y = checkY;
@@ -142,10 +147,11 @@ function findWallOpening(state, player, side) {
 
 export function tryEdgeTravel(state, player, nx, ny) {
   // In-bounds? Nothing to do.
-  if (nx >= 0 && nx < W && ny >= 0 && ny < H) return false;
+  // Use actual chunk dimensions
+  if (nx >= 0 && nx < CHUNK_WIDTH && ny >= 0 && ny < CHUNK_HEIGHT) return false;
 
-  const tcx = state.cx + (nx < 0 ? -1 : nx >= W ? 1 : 0);
-  const tcy = state.cy + (ny < 0 ? -1 : ny >= H ? 1 : 0);
+  const tcx = state.cx + (nx < 0 ? -1 : nx >= CHUNK_WIDTH ? 1 : 0);
+  const tcy = state.cy + (ny < 0 ? -1 : ny >= CHUNK_HEIGHT ? 1 : 0);
 
   emit(EventType.WillChangeChunk, { from: {cx: state.cx, cy: state.cy}, to: {cx: tcx, cy: tcy} });
 
@@ -215,26 +221,26 @@ export function tryEdgeTravel(state, player, nx, ny) {
   // Snap player to opposite edge and find safe opening
   if (nx < 0) {
     // Entering from the left, appear on the right edge
-    player.x = W - 1;
-    player.y = Math.max(0, Math.min(ny, H - 1));
+    player.x = CHUNK_WIDTH - 1;
+    player.y = Math.max(0, Math.min(ny, CHUNK_HEIGHT - 1));
     // Find opening along the right wall
     findWallOpening(state, player, 'right');
-  } else if (nx >= W) {
+  } else if (nx >= CHUNK_WIDTH) {
     // Entering from the right, appear on the left edge
     player.x = 0;
-    player.y = Math.max(0, Math.min(ny, H - 1));
+    player.y = Math.max(0, Math.min(ny, CHUNK_HEIGHT - 1));
     // Find opening along the left wall
     findWallOpening(state, player, 'left');
   } else if (ny < 0) {
     // Entering from the top, appear on the bottom edge
-    player.y = H - 1;
-    player.x = Math.max(0, Math.min(nx, W - 1));
+    player.y = CHUNK_HEIGHT - 1;
+    player.x = Math.max(0, Math.min(nx, CHUNK_WIDTH - 1));
     // Find opening along the bottom wall
     findWallOpening(state, player, 'bottom');
-  } else if (ny >= H) {
+  } else if (ny >= CHUNK_HEIGHT) {
     // Entering from the bottom, appear on the top edge
     player.y = 0;
-    player.x = Math.max(0, Math.min(nx, W - 1));
+    player.x = Math.max(0, Math.min(nx, CHUNK_WIDTH - 1));
     // Find opening along the top wall
     findWallOpening(state, player, 'top');
   }

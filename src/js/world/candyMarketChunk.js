@@ -6,6 +6,10 @@ import { spawnSocialNPC } from '../social/init.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 
+// Use full viewport dimensions
+const CHUNK_WIDTH = W;  // 48
+const CHUNK_HEIGHT = H;  // 22
+
 // Candy Market chunk coordinates (starting position)
 export const CANDY_MARKET_COORDS = { x: 0, y: 0 };
 
@@ -156,7 +160,7 @@ export function populateCandyMarket(state) {
       x: vendor.x,
       y: vendor.y,
       faction: 'merchants',
-      dialogueType: 'merchant',
+      dialogueType: 'merchants',
       goods: vendor.goods,
       traits: ['friendly', 'trader'],
       hp: 20,
@@ -274,6 +278,7 @@ export function generateCandyMarketChunk(worldSeed, cx, cy) {
     map: generateCandyMarketMap(),
     monsters: [],
     items: [],
+    npcs: [],
     biome: 'candy_kingdom',
     cx: cx,
     cy: cy,

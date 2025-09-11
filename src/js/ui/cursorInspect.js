@@ -79,6 +79,11 @@ function handleMouseMove(event, canvas, state) {
  * Get information about what's at a specific tile
  */
 function getTileInfo(state, x, y) {
+  // Safety check for state and player
+  if (!state || !state.player) {
+    return null;
+  }
+  
   // Check bounds
   if (x < 0 || x >= CANVAS_CONFIG.GRID_WIDTH || 
       y < 0 || y >= CANVAS_CONFIG.GRID_HEIGHT) {
