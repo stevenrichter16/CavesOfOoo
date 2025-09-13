@@ -68,12 +68,26 @@ export function closeShopUI() {
  * Render the shop UI (Pure rendering - no state mutations)
  */
 export function renderShop(state) {
+  console.log('🎨 renderShop called with state:', {
+    shopOpen: state.ui?.shopOpen,
+    shopMode: state.ui?.shopMode,
+    vendorName: state.ui?.shopVendor?.name,
+    vendorInventoryCount: state.ui?.shopVendor?.inventory?.length
+  });
+  
   const overlay = document.getElementById('overlay');
   const content = document.getElementById('overlayContent');
   const title = document.getElementById('overlayTitle');
   const hint = document.getElementById('overlayHint');
   
-  if (!overlay || !content || !state.ui.shopOpen) return;
+  if (!overlay || !content || !state.ui.shopOpen) {
+    console.log('⚠️ Shop not rendering:', {
+      hasOverlay: !!overlay,
+      hasContent: !!content,
+      shopOpen: state.ui?.shopOpen
+    });
+    return;
+  }
   
   overlay.style.display = 'flex';
   
@@ -85,7 +99,17 @@ export function renderShop(state) {
   }
   
   const vendor = state.ui.shopVendor;
-  if (!vendor) return;
+  if (!vendor) {
+    console.log('❌ No vendor data in UI state!');
+    return;
+  }
+  
+  console.log('🛒 Vendor data in UI:', {
+    name: vendor.name,
+    goods: vendor.goods,
+    inventoryCount: vendor.inventory?.length,
+    inventory: vendor.inventory
+  });
   
   // Set title and header based on mode
   let modeText = 'BUYING';
@@ -169,11 +193,22 @@ function renderConfirmDialog(content, state) {
  * Render buy list
  */
 function renderBuyList(state, vendor) {
+  console.log('📝 renderBuyList called:', {
+    vendorName: vendor?.name,
+    vendorGoods: vendor?.goods,
+    inventoryExists: !!vendor?.inventory,
+    inventoryLength: vendor?.inventory?.length,
+    inventoryItems: vendor?.inventory
+  });
+  
   let html = '';
   
   const items = vendor.inventory || [];
   
+  console.log('📦 Items to render:', items);
+  
   if (items.length === 0) {
+    console.log('⚠️ No items to display - vendor is sold out!');
     return '<div style="color: var(--dim); text-align: center; padding: 20px;">The vendor is sold out!</div>';
   }
   

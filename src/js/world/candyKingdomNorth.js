@@ -217,7 +217,7 @@ export function spawnNorthGateNPCs(state) {
     x: 21,
     y: 5,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['elite', 'loyal', 'stern'],
     hp: 40,
     hpMax: 40,
@@ -230,7 +230,7 @@ export function spawnNorthGateNPCs(state) {
     x: 26,
     y: 5,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['elite', 'vigilant', 'noble'],
     hp: 40,
     hpMax: 40,
@@ -240,11 +240,11 @@ export function spawnNorthGateNPCs(state) {
   // Tower guards
   npcs.push(spawnSocialNPC(state, {
     id: 'tower_guard_west',
-    name: 'Tower Guard',
+    name: 'Banana Guard',
     x: 10,
     y: 7,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['watchful', 'quiet'],
     hp: 30,
     hpMax: 30
@@ -252,11 +252,11 @@ export function spawnNorthGateNPCs(state) {
   
   npcs.push(spawnSocialNPC(state, {
     id: 'tower_guard_east',
-    name: 'Tower Guard',
+    name: 'Banana Guard',
     x: 37,
     y: 7,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['alert', 'disciplined'],
     hp: 30,
     hpMax: 30

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movement Responsiveness Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #0f0;
+        }
+        .timing {
+            margin: 10px 0;
+            padding: 10px;
+            background: #000;
+            border: 1px solid #555;
+        }
+        .good { color: #0f0; }
+        .bad { color: #f00; }
+        .info { color: #0ff; }
+        button {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Movement Responsiveness Test</h1>
+    
+    <div class="status">
+        <h3>Pipeline Status:</h3>
+        <div>Pipeline Mode: <span id="pipeline-mode">Loading...</span></div>
+        <div>Execution Type: <span id="exec-type">Loading...</span></div>
+    </div>
+    
+    <div class="status">
+        <h3>Movement Timing:</h3>
+        <div>Last Input Time: <span id="last-input">-</span></div>
+        <div>Last Move Time: <span id="last-move">-</span></div>
+        <div>Input Lag: <span id="input-lag">-</span></div>
+        <div>Average Lag (last 10): <span id="avg-lag">-</span></div>
+    </div>
+    
+    <div class="status">
+        <h3>Player Position:</h3>
+        <div>Current: <span id="player-pos">-</span></div>
+        <div>Moves: <span id="move-count">0</span></div>
+    </div>
+    
+    <div class="timing" id="timing-log">
+        <h4>Timing Log (newest first):</h4>
+    </div>
+    
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="testBurst()">Test Burst (5 moves)</button>
+    
+    <canvas id="game"></canvas>
+
+    <script type="module">
+        let moveCount = 0;
+        let lastInputTime = 0;
+        let lastMoveTime = 0;
+        let timingHistory = [];
+        
+        import('./src/js/core/game.js').then(() => {
+            console.log('Game loaded');
+            checkPipeline();
+            setupMovementTracking();
+        }).catch(err => {
+            console.error('Error loading game:', err);
+        });
+        
+        function checkPipeline() {
+            import('./src/js/movement/pipelineAdapter.js').then(module => {
+                const isNew = module.isNewPipelineEnabled();
+                document.getElementById('pipeline-mode').textContent = isNew ? '✅ NEW' : '❌ OLD';
+                document.getElementById('pipeline-mode').className = isNew ? 'good' : 'bad';
+                
+                // Check if executeSync exists
+                import('./src/js/movement/MovementPipeline.js').then(pipeline => {
+                    const hasSync = typeof pipeline.movementPipeline.executeSync === 'function';
+                    document.getElementById('exec-type').textContent = hasSync ? '✅ SYNC' : '❌ ASYNC';
+                    document.getElementById('exec-type').className = hasSync ? 'good' : 'bad';
+                });
+            });
+        }
+        
+        function setupMovementTracking() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            // Store original position
+            let lastX = state.player.x;
+            let lastY = state.player.y;
+            
+            // Hook into keyboard events
+            const originalHandler = document.onkeydown;
+            document.onkeydown = function(e) {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    lastInputTime = performance.now();
+                    document.getElementById('last-input').textContent = lastInputTime.toFixed(2) + 'ms';
+                }
+                
+                // Call original handler
+                if (originalHandler) originalHandler(e);
+                
+                // Check if position changed immediately
+                setTimeout(() => {
+                    if (state.player.x !== lastX || state.player.y !== lastY) {
+                        lastMoveTime = performance.now();
+                        const lag = lastMoveTime - lastInputTime;
+                        
+                        // Update display
+                        document.getElementById('last-move').textContent = lastMoveTime.toFixed(2) + 'ms';
+                        document.getElementById('input-lag').textContent = lag.toFixed(2) + 'ms';
+                        document.getElementById('input-lag').className = lag < 50 ? 'good' : lag < 100 ? 'info' : 'bad';
+                        
+                        document.getElementById('player-pos').textContent = `(${state.player.x}, ${state.player.y})`;
+                        document.getElementById('move-count').textContent = ++moveCount;
+                        
+                        // Add to history
+                        timingHistory.push(lag);
+                        if (timingHistory.length > 10) timingHistory.shift();
+                        
+                        // Calculate average
+                        const avg = timingHistory.reduce((a, b) => a + b, 0) / timingHistory.length;
+                        document.getElementById('avg-lag').textContent = avg.toFixed(2) + 'ms';
+                        document.getElementById('avg-lag').className = avg < 50 ? 'good' : avg < 100 ? 'info' : 'bad';
+                        
+                        // Log timing
+                        logTiming(lag);
+                        
+                        lastX = state.player.x;
+                        lastY = state.player.y;
+                    }
+                }, 0); // Check immediately after event processing
+            };
+            
+            // Update position display
+            setInterval(() => {
+                if (state && state.player) {
+                    document.getElementById('player-pos').textContent = `(${state.player.x}, ${state.player.y})`;
+                }
+            }, 100);
+        }
+        
+        function logTiming(lag) {
+            const log = document.getElementById('timing-log');
+            const entry = document.createElement('div');
+            entry.className = lag < 50 ? 'good' : lag < 100 ? 'info' : 'bad';
+            entry.textContent = `Move ${moveCount}: ${lag.toFixed(2)}ms lag`;
+            
+            // Insert after header
+            const header = log.querySelector('h4');
+            header.insertAdjacentElement('afterend', entry);
+            
+            // Keep only last 10 entries
+            while (log.children.length > 11) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        window.clearLog = function() {
+            const log = document.getElementById('timing-log');
+            log.innerHTML = '<h4>Timing Log (newest first):</h4>';
+            timingHistory = [];
+            moveCount = 0;
+            document.getElementById('move-count').textContent = '0';
+            document.getElementById('avg-lag').textContent = '-';
+        };
+        
+        window.testBurst = function() {
+            const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight'];
+            let i = 0;
+            
+            const interval = setInterval(() => {
+                if (i >= keys.length) {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                const event = new KeyboardEvent('keydown', { key: keys[i] });
+                document.dispatchEvent(event);
+                i++;
+            }, 100); // 100ms between moves
+        };
+    </script>
+</body>
+</html>

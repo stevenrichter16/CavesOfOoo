@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fox Tooth Collection Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #0f0;
+        }
+        button {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #555;
+        }
+        .log {
+            height: 200px;
+            overflow-y: auto;
+            background: #000;
+            padding: 10px;
+            margin: 20px 0;
+            border: 1px solid #0f0;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .fox-tooth { color: #ff0; }
+        .good { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>🦊 Fox Tooth Collection Test</h1>
+    
+    <div class="status">
+        <h3>Status:</h3>
+        <div>Pipeline: <span id="pipeline-status">Loading...</span></div>
+        <div>Player Position: <span id="player-pos">-</span></div>
+        <div>Inventory Teeth: <span id="teeth-count">0</span></div>
+        <div>Quest Progress: <span id="quest-progress">-</span></div>
+    </div>
+
+    <div class="controls">
+        <h3>Test Controls:</h3>
+        <button onclick="spawnFoxNearby()">Spawn Sleeping Fox Nearby</button>
+        <button onclick="checkInventory()">Check Inventory</button>
+        <button onclick="clearTeeth()">Clear All Teeth</button>
+        <button onclick="moveToFox()">Move to Nearest Fox</button>
+        <button onclick="runFullTest()">Run Full Test Sequence</button>
+    </div>
+
+    <div class="log" id="log">
+        <div class="log-entry info">Test console ready. Load the game to begin testing.</div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <script type="module">
+        import('./src/js/core/game.js').then(() => {
+            log('Game loaded successfully', 'good');
+            checkPipelineStatus();
+            updateStatus();
+            
+            // Listen for console logs
+            const originalLog = console.log;
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                const msg = args.join(' ');
+                if (msg.includes('[FOX TOOTH]')) {
+                    log(msg, 'fox-tooth');
+                }
+            };
+        }).catch(err => {
+            log('Error loading game: ' + err.message, 'error');
+        });
+
+        window.log = function(message, className = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + className;
+            entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        window.checkPipelineStatus = function() {
+            import('./src/js/movement/pipelineAdapter.js').then(module => {
+                const isNew = module.isNewPipelineEnabled();
+                document.getElementById('pipeline-status').textContent = 
+                    isNew ? '✅ NEW Pipeline' : '❌ OLD Pipeline';
+                document.getElementById('pipeline-status').style.color = 
+                    isNew ? '#0f0' : '#f00';
+                log('Pipeline check: ' + (isNew ? 'NEW' : 'OLD'), isNew ? 'good' : 'error');
+            });
+        };
+
+        window.updateStatus = function() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            // Update player position
+            if (state.player) {
+                document.getElementById('player-pos').textContent = 
+                    `(${state.player.x}, ${state.player.y})`;
+                
+                // Update teeth count
+                const teeth = state.player.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+                document.getElementById('teeth-count').textContent = teeth ? teeth.quantity : 0;
+                
+                // Update quest progress
+                const progress = state.player.quests?.progress?.['sweet_tooth_foxes'];
+                document.getElementById('quest-progress').textContent = 
+                    progress ? `${progress.teeth}/5` : 'No quest';
+            }
+        };
+
+        window.spawnFoxNearby = function() {
+            const state = window.gameState || window.state;
+            if (!state || !state.player) {
+                log('Game not loaded', 'error');
+                return;
+            }
+            
+            // Find a spot near the player
+            const px = state.player.x;
+            const py = state.player.y;
+            
+            // Try to spawn 2 tiles away
+            const positions = [
+                [px + 2, py],
+                [px - 2, py],
+                [px, py + 2],
+                [px, py - 2],
+                [px + 1, py + 1],
+                [px - 1, py - 1]
+            ];
+            
+            for (const [x, y] of positions) {
+                if (x >= 0 && x < 40 && y >= 0 && y < 20) {
+                    if (window.spawnSleepingFox(x, y)) {
+                        log(`Spawned sleeping fox at (${x}, ${y})`, 'good');
+                        updateStatus();
+                        return;
+                    }
+                }
+            }
+            
+            log('Could not find spot to spawn fox', 'error');
+        };
+
+        window.checkInventory = function() {
+            const state = window.gameState || window.state;
+            if (!state || !state.player) {
+                log('Game not loaded', 'error');
+                return;
+            }
+            
+            log('Checking inventory...', 'info');
+            
+            const teeth = state.player.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+            if (teeth) {
+                log(`Found ${teeth.quantity} fox teeth in inventory`, 'good');
+                log(`Item details: ${JSON.stringify(teeth.item)}`, 'info');
+            } else {
+                log('No fox teeth in inventory', 'info');
+            }
+            
+            // Log entire inventory
+            if (state.player.inventory && state.player.inventory.length > 0) {
+                log(`Total inventory items: ${state.player.inventory.length}`, 'info');
+                state.player.inventory.forEach((item, i) => {
+                    log(`  [${i}] ${item.item?.name || item.item?.id || 'Unknown'}`, 'info');
+                });
+            }
+            
+            updateStatus();
+        };
+
+        window.clearTeeth = function() {
+            if (window.clearFoxTeeth()) {
+                log('Cleared all fox teeth', 'good');
+                updateStatus();
+            } else {
+                log('No teeth to clear', 'info');
+            }
+        };
+
+        window.moveToFox = function() {
+            const state = window.gameState || window.state;
+            if (!state || !state.player || !state.chunk) {
+                log('Game not ready', 'error');
+                return;
+            }
+            
+            // Find nearest sleeping fox
+            const foxes = state.chunk.monsters?.filter(m => 
+                m.kind === 'sweet_tooth_fox' && m.asleep
+            ) || [];
+            
+            if (foxes.length === 0) {
+                log('No sleeping foxes found', 'error');
+                return;
+            }
+            
+            const px = state.player.x;
+            const py = state.player.y;
+            
+            // Find closest fox
+            let closest = null;
+            let minDist = Infinity;
+            for (const fox of foxes) {
+                const dist = Math.abs(fox.x - px) + Math.abs(fox.y - py);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = fox;
+                }
+            }
+            
+            if (closest) {
+                log(`Found fox at (${closest.x}, ${closest.y}), distance: ${minDist}`, 'info');
+                
+                // Calculate direction to move
+                const dx = Math.sign(closest.x - px);
+                const dy = Math.sign(closest.y - py);
+                
+                // Simulate movement
+                if (dx !== 0 || dy !== 0) {
+                    log(`Moving towards fox: dx=${dx}, dy=${dy}`, 'info');
+                    
+                    // Trigger movement through the game's input handler
+                    const event = new KeyboardEvent('keydown', {
+                        key: dx > 0 ? 'ArrowRight' : dx < 0 ? 'ArrowLeft' : 
+                             dy > 0 ? 'ArrowDown' : 'ArrowUp'
+                    });
+                    document.dispatchEvent(event);
+                    
+                    setTimeout(updateStatus, 100);
+                }
+            }
+        };
+
+        window.runFullTest = async function() {
+            log('=== Starting Full Test Sequence ===', 'good');
+            
+            // Step 1: Check pipeline
+            log('Step 1: Checking pipeline...', 'info');
+            checkPipelineStatus();
+            await sleep(500);
+            
+            // Step 2: Clear inventory
+            log('Step 2: Clearing inventory...', 'info');
+            clearTeeth();
+            await sleep(500);
+            
+            // Step 3: Spawn fox
+            log('Step 3: Spawning sleeping fox...', 'info');
+            spawnFoxNearby();
+            await sleep(500);
+            
+            // Step 4: Check inventory before
+            log('Step 4: Inventory before collection...', 'info');
+            checkInventory();
+            await sleep(500);
+            
+            // Step 5: Move to fox
+            log('Step 5: Moving to fox (use arrow keys to bump into it)...', 'info');
+            log('Watch the console for [FOX TOOTH] debug messages!', 'fox-tooth');
+            moveToFox();
+            
+            // Step 6: Check inventory after
+            setTimeout(() => {
+                log('Step 6: Checking inventory after...', 'info');
+                checkInventory();
+                log('=== Test Sequence Complete ===', 'good');
+                log('Check browser console for detailed [FOX TOOTH] logs', 'fox-tooth');
+            }, 2000);
+        };
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Auto-update status
+        setInterval(updateStatus, 1000);
+    </script>
+</body>
+</html>

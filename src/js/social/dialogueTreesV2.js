@@ -41,10 +41,15 @@ export function startDialogue(state, player, npc, biome = 'candy_kingdom') {
   // Use dialogueType if available, otherwise fall back to faction
   const npcType = npc.dialogueType || npc.faction || 'peasant';
   const key = `${biome}:${npcType}`;
+  
+  console.log('[DIALOGUE] Looking for tree with key:', key);
+  console.log('[DIALOGUE] Available keys:', Array.from(DIALOGUE_TREES.keys()));
+  
   const tree = DIALOGUE_TREES.get(key);
   
   if (!tree) {
     console.warn(`No dialogue tree for ${key}`);
+    console.warn('NPC data:', { name: npc.name, dialogueType: npc.dialogueType, faction: npc.faction });
     return null;
   }
   
@@ -114,7 +119,10 @@ function processNode(node) {
   return {
     ...node,
     npcLine,
-    choices: availableChoices
+    choices: availableChoices,
+    options: availableChoices, // Add for backwards compatibility
+    npc: currentDialogue.npc,
+    player: currentDialogue.player
   };
 }
 
@@ -125,7 +133,7 @@ function evaluateConditions(conditions) {
   if (!conditions || conditions.length === 0) return true;
   
   for (const condition of conditions) {
-    if (!evaluateCondition(condition)) {
+    if (!checkDialogueCondition(condition)) {
       return false;
     }
   }
@@ -134,9 +142,23 @@ function evaluateConditions(conditions) {
 
 /**
  * Evaluate a single condition
+ * Exported for testing
  */
-function evaluateCondition(condition) {
-  const { npc, player, state } = currentDialogue;
+export function checkDialogueCondition(condition, state, npc) {
+  // If called externally with state and npc, use those
+  // Otherwise use currentDialogue for internal calls
+  const player = state?.player || currentDialogue?.player;
+  const actualNpc = npc || currentDialogue?.npc;
+  const actualState = state || currentDialogue?.state;
+  
+  // Internal wrapper for compatibility
+  return evaluateConditionInternal(condition, actualState, player, actualNpc);
+}
+
+/**
+ * Internal condition evaluation
+ */
+function evaluateConditionInternal(condition, state, player, npc) {
   
   // hasTrait condition
   if (condition.hasTrait) {
@@ -171,12 +193,23 @@ function evaluateCondition(condition) {
     return Math.random() < condition.randomLT;
   }
   
-  // hasItem condition
+  // hasItem condition - supports minCount for stackable items
   if (condition.hasItem) {
-    return player.inventory?.some(i => 
+    const item = player.inventory?.find(i => 
       i.item?.name === condition.hasItem || 
       i.item?.id === condition.hasItem
-    ) || false;
+    );
+    
+    if (!item) return false;
+    
+    // Check minimum count if specified
+    if (condition.minCount) {
+      const count = item.count || item.quantity || 1;
+      return count >= condition.minCount;
+    }
+    
+    // Just check existence if no minCount specified
+    return true;
   }
   
   // hasGold condition
@@ -187,7 +220,10 @@ function evaluateCondition(condition) {
   // hasActiveQuest condition - check if player has an active quest
   if (condition.hasActiveQuest) {
     const questId = condition.hasActiveQuest;
-    return state?.activeQuests?.some(q => q.id === questId) || false;
+    // Check both possible locations for quest data
+    return (player?.quests?.active?.includes(questId)) || 
+           (state?.activeQuests?.some(q => q.id === questId)) || 
+           false;
   }
   
   // hasCompletedObjective condition - check if quest objective is complete
@@ -250,6 +286,20 @@ export function selectChoice(choiceIndex) {
     turn: currentDialogue.state?.turn || 0
   });
   
+  // Handle action if present (Shopping District actions)
+  if (choice.action) {
+    console.log('🎭 [DIALOGUE] Choice has action:', choice.action);
+    const actionResult = handleDialogueAction(choice.action);
+    if (actionResult?.closesDialogue) {
+      endDialogue();
+      return null;
+    }
+    if (actionResult?.nextNode) {
+      currentDialogue.currentNodeId = actionResult.nextNode;
+      return getCurrentNode();
+    }
+  }
+  
   // Apply effects
   if (choice.effects && choice.effects.length > 0) {
     console.log('🎭 [DIALOGUE] Choice has effects to apply:', choice.effects);
@@ -259,7 +309,7 @@ export function selectChoice(choiceIndex) {
   }
   
   // Check for end
-  if (choice.end || node.end) {
+  if (choice.end || node.end || choice.action === 'end') {
     endDialogue();
     return null;
   }
@@ -278,13 +328,140 @@ export function selectChoice(choiceIndex) {
 }
 
 /**
+ * Handle dialogue actions (Shopping District, etc.)
+ */
+function handleDialogueAction(actionStr) {
+  if (!currentDialogue) return null;
+  
+  const { state, player, npc } = currentDialogue;
+  const context = { state, player, npc };
+  
+  // Parse action string (e.g., "openShop" or "buyItem:candy_apple")
+  const [actionName, ...params] = actionStr.split(':');
+  
+  console.log(`🎬 [DIALOGUE] Executing action: ${actionName} with params:`, params);
+  
+  // Try Shopping District actions first
+  if (typeof window !== 'undefined' && window.ShoppingDistrictActions) {
+    const action = window.ShoppingDistrictActions[actionName];
+    if (action) {
+      return action(context, ...params);
+    }
+  }
+  
+  // Built-in actions
+  switch (actionName) {
+    case 'end':
+      return { closesDialogue: true };
+      
+    case 'openShop':
+      // Try to open vendor shop
+      console.log('💬 Dialogue action: openShop for NPC:', {
+        npcId: npc?.id,
+        npcName: npc?.name,
+        npcGoods: npc?.goods,
+        shopkeeper: npc?.shopkeeper,
+        hasOpenVendorShop: !!state.openVendorShop
+      });
+      if (state.openVendorShop && npc.shopkeeper) {
+        console.log('🔄 Calling state.openVendorShop from dialogue...');
+        state.openVendorShop(state, npc);
+        return { closesDialogue: true };
+      }
+      emit(EventType.Log, { text: `${npc.name} shows you their wares.`, cls: 'note' });
+      return { success: true };
+      
+    case 'heal':
+      const amount = parseInt(params[0]) || 10;
+      player.hp = Math.min(player.hp + amount, player.hpMax);
+      emit(EventType.Log, { text: `You feel better! +${amount} HP`, cls: 'good' });
+      return { success: true };
+      
+    case 'giveGold':
+      const gold = parseInt(params[0]) || 10;
+      player.gold = (player.gold || 0) + gold;
+      emit(EventType.Log, { text: `You received ${gold} gold!`, cls: 'gold' });
+      return { success: true };
+      
+    case 'giveQuest':
+      const questId = params[0];
+      if (!questId) return null;
+      
+      // Initialize quest tracking if needed
+      if (!player.quests) {
+        player.quests = { active: [], completed: [], progress: {} };
+      }
+      
+      // Check if already have this quest
+      if (player.quests.active.includes(questId)) {
+        emit(EventType.Log, { text: 'You already have this quest.', cls: 'note' });
+        return { success: false };
+      }
+      
+      // Add quest to active list
+      player.quests.active.push(questId);
+      player.quests.progress[questId] = { teeth: 0 };
+      
+      emit(EventType.Log, { text: `Quest started: ${questId.replace(/_/g, ' ')}`, cls: 'xp' });
+      return { success: true };
+      
+    case 'completeQuest':
+      const completeQuestId = params[0];
+      if (!completeQuestId) return null;
+      
+      // Check if player has the quest
+      if (!player.quests?.active?.includes(completeQuestId)) {
+        return { success: false };
+      }
+      
+      // Check if quest is complete
+      if (completeQuestId === 'sweet_tooth_foxes') {
+        const teethCount = player.inventory?.filter(i => i.item?.id === 'fox_sweet_tooth')
+          .reduce((sum, i) => sum + (i.quantity || 1), 0) || 0;
+        
+        if (teethCount < 5) {
+          emit(EventType.Log, { text: `You only have ${teethCount}/5 teeth.`, cls: 'note' });
+          return { success: false };
+        }
+        
+        // Remove teeth from inventory
+        if (player.inventory) {
+          player.inventory = player.inventory.filter(i => i.item?.id !== 'fox_sweet_tooth');
+        }
+        
+        // Move quest to completed
+        const index = player.quests.active.indexOf(completeQuestId);
+        if (index > -1) {
+          player.quests.active.splice(index, 1);
+          player.quests.completed.push(completeQuestId);
+        }
+        
+        // Grant rewards
+        player.gold = (player.gold || 0) + 100;
+        player.xp = (player.xp || 0) + 50;
+        
+        emit(EventType.Log, { text: 'Quest completed: Sweet Tooth Foxes!', cls: 'xp' });
+        emit(EventType.Log, { text: 'You received 100 gold and 50 XP!', cls: 'gold' });
+        
+        return { success: true, nextNode: 'quest_complete' };
+      }
+      
+      return { success: false };
+      
+    default:
+      console.warn(`Unknown dialogue action: ${actionName}`);
+      return null;
+  }
+}
+
+/**
  * Apply an array of effects
  */
 function applyEffects(effects) {
   console.log('🎭 [DIALOGUE] Applying effects array:', effects);
   for (let i = 0; i < effects.length; i++) {
     console.log(`🎭 [DIALOGUE] Applying effect ${i + 1}/${effects.length}:`, effects[i]);
-    applyEffect(effects[i]);
+    applyDialogueEffect(effects[i]);
   }
   console.log('🎭 [DIALOGUE] All effects applied');
 }
@@ -292,7 +469,19 @@ function applyEffects(effects) {
 /**
  * Apply a single effect
  */
-function applyEffect(effect) {
+export function applyDialogueEffect(effect, state, npc) {
+  // If called externally, use provided state/npc
+  if (state && npc) {
+    const oldDialogue = currentDialogue;
+    currentDialogue = { state, npc, player: state.player };
+    applyEffectInternal(effect);
+    currentDialogue = oldDialogue;
+  } else {
+    applyEffectInternal(effect);
+  }
+}
+
+function applyEffectInternal(effect) {
   const { state, player, npc } = currentDialogue;
   
   // relationDelta - modify relationship values
@@ -494,8 +683,26 @@ function applyEffect(effect) {
   if (effect.completeQuest) {
     const questId = effect.completeQuest.id;
     
+    // Check if this is Sweet Tooth Fox quest
+    if (questId === 'sweet_tooth_foxes') {
+      // Import and complete the quest
+      import('../quests/candyKingdomQuests.js').then(module => {
+        console.log('🎯 [DIALOGUE] Completing Sweet Tooth Fox quest');
+        
+        // Remove teeth from inventory (handled by takeItem effect)
+        // This is just completing the quest tracking
+        
+        // Complete the quest and grant rewards
+        const result = module.completeQuest(state, questId);
+        if (result && state.log) {
+          state.log(`Quest completed: Sweet Tooth Menace`, 'xp');
+        }
+      }).catch(err => {
+        console.error('❌ [DIALOGUE] Failed to complete quest:', err);
+      });
+    }
     // Check if this is a Starchy quest
-    if (questId === 'warding_the_haints') {
+    else if (questId === 'warding_the_haints') {
       // Import and complete the quest
       import('../quests/starchyQuests.js').then(module => {
         console.log('🎯 [DIALOGUE] Completing Starchy quest:', questId);

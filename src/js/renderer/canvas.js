@@ -330,9 +330,10 @@ export class CanvasRenderer {
    * Get color based on biome and tile type
    */
   getTileColor(tile, biome, chunk) {
-    // Cache key for performance - include graveyard flag
+    // Cache key for performance - include graveyard and market flags
     const isGraveyard = chunk?.isGraveyard || false;
-    const cacheKey = `${tile}_${biome}_${isGraveyard}`;
+    const isMarket = chunk?.isMarket || false;
+    const cacheKey = `${tile}_${biome}_${isGraveyard}_${isMarket}`;
     if (this.colorCache.has(cacheKey)) {
       return this.colorCache.get(cacheKey);
     }
@@ -466,6 +467,66 @@ export class CanvasRenderer {
         break;
       case 'b': // Barrel
         color = '#8B7355'; // Burlywood brown
+        break;
+      case '█': // Building wall
+        color = chunk?.isMarket ? '#FFB6C1' : '#808080'; // Pink for candy buildings
+        break;
+      case '◯': // Plaza tile
+        color = '#F0E68C'; // Khaki for plaza
+        break;
+      case '○': // Fountain
+        color = '#4682B4'; // Steel blue
+        break;
+      case '═': // Bench/horizontal element
+        color = '#8B4513'; // Saddle brown
+        break;
+      case '║': // Vertical element
+        color = '#8B4513'; // Saddle brown
+        break;
+      case '❀': // Planter/flower
+        color = '#FF69B4'; // Hot pink
+        break;
+      case '♦': // Candy cane decoration
+        color = '#DC143C'; // Crimson
+        break;
+      case '^': // Arch/headgear
+        color = '#FFD700'; // Gold
+        break;
+      case '⚕': // Pharmacy sign
+        color = '#FF0000'; // Red
+        break;
+      case 'R': // Rx symbol
+      case 'x': // Rx symbol
+        color = '#FF0000'; // Red
+        break;
+      case 'P': // Pizza sign
+      case 'S': // Sassy's sign
+        color = '#FF6347'; // Tomato red
+        break;
+      case 'H': // Hotel sign
+      case 'O': // Hotel sign
+      case 'T': // Hotel sign
+      case 'E': // Hotel sign
+      case 'L': // Hotel sign
+        color = '#4169E1'; // Royal blue
+        break;
+      case 'B': // Broom sign
+        color = '#8B4513'; // Brown
+        break;
+      case '☎': // Phone (call center)
+        color = '#000000'; // Black
+        break;
+      case '□': // Desk/window
+        color = '#D2691E'; // Chocolate brown
+        break;
+      case '≈': // Crosswalk
+        color = '#FFFFFF'; // White stripes
+        break;
+      case '╬': // Canopy stall
+      case '╤': // Table stall
+      case '≡': // Goods table
+      case '¤': // Vendor cart
+        color = '#FF69B4'; // Hot pink for market stalls
         break;
       default:
         color = CANVAS_CONFIG.FOREGROUND;

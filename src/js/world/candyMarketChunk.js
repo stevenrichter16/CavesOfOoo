@@ -2,7 +2,7 @@
 // Candy Market - Starting chunk at coordinates (0, 0)
 
 import { W, H } from '../core/config.js';
-import { spawnSocialNPC } from '../social/init.js';
+import { populateCandyMarketNPCs } from './candyMarketNPCs.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 
@@ -140,55 +140,9 @@ export function generateCandyMarketMap() {
 /**
  * Spawn market NPCs and items
  */
-export function populateCandyMarket(state) {
-  // Spawn market vendors
-  const vendors = [
-    { name: 'Candy Corn Carl', x: 4, y: 4, goods: 'candy_corn' },
-    { name: 'Lollipop Lucy', x: 9, y: 4, goods: 'lollipops' },
-    { name: 'Gumdrop Gary', x: 14, y: 4, goods: 'gumdrops' },
-    { name: 'Taffy Tom', x: 5, y: 9, goods: 'taffy' },
-    { name: 'Chocolate Charlie', x: 15, y: 9, goods: 'chocolate' },
-    { name: 'Peppermint Patty', x: 4, y: 15, goods: 'peppermints' },
-    { name: 'Rock Candy Randy', x: 13, y: 15, goods: 'rock_candy' },
-    { name: 'Cotton Candy Cathy', x: 18, y: 15, goods: 'cotton_candy' }
-  ];
-  
-  vendors.forEach(vendor => {
-    spawnSocialNPC(state, {
-      id: vendor.goods + '_vendor',
-      name: vendor.name,
-      x: vendor.x,
-      y: vendor.y,
-      faction: 'merchants',
-      dialogueType: 'merchants',
-      goods: vendor.goods,
-      traits: ['friendly', 'trader'],
-      hp: 20,
-      hpMax: 20,
-      shopkeeper: true
-    });
-  });
-  
-  // Spawn some wandering candy citizens
-  const citizens = [
-    { name: 'Gummy Bear', x: 7, y: 7 },
-    { name: 'Jellybean Joe', x: 15, y: 12 },
-    { name: 'Marshmallow Mike', x: 3, y: 10 }
-  ];
-  
-  citizens.forEach(citizen => {
-    spawnSocialNPC(state, {
-      id: citizen.name.toLowerCase().replace(' ', '_'),
-      name: citizen.name,
-      x: citizen.x,
-      y: citizen.y,
-      faction: 'peasants',
-      dialogueType: 'peasant',
-      traits: ['chatty'],
-      hp: 15,
-      hpMax: 15
-    });
-  });
+export function populateCandyMarket(state, cx, cy) {
+  // Use the new NPC spawner module
+  populateCandyMarketNPCs(state, { cx, cy });
   
   // Add welcome message
   if (state.log) {

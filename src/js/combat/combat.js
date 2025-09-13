@@ -18,6 +18,15 @@ const label = (e, state) => {
 };
 
 export function attack(state, attacker, defender, method = 'melee') {
+  // Check if trying to attack a sleeping fox
+  if (defender.asleep && defender.kind === 'sweet_tooth_fox') {
+    emit(EventType.Log, { 
+      text: `${defender.name || 'The fox'} is already asleep. Bump into it to collect its teeth.`, 
+      cls: "note" 
+    });
+    return 'cancelled';
+  }
+  
   // Set up IDs for events
   attacker.id = attacker.id || (attacker === state.player ? 'player' : `monster_${attacker.x}_${attacker.y}`);
   defender.id = defender.id || (defender === state.player ? 'player' : `monster_${defender.x}_${defender.y}`);
@@ -177,8 +186,13 @@ export function applyAttack(state, attacker, defender, result) {
     }
   }
 
-  // Apply damage
-  defender.hp = Math.max(0, (defender.hp || 0) - result.dmg);
+  // Apply damage with special handling for sweet tooth foxes
+  if (defender.kind === 'sweet_tooth_fox') {
+    const newHP = (defender.hp || 0) - result.dmg;
+    defender.hp = Math.max(5, newHP);
+  } else {
+    defender.hp = Math.max(0, (defender.hp || 0) - result.dmg);
+  }
   
   // Emit hit/crit events
   if (result.crit) {
@@ -234,6 +248,20 @@ export function applyAttack(state, attacker, defender, result) {
         value: effect.value
       });
     }
+  }
+  
+  // Check for sleep status (Sweet Tooth Fox quest)
+  if (defender.kind === 'sweet_tooth_fox' && defender.hp === 5 && !defender.asleep) {
+    defender.status = 'sleep';
+    defender.asleep = true;
+    defender.alive = true; // Still alive but can't move/attack
+    
+    emit(EventType.Log, { 
+      text: `${result.vs} falls asleep! You can now extract its sweet tooth.`, 
+      cls: "good" 
+    });
+    
+    return 'sleep';
   }
   
   // Check for death

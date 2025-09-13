@@ -8,6 +8,40 @@ import { setStoryFlag, getStoryFlag } from '../social/dialogueTreesV2.js';
 
 // Quest definitions with actual gameplay implementation
 export const CANDY_KINGDOM_QUESTS = {
+  // ========== SWEET TOOTH FOX QUEST ==========
+  sweet_tooth_foxes: {
+    id: 'sweet_tooth_foxes',
+    name: 'Sweet Tooth Menace',
+    description: 'Foxes with sweet teeth are attacking candy citizens in the forest! Knock them out and collect their teeth.',
+    giver: 'banana_guard',
+    objectives: [
+      {
+        type: 'collect',
+        item: 'fox_sweet_tooth',
+        count: 5,
+        current: 0,
+        completed: false
+      }
+    ],
+    rewards: {
+      gold: 100,
+      reputation: { guards: 10, peasants: 5 }
+    },
+    onStart: (state) => {
+      // Spawn Sweet Tooth Foxes in the forest
+      spawnSweetToothFoxes(state);
+      if (state.log) {
+        state.log("Quest Started: Sweet Tooth Menace! Head to the forest to find the foxes!", 'quest');
+      }
+    },
+    onComplete: (state) => {
+      setStoryFlag('sweet_tooth_foxes_complete', true);
+      if (state.log) {
+        state.log("The candy citizens are safe! Return to the Banana Guard for your reward!", 'good');
+      }
+    }
+  },
+
   // ========== PUP GANG QUEST ==========
   stop_pup_gang: {
     id: 'stop_pup_gang',
@@ -757,6 +791,97 @@ export const CANDY_KINGDOM_QUESTS = {
 };
 
 // ========== ENEMY SPAWNING FUNCTIONS ==========
+
+export function spawnSweetToothFoxes(state) {
+  // Spawn in forest chunk (0, -1)
+  const forestChunkX = 0;
+  const forestChunkY = -1;
+  
+  // Create multiple foxes throughout the forest
+  const foxes = [];
+  for (let i = 0; i < 8; i++) {
+    const fox = {
+      id: `sweet_tooth_fox_${i}`,
+      name: 'Sweet Tooth Fox',
+      type: 'sweet_tooth_fox',
+      kind: 'sweet_tooth_fox',
+      x: 5 + Math.floor(Math.random() * 20),
+      y: 5 + Math.floor(Math.random() * 12),
+      hp: 15,
+      hpMax: 15,
+      str: 3,
+      atk: 3,
+      def: 1,
+      spd: 4,
+      hostile: true,
+      hasTeeth: true,
+      knockedOut: false,
+      loot: [
+        { item: 'candy_corn', chance: 0.2 },
+        { item: 'gold', amount: 5, chance: 0.3 }
+      ],
+      dialogue: ["*The fox snarls, revealing dangerously sweet teeth*"],
+      questTarget: 'sweet_tooth_foxes',
+      knockoutThreshold: 5 // Knocks out at < 5 HP
+    };
+    foxes.push(fox);
+  }
+  
+  // Add to forest chunk or store for when player enters
+  if (state.cx === forestChunkX && state.cy === forestChunkY) {
+    state.chunk.monsters = state.chunk.monsters || [];
+    state.chunk.monsters.push(...foxes);
+  } else {
+    // Store for when player enters the forest chunk
+    state.questSpawns = state.questSpawns || {};
+    state.questSpawns[`${forestChunkX},${forestChunkY}`] = foxes;
+  }
+  
+  // Also add a few foxes to nearby forest areas for easier finding
+  const nearbyFox1 = {
+    id: 'sweet_tooth_fox_nearby_1',
+    name: 'Sweet Tooth Fox',
+    type: 'sweet_tooth_fox',
+    kind: 'sweet_tooth_fox',
+    x: 18,
+    y: 3,
+    hp: 15,
+    hpMax: 15,
+    str: 3,
+    atk: 3,
+    def: 1,
+    spd: 4,
+    hostile: true,
+    hasTeeth: true,
+    knockedOut: false,
+    questTarget: 'sweet_tooth_foxes'
+  };
+  
+  const nearbyFox2 = {
+    id: 'sweet_tooth_fox_nearby_2',
+    name: 'Sweet Tooth Fox',
+    type: 'sweet_tooth_fox',
+    kind: 'sweet_tooth_fox',
+    x: 22,
+    y: 8,
+    hp: 15,
+    hpMax: 15,
+    str: 3,
+    atk: 3,
+    def: 1,
+    spd: 4,
+    hostile: true,
+    hasTeeth: true,
+    knockedOut: false,
+    questTarget: 'sweet_tooth_foxes'
+  };
+  
+  // Add to current chunk if it's foresty
+  if (state.chunk && state.chunk.biome === 'forest') {
+    state.chunk.monsters = state.chunk.monsters || [];
+    state.chunk.monsters.push(nearbyFox1, nearbyFox2);
+  }
+}
 
 export function spawnPupGang(state) {
   // Find location near convenience store (chunk 0,1 or nearby)

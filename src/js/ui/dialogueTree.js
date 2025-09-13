@@ -6,6 +6,7 @@ import {
   selectChoice, 
   endDialogue 
 } from '../social/dialogueTreesV2.js';
+import { getNPCDialogue } from '../social/dialogueBootstrap.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { getAvailableInteractions } from '../social/index.js';
@@ -17,9 +18,29 @@ let currentDialogueUI = null;
  * Open dialogue tree UI for an NPC
  */
 export function openDialogueTree(state, npc) {
-  // Start the dialogue
-  const node = startDialogue(state, state.player, npc);
+  console.log('🎭 [DIALOGUE-UI] Opening dialogue tree for:', npc.name, 'dialogueType:', npc.dialogueType);
+  
+  // Determine the biome based on the current chunk
+  let biome = 'candy_kingdom'; // default
+  if (state.chunk?.biome) {
+    biome = state.chunk.biome;
+  } else if (state.chunk?.isForest) {
+    biome = 'forest';
+  } else if (state.cx === 0 && state.cy === -2) {
+    // The Forest location
+    biome = 'forest';
+  } else if (state.cx === 0 && state.cy === 0) {
+    biome = 'candy_kingdom';
+  }
+  
+  console.log('🎭 [DIALOGUE-UI] Using biome:', biome);
+  
+  // Start the dialogue with the correct biome
+  const node = startDialogue(state, state.player, npc, biome);
+  console.log('🎭 [DIALOGUE-UI] startDialogue returned:', node);
+  
   if (!node) {
+    console.warn('🎭 [DIALOGUE-UI] No dialogue node returned, falling back to social menu');
     // Fallback to simple social menu if no dialogue tree
     // Open social menu directly to avoid infinite loop
     state.ui.socialMenuOpen = true;
@@ -46,13 +67,27 @@ export function openDialogueTree(state, npc) {
   state.ui.dialogueTreeOpen = true;
   state.ui.socialMenuOpen = false; // Disable simple menu
   
-  renderDialogueTree();
+  // Close any open dropdown to prevent input conflicts
+  import('../ui/dropdown.js').then(module => {
+    if (module.isDropdownOpen()) {
+      console.log('🎭 [DIALOGUE-UI] Closing dropdown before rendering dialogue');
+      module.closeDropdown();
+    }
+    // Render dialogue tree after dropdown is closed
+    renderDialogueTree();
+  }).catch(err => {
+    console.warn('🎭 [DIALOGUE-UI] Could not check dropdown state:', err);
+    // Still render dialogue even if dropdown check fails
+    renderDialogueTree();
+  });
 }
 
 /**
  * Close dialogue tree UI
  */
 export function closeDialogueTree(state) {
+  console.log('🎭 [DIALOGUE-UI] Closing dialogue tree');
+  
   endDialogue();
   currentDialogueUI = null;
   state.ui.dialogueTreeOpen = false;
@@ -61,7 +96,21 @@ export function closeDialogueTree(state) {
   const container = document.getElementById('dialogue-tree');
   if (container) {
     container.style.display = 'none';
+    // Remove container from DOM to ensure clean state
+    container.remove();
   }
+  
+  // Close any dropdown that might be stuck open
+  import('../ui/dropdown.js').then(module => {
+    if (module.isDropdownOpen()) {
+      console.log('🎭 [DIALOGUE-UI] Also closing dropdown that was stuck open');
+      module.closeDropdown();
+    }
+  });
+  
+  // Clear any other UI state that might be stuck
+  state.ui.socialMenuOpen = false;
+  state.ui.selectedNPCId = null;
   
   state.render();
 }
@@ -87,20 +136,18 @@ export function renderDialogueTree() {
     container.id = 'dialogue-tree';
     container.style.cssText = `
       position: absolute;
-      bottom: 20px;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
-      width: 80%;
-      max-width: 600px;
-      background: rgba(34, 34, 34, 0.95);
+      transform: translate(-50%, -50%);
+      background: var(--bg, #222);
       border: 2px solid var(--primary, #4af);
-      border-radius: 8px;
       padding: 20px;
       z-index: 1000;
+      min-width: 400px;
+      max-width: 600px;
       color: var(--fg, #fff);
       font-family: monospace;
       font-size: 14px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     `;
     document.body.appendChild(container);
   }
@@ -108,21 +155,16 @@ export function renderDialogueTree() {
   // Build HTML
   let html = '';
   
-  // NPC portrait and name
-  html += `<div style="display: flex; align-items: center; margin-bottom: 15px;">`;
-  html += `<div style="width: 60px; height: 60px; background: ${getNPCColor(npc)}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 15px;">`;
-  html += getNPCGlyph(npc);
-  html += `</div>`;
-  html += `<div>`;
-  html += `<div style="font-size: 18px; color: var(--primary, #4af); margin-bottom: 5px;">${npc.name}</div>`;
+  // Simple NPC name header
+  html += `<h3>${npc.name}</h3>`;
+  
+  // Show faction if present
   if (npc.faction) {
-    html += `<div style="font-size: 12px; color: #888;">${formatFaction(npc.faction)}</div>`;
+    html += `<div style="color: #888; font-size: 12px; margin-bottom: 10px;">Faction: ${formatFaction(npc.faction)}</div>`;
   }
-  html += `</div>`;
-  html += `</div>`;
   
   // Dialogue line (handle multi-line arrays)
-  html += `<div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 0, 0, 0.3); border-left: 3px solid ${getNPCColor(npc)}; line-height: 1.6;">`;
+  html += `<div style="margin-bottom: 20px; padding: 10px 0; border-bottom: 1px solid #444; line-height: 1.4;">`;
   if (Array.isArray(node.npcLine)) {
     // Multi-line dialogue
     node.npcLine.forEach((line, i) => {
@@ -137,42 +179,25 @@ export function renderDialogueTree() {
   // Player choices
   if (node.choices && node.choices.length > 0) {
     html += `<div style="margin-top: 15px;">`;
-    html += `<div style="color: #888; font-size: 12px; margin-bottom: 10px;">Your response:</div>`;
+    html += `<div style="color: #888; font-size: 12px; margin-bottom: 8px;">Choose:</div>`;
     
     node.choices.forEach((choice, index) => {
       const selected = index === currentDialogueUI.selectedChoice;
-      const bgColor = selected ? 'rgba(68, 170, 255, 0.2)' : 'transparent';
-      const borderColor = selected ? 'var(--primary, #4af)' : 'transparent';
-      const textColor = selected ? '#fff' : '#ccc';
-      
-      // Check if choice has special conditions
-      const hasConditions = choice.conditions && choice.conditions.length > 0;
-      const isConditional = hasConditions && choice.conditions.some(c => 
-        c.relationAtLeast || c.hasItem || c.hasGold || c.flagTrue
-      );
+      const textColor = selected ? 'var(--primary, #4af)' : '#ccc';
       
       html += `<div style="
-        padding: 10px 15px;
-        margin: 5px 0;
-        background: ${bgColor};
-        border-left: 3px solid ${borderColor};
+        padding: 5px 0;
+        margin: 2px 0;
         cursor: pointer;
-        transition: all 0.2s;
         color: ${textColor};
-        position: relative;
       " data-choice="${index}">`;
       
+      // Indent selected choice with arrow
+      // Use &nbsp; for non-breaking spaces to ensure they render
       if (selected) {
-        html += `<span style="color: var(--primary, #4af);">▶ </span>`;
+        html += `&nbsp;&nbsp;&nbsp;&nbsp;> [${index + 1}] ${choice.text}`;
       } else {
-        html += `<span style="opacity: 0;">▶ </span>`;
-      }
-      
-      html += `[${index + 1}] ${choice.text}`;
-      
-      // Add indicator for conditional choices
-      if (isConditional) {
-        html += ` <span style="color: #ffcc00; font-size: 11px;">[Special]</span>`;
+        html += `[${index + 1}] ${choice.text}`;
       }
       
       html += `</div>`;
@@ -194,7 +219,19 @@ export function renderDialogueTree() {
   container.innerHTML = html;
   container.style.display = 'block';
   
-  // Add click handlers for choices
+  // Force the container to be visible and on top
+  container.style.visibility = 'visible';
+  container.style.opacity = '1';
+  container.style.pointerEvents = 'auto';
+  
+  console.log('🎭 [DIALOGUE-UI] Container display set to:', container.style.display);
+  
+  // Add click handlers for choices - check if container is valid DOM element
+  if (!container.querySelectorAll) {
+    console.error('🎭 [DIALOGUE-UI] Container is not a valid DOM element:', container);
+    return;
+  }
+  
   const choiceElements = container.querySelectorAll('[data-choice]');
   choiceElements.forEach(el => {
     el.addEventListener('click', () => {
@@ -207,8 +244,41 @@ export function renderDialogueTree() {
     el.addEventListener('mouseenter', () => {
       const index = parseInt(el.dataset.choice);
       currentDialogueUI.selectedChoice = index;
-      renderDialogueTree();
+      updateSelectedChoice(); // Use efficient update
     });
+  });
+}
+
+/**
+ * Update only the selected choice highlighting
+ */
+function updateSelectedChoice() {
+  if (!currentDialogueUI) return;
+  
+  const container = document.getElementById('dialogue-tree');
+  if (!container) return;
+  
+  // Find all choice elements
+  const choiceElements = container.querySelectorAll('[data-choice]');
+  if (!choiceElements || choiceElements.length === 0) return;
+  
+  // Get the current node to access choice text
+  const node = getCurrentNode();
+  if (!node || !node.choices) return;
+  
+  choiceElements.forEach((el, index) => {
+    const selected = index === currentDialogueUI.selectedChoice;
+    const choice = node.choices[index];
+    
+    if (selected) {
+      el.style.color = 'var(--primary, #4af)';
+      // Update text with indentation (4 spaces for more visibility)
+      el.innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;> [${index + 1}] ${choice.text}`;
+    } else {
+      el.style.color = '#ccc';
+      // Update text without indentation
+      el.innerHTML = `[${index + 1}] ${choice.text}`;
+    }
   });
 }
 
@@ -234,14 +304,14 @@ export function handleDialogueInput(state, key) {
     case 'ArrowUp':
       if (currentDialogueUI.selectedChoice > 0) {
         currentDialogueUI.selectedChoice--;
-        renderDialogueTree();
+        updateSelectedChoice(); // Only update selection, not full re-render
       }
       return true;
       
     case 'ArrowDown':
       if (currentDialogueUI.selectedChoice < node.choices.length - 1) {
         currentDialogueUI.selectedChoice++;
-        renderDialogueTree();
+        updateSelectedChoice(); // Only update selection, not full re-render
       }
       return true;
       

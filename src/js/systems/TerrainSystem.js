@@ -149,6 +149,44 @@ export class TerrainSystem {
         });
       }
     });
+
+    // Paved road/street - used in Candy Kingdom
+    this.registerTerrain('=', {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'paved road',
+      description: 'A smooth paved street made of candy cobblestones'
+    });
+
+    // Candy floor - special floor used in Candy Kingdom  
+    this.registerTerrain('·', {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'candy floor',
+      description: 'Sweet crystalline floor tiles'
+    });
+
+    // Grass - outdoor terrain
+    this.registerTerrain(',', {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'grass',
+      description: 'Soft grass'
+    });
+
+    // Special tiles for items/objects (passable but may have items)
+    this.registerTerrain('!', { passable: true, moveCost: 1, blocksVision: false, name: 'potion' });
+    this.registerTerrain('/', { passable: true, moveCost: 1, blocksVision: false, name: 'weapon' });
+    this.registerTerrain(']', { passable: true, moveCost: 1, blocksVision: false, name: 'armor' });
+    this.registerTerrain('○', { passable: true, moveCost: 1, blocksVision: false, name: 'ring' });
+    this.registerTerrain('$', { passable: true, moveCost: 1, blocksVision: false, name: 'chest' });
+    this.registerTerrain('▲', { passable: true, moveCost: 1, blocksVision: false, name: 'shrine' });
+    this.registerTerrain('V', { passable: true, moveCost: 1, blocksVision: false, name: 'vendor' });
+    this.registerTerrain('★', { passable: true, moveCost: 1, blocksVision: false, name: 'artifact' });
+    this.registerTerrain('♪', { passable: true, moveCost: 1, blocksVision: false, name: 'oddity' });
   }
 
   /**
@@ -186,7 +224,9 @@ export class TerrainSystem {
    */
   isPassable(tile) {
     if (!tile) return false;
-    return this.terrainTypes.get(tile)?.passable ?? false;
+    // Default to passable for unknown tiles (matching old system behavior)
+    // Only walls (#) and doors (+) should block movement by default
+    return this.terrainTypes.get(tile)?.passable ?? true;
   }
 
   /**

@@ -60,6 +60,13 @@ export const TILE = {
 
 export const BIOME_TIERS = {
   // Tier 1 - Starting area (distance 0-3)
+  forest: { 
+    tier: 1, 
+    id: "forest",
+    monsters: ["goober", "firefly", "sweet_tooth_fox"],
+    colors: { primary: "#228B22", secondary: "#32CD32" }
+  },
+  
   candy_forest: { 
     tier: 1, 
     id: "candy_forest",
@@ -293,6 +300,24 @@ export const STORE_PREFIX = "ooo_enhanced_v1";
 
 // Quest templates
 export const QUEST_TEMPLATES = {
+  sweet_tooth_foxes: {
+    id: "sweet_tooth_foxes",
+    name: "Sweet Tooth Menace",
+    description: "Foxes with sweet teeth are attacking candy citizens! We need their teeth removed.",
+    objective: "Collect 5 Fox Sweet Teeth",
+    giver: "banana_guard",
+    targetItem: "fox_sweet_tooth",
+    targetCount: 5,
+    rewards: {
+      gold: 100,
+      xp: 50,
+      reputation: { guards: 10, peasants: 5 }
+    },
+    completionText: "Excellent work! The candy citizens are safe now.",
+    isRepeatable: false,
+    isItemQuest: true
+  },
+  
   kill_any: {
     id: "kill_any",
     name: "Monster Hunter",

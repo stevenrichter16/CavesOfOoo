@@ -473,6 +473,10 @@ export const candyKingdomDialoguesV3 = {
               next: "help_kingdom"
             },
             {
+              text: "Any problems that need solving?",
+              next: "quest_check"
+            },
+            {
               text: "Just passing through",
               next: "passing_through"
             },
@@ -870,6 +874,118 @@ export const candyKingdomDialoguesV3 = {
         {
           id: "no_excuse",
           npcLine: "BANANA GUARDS, ASSEMBLE! PROTECT THE KINGDOM!",
+          end: true
+        },
+        {
+          id: "quest_check",
+          npcLine: "Actually, yeah! We've got a SERIOUS problem!",
+          choices: [
+            {
+              text: "What kind of problem?",
+              next: "fox_problem"
+            },
+            {
+              text: "Not interested",
+              next: "passing_through"
+            }
+          ]
+        },
+        {
+          id: "fox_problem",
+          npcLine: [
+            "Foxes with SWEET TEETH have been attacking candy citizens!",
+            "They try to EAT them! It's horrible!",
+            "We need someone to knock them out and remove their sweet teeth!"
+          ],
+          choices: [
+            {
+              text: "I'll help! (Accept Quest)",
+              next: "quest_accepted",
+              effects: [
+                {
+                  startQuest: { id: "sweet_tooth_foxes" }
+                }
+              ],
+              conditions: [
+                {
+                  not: { hasActiveQuest: "sweet_tooth_foxes" }
+                },
+                {
+                  not: { flagTrue: "sweet_tooth_foxes_complete" }
+                }
+              ]
+            },
+            {
+              text: "I have the 5 teeth you need!",
+              next: "quest_complete",
+              conditions: [
+                { hasActiveQuest: "sweet_tooth_foxes" },
+                { hasItem: "fox_sweet_tooth", minCount: 5 }
+              ]
+            },
+            {
+              text: "Still working on it",
+              next: "quest_progress",
+              conditions: [
+                { hasActiveQuest: "sweet_tooth_foxes" }
+              ]
+            },
+            {
+              text: "That sounds dangerous",
+              next: "passing_through"
+            }
+          ]
+        },
+        {
+          id: "quest_accepted",
+          npcLine: [
+            "EXCELLENT! You're a true hero!",
+            "Find the foxes in the forest - NOT the candy forest, the regular one!",
+            "Knock them out and bring me 5 sweet teeth!"
+          ],
+          end: true
+        },
+        {
+          id: "quest_progress",
+          npcLine: "Keep at it! We need those teeth to keep our citizens safe!",
+          end: true
+        },
+        {
+          id: "quest_complete",
+          npcLine: [
+            "AMAZING! You did it! The candy citizens are safe!",
+            "Here's your reward - you've earned it!"
+          ],
+          effects: [
+            {
+              completeQuest: { id: "sweet_tooth_foxes" }
+            },
+            {
+              takeItem: { id: "fox_sweet_tooth", qty: 5 }
+            },
+            {
+              giveGold: 100
+            },
+            {
+              factionDelta: {
+                entity: "player",
+                faction: "guards",
+                delta: 10,
+                reason: "completed_fox_quest"
+              }
+            },
+            {
+              factionDelta: {
+                entity: "player",
+                faction: "peasants",
+                delta: 5,
+                reason: "protected_citizens"
+              }
+            },
+            {
+              setFlag: { flag: "sweet_tooth_foxes_complete", value: true }
+            }
+          ],
           end: true
         }
       ]

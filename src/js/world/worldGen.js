@@ -10,6 +10,8 @@ import { generateCandyMarketChunk } from './candyMarketChunk.js';
 import { generateCandyKingdomTownChunk } from './candyKingdomTown.js';
 import { generateNorthGateChunk } from './candyKingdomNorth.js';
 import { generateEastGateChunk } from './candyKingdomEast.js';
+import { generateShoppingDistrictChunk } from './candyShoppingDistrict.js';
+import { generateForestChunk } from './theForest.js';
 import { 
   generateSouthGateChunk,
   generateWestGateChunk
@@ -369,11 +371,16 @@ export function genChunk(seed, cx, cy) {
     return generateCandyKingdomTownChunk(seed, cx, cy);
   }
   
+  // Check for Shopping District (directly east of town center)
+  if (cx === 1 && cy === 0) {
+    return generateShoppingDistrictChunk(seed, cx, cy);
+  }
+  
   // Check for other Candy Kingdom chunks
   if (cx === 0 && cy === -1) {
     return generateNorthGateChunk(seed, cx, cy);
   }
-  if (cx === 1 && cy === 0) {
+  if (cx === 2 && cy === 0) {
     return generateEastGateChunk(seed, cx, cy);
   }
   if (cx === 0 && cy === 1) {
@@ -381,6 +388,18 @@ export function genChunk(seed, cx, cy) {
   }
   if (cx === -1 && cy === 0) {
     return generateWestGateChunk(seed, cx, cy);
+  }
+  
+  // Check for The Forest (regular forest, not candy forest)
+  // Place it to the north of the kingdom for the Sweet Tooth Fox quest
+  if (cx === 0 && cy === -2) {
+    const forestChunk = generateForestChunk(seed, cx, cy);
+    return {
+      ...forestChunk,
+      x: cx,
+      y: cy,
+      seed: hashStr(`${seed}|${cx}|${cy}`)
+    };
   }
   
   // Check for Cotton Candy Forest chunks

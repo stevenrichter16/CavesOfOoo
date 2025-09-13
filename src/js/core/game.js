@@ -43,6 +43,7 @@ import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/so
 import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../social/dialogueTreesV2.js';
 import { candyKingdomDialoguesV3 } from '../data/candyKingdomDialoguesV3.js';
 import { starchyDialogues } from '../data/starchyDialogues.js';
+import { forestDialogues } from '../data/forestDialogues.js';
 import { onEnemyDefeated, onItemCollected } from '../world/questChunks.js';
 import { getQuestSpawner } from '../systems/QuestSpawner.js';
 import * as questItems from '../items/questItems.js';  // Import quest items for immediate availability
@@ -69,6 +70,14 @@ function setText(id, text) {
 
 // Vendor shop functions
 export function openVendorShop(state, vendor, skipQuestCheck = false) {
+  console.log('🎮 openVendorShop called with:', {
+    vendorId: vendor?.id,
+    vendorName: vendor?.name,
+    vendorGoods: vendor?.goods,
+    shopkeeper: vendor?.shopkeeper,
+    skipQuestCheck
+  });
+  
   // Initialize vendor quest if needed
   VendorQuests.initializeVendorQuest(state, vendor);
   
@@ -98,10 +107,15 @@ export function openVendorShop(state, vendor, skipQuestCheck = false) {
     }
   }
   
+  console.log('🚀 Opening shop through ShopSystem...');
   // Use systems/shop.js to open shop (handles vendor initialization)
   ShopSystem.openShop(state, vendor);
+  
+  console.log('🖼️ Rendering shop through ShopUI...');
   // Use ui/shop.js to render
   ShopUI.renderShop(state);
+  
+  console.log('✨ Shop opening complete!');
 }
 
 export function closeShop(state) {
@@ -713,9 +727,57 @@ export async function newWorld() {
   // Load v3.0 Adventure Time authentic dialogue trees
   loadExpandedCandyKingdomDialogues(candyKingdomDialoguesV3);
   
+  // Expose state to window for debugging
+  if (typeof window !== 'undefined') {
+    window.gameState = state;
+    
+    // Load debug utilities
+    import('../debug/foxToothDebug.js').then(() => {
+      console.log('Fox tooth debug utilities loaded');
+    }).catch(err => {
+      // Debug utilities are optional
+    });
+    
+    import('../debug/stateDebug.js').then(() => {
+      console.log('State debug utilities loaded');
+    }).catch(err => {
+      // Debug utilities are optional
+    });
+  }
+  
   // Register Starchy's dialogue tree
   registerDialogueTree(starchyDialogues.npcType, starchyDialogues.biome, starchyDialogues);
   console.log('🎭 [GAME] Starchy dialogue tree registered');
+  
+  // Register Forest dialogue trees
+  console.log('🌲 [GAME] About to register forest dialogues...');
+  console.log('🌲 [GAME] forestDialogues object:', forestDialogues);
+  if (forestDialogues && forestDialogues.trees) {
+    console.log('🌲 [GAME] Found', forestDialogues.trees.length, 'forest dialogue trees');
+    forestDialogues.trees.forEach(tree => {
+      console.log('🌲 [GAME] Registering tree for:', tree.npcType, 'in biome:', tree.biome);
+      registerDialogueTree(tree.npcType, tree.biome, tree);
+    });
+    console.log('🌲 [GAME] Forest dialogue trees registered');
+  } else {
+    console.error('🌲 [GAME] No forest dialogues found!');
+  }
+  
+  // Register Shopping District dialogue trees and actions
+  import('../data/shoppingDistrictDialogues.js').then(module => {
+    module.registerShoppingDistrictDialogues();
+    console.log('🛍️ [GAME] Shopping District dialogue trees loaded');
+    
+    // Also register shopping district actions
+    return import('../social/shoppingDistrictActions.js');
+  }).then(module => {
+    if (module) {
+      module.registerShoppingDistrictActions();
+      console.log('🛍️ [GAME] Shopping District actions registered');
+    }
+  }).catch(err => {
+    console.error('Failed to load Shopping District dialogues/actions:', err);
+  });
   
   // Register unique NPC dialogue trees
   import('../data/uniqueNPCDialogues.js').then(module => {
@@ -731,13 +793,57 @@ export async function newWorld() {
     import('../world/candyKingdomTown.js').then(module => {
       module.spawnCandyKingdomNPCs(state);
     });
+  } else if (state.chunk?.isForest) {
+    // Spawn Forest NPCs
+    console.log('🌲 Forest detected, spawning NPCs...');
+    import('../world/theForest.js').then(module => {
+      module.spawnForestNPCs(state);
+      console.log('🌲 Forest NPCs spawned');
+    });
+  } else if (state.chunk?.isMarket && state.chunk?.special === 'shopping_district') {
+    // Handle Shopping District NPCs
+    console.log('🛍️ Shopping District detected, spawning NPCs...');
+    import('../social/init.js').then(socialModule => {
+      if (state.chunk?.npcData) {
+        const npcCount = state.chunk.npcData.length;
+        console.log(`📦 Found ${npcCount} NPC data entries to spawn`);
+        
+        state.npcs = state.npcs || [];
+        let spawned = 0;
+        
+        state.chunk.npcData.forEach(data => {
+          // Ensure chunk coordinates are set
+          data.chunkX = state.cx;
+          data.chunkY = state.cy;
+          
+          console.log(`Spawning NPC: ${data.name} at (${data.x}, ${data.y})`);
+          const npc = socialModule.spawnSocialNPC(state, data);
+          if (npc) {
+            state.npcs.push(npc);
+            spawned++;
+          }
+        });
+        
+        // Clear npcData after spawning
+        delete state.chunk.npcData;
+        console.log(`✅ Successfully spawned ${spawned}/${npcCount} NPCs in Shopping District`);
+        
+        // Log current NPC count
+        console.log(`Total NPCs in state: ${state.npcs.length}`);
+      } else {
+        console.log('⚠️ No npcData found in shopping district chunk');
+      }
+    }).catch(err => {
+      console.error('❌ Failed to load social module:', err);
+    });
   } else if (state.chunk?.isKingdomChunk) {
     // Spawn NPCs for adjacent Candy Kingdom chunks
     if (state.cx === 0 && state.cy === -1) {
       import('../world/candyKingdomNorth.js').then(module => {
         module.spawnNorthGateNPCs(state);
       });
-    } else if (state.cx === 1 && state.cy === 0) {
+    } else if (state.cx === 2 && state.cy === 0) {
+      // East Gate (moved to make room for Shopping District)
       import('../world/candyKingdomEast.js').then(module => {
         module.spawnEastGateNPCs(state);
       });

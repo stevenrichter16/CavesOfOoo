@@ -228,12 +228,12 @@ export function spawnCandyKingdomNPCs(state) {
   }));
   
   npcs.push(spawnSocialNPC(state, {
-    id: 'guard_mint',
-    name: 'Mint Guard',
+    id: 'banana_guard_north',
+    name: 'Banana Guard',
     x: 26,
     y: 2,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['alert', 'dutiful'],
     hp: 25,
     hpMax: 25,
@@ -241,12 +241,12 @@ export function spawnCandyKingdomNPCs(state) {
   }));
   
   npcs.push(spawnSocialNPC(state, {
-    id: 'guard_cherry',
-    name: 'Cherry Guard',
+    id: 'banana_guard_south',
+    name: 'Banana Guard',
     x: 21,
     y: 19,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['friendly', 'talkative'],
     hp: 25,
     hpMax: 25,
@@ -549,24 +549,24 @@ export function spawnCandyKingdomNPCs(state) {
   }));
   
   npcs.push(spawnSocialNPC(state, {
-    id: 'west_guard',
-    name: 'Toffee Guard',
+    id: 'banana_guard_west',
+    name: 'Banana Guard',
     x: 2,
     y: 10,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['alert', 'professional'],
     hp: 25,
     hpMax: 25
   }));
   
   npcs.push(spawnSocialNPC(state, {
-    id: 'east_guard',
-    name: 'Caramel Guard',
+    id: 'banana_guard_east',
+    name: 'Banana Guard',
     x: 45,
     y: 10,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['stoic', 'experienced'],
     hp: 25,
     hpMax: 25

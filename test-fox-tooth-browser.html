@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fox Tooth Collection - Browser Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+        }
+        .status {
+            padding: 20px;
+            border: 1px solid #0f0;
+            margin: 20px 0;
+        }
+        button {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+        .good { color: #0f0; }
+        .bad { color: #f00; }
+        .info { color: #0ff; }
+        .note { color: #ff0; }
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>🦊 Fox Sweet Tooth Collection Test</h1>
+    
+    <div class="status">
+        <h3>Test Status:</h3>
+        <div>Pipeline: <span id="pipeline-status">Loading...</span></div>
+        <div>Player Position: <span id="player-pos">-</span></div>
+        <div>Inventory Teeth: <span id="teeth-count">0</span></div>
+        <div>Quest Progress: <span id="quest-progress">-</span></div>
+        <div>Nearest Fox: <span id="fox-status">-</span></div>
+    </div>
+
+    <div>
+        <button onclick="spawnFox()">Spawn Sleeping Fox</button>
+        <button onclick="clearTeeth()">Clear Teeth</button>
+        <button onclick="checkStatus()">Check Status</button>
+        <button onclick="moveToFox()">Auto-Move to Fox</button>
+        <button onclick="runFullTest()">Run Full Test</button>
+    </div>
+
+    <div id="log">
+        <div class="info">Waiting for game to load...</div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <script type="module">
+        let gameLoaded = false;
+        
+        function log(msg, cls = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = cls;
+            entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Load the game
+        import('./src/js/core/game.js').then(() => {
+            gameLoaded = true;
+            log('Game loaded successfully!', 'good');
+            
+            // Check pipeline status
+            import('./src/js/movement/pipelineAdapter.js').then(module => {
+                const isNew = module.isNewPipelineEnabled();
+                document.getElementById('pipeline-status').textContent = isNew ? '✅ NEW Pipeline' : '❌ OLD Pipeline';
+                document.getElementById('pipeline-status').className = isNew ? 'good' : 'bad';
+                log(`Pipeline: ${isNew ? 'NEW' : 'OLD'}`, isNew ? 'good' : 'bad');
+            });
+            
+            // Hook into game logs
+            const originalLog = console.log;
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                const msg = args.join(' ');
+                if (msg.includes('extract') || msg.includes('tooth') || msg.includes('teeth')) {
+                    log(msg, 'note');
+                }
+            };
+            
+            // Start status updates
+            setInterval(updateStatus, 500);
+        }).catch(err => {
+            log('Error loading game: ' + err.message, 'bad');
+        });
+        
+        function updateStatus() {
+            const state = window.gameState || window.state;
+            if (!state || !state.player) return;
+            
+            // Update player position
+            document.getElementById('player-pos').textContent = `(${state.player.x}, ${state.player.y})`;
+            
+            // Update teeth count
+            const teeth = state.player.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+            document.getElementById('teeth-count').textContent = teeth ? teeth.quantity : 0;
+            
+            // Update quest progress
+            const progress = state.player.quests?.progress?.['sweet_tooth_foxes']?.teeth || 0;
+            document.getElementById('quest-progress').textContent = `${progress}/5`;
+            
+            // Find nearest fox
+            if (state.chunk?.monsters) {
+                const foxes = state.chunk.monsters.filter(m => 
+                    m.kind === 'sweet_tooth_fox' && m.alive
+                );
+                if (foxes.length > 0) {
+                    const fox = foxes[0];
+                    const status = fox.asleep ? 
+                        (fox.hasTeeth ? '😴 Has teeth' : '😴 No teeth') : 
+                        '👀 Awake';
+                    document.getElementById('fox-status').textContent = 
+                        `(${fox.x}, ${fox.y}) ${status}`;
+                } else {
+                    document.getElementById('fox-status').textContent = 'None in chunk';
+                }
+            }
+        }
+        
+        window.spawnFox = function() {
+            const state = window.gameState || window.state;
+            if (!state) {
+                log('Game not loaded', 'bad');
+                return;
+            }
+            
+            // Find a spot near player
+            const px = state.player.x;
+            const py = state.player.y;
+            const x = px + 2;
+            const y = py;
+            
+            if (window.spawnSleepingFox) {
+                window.spawnSleepingFox(x, y);
+                log(`Spawned sleeping fox at (${x}, ${y})`, 'good');
+            } else {
+                log('Debug utilities not loaded', 'bad');
+            }
+        };
+        
+        window.clearTeeth = function() {
+            if (window.clearFoxTeeth) {
+                window.clearFoxTeeth();
+                log('Cleared all teeth from inventory', 'info');
+            }
+        };
+        
+        window.checkStatus = function() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            log('=== Status Check ===', 'info');
+            log(`Player at (${state.player.x}, ${state.player.y})`, 'info');
+            
+            const teeth = state.player.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+            log(`Teeth in inventory: ${teeth ? teeth.quantity : 0}`, 'info');
+            
+            if (state.chunk?.monsters) {
+                const foxes = state.chunk.monsters.filter(m => m.kind === 'sweet_tooth_fox');
+                log(`Foxes in chunk: ${foxes.length}`, 'info');
+                foxes.forEach((fox, i) => {
+                    log(`  Fox ${i}: (${fox.x}, ${fox.y}) asleep=${fox.asleep} hasTeeth=${fox.hasTeeth}`, 'info');
+                });
+            }
+        };
+        
+        window.moveToFox = function() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            const foxes = state.chunk?.monsters?.filter(m => 
+                m.kind === 'sweet_tooth_fox' && m.asleep && m.hasTeeth
+            ) || [];
+            
+            if (foxes.length === 0) {
+                log('No sleeping foxes with teeth found', 'bad');
+                return;
+            }
+            
+            const fox = foxes[0];
+            const dx = Math.sign(fox.x - state.player.x);
+            const dy = Math.sign(fox.y - state.player.y);
+            
+            if (dx === 0 && dy === 0) {
+                log('Already at fox position', 'info');
+                return;
+            }
+            
+            // Simulate key press
+            const key = dx > 0 ? 'ArrowRight' : dx < 0 ? 'ArrowLeft' : 
+                       dy > 0 ? 'ArrowDown' : 'ArrowUp';
+            
+            const event = new KeyboardEvent('keydown', { key });
+            document.dispatchEvent(event);
+            
+            log(`Moving ${key.replace('Arrow', '').toLowerCase()} towards fox`, 'info');
+        };
+        
+        window.runFullTest = async function() {
+            log('=== Running Full Test ===', 'good');
+            
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+            
+            // Step 1: Clear inventory
+            log('Step 1: Clearing inventory...', 'info');
+            clearTeeth();
+            await sleep(500);
+            
+            // Step 2: Spawn fox
+            log('Step 2: Spawning fox...', 'info');
+            spawnFox();
+            await sleep(500);
+            
+            // Step 3: Move to fox
+            log('Step 3: Moving to fox (watch for tooth collection)...', 'info');
+            for (let i = 0; i < 5; i++) {
+                moveToFox();
+                await sleep(200);
+                
+                const teeth = window.gameState?.player?.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+                if (teeth) {
+                    log('✅ Tooth collected successfully!', 'good');
+                    break;
+                }
+            }
+            
+            // Step 4: Check final status
+            await sleep(500);
+            checkStatus();
+            
+            const teeth = window.gameState?.player?.inventory?.find(i => i.item?.id === 'fox_sweet_tooth');
+            if (teeth) {
+                log('=== Test PASSED ===', 'good');
+            } else {
+                log('=== Test FAILED - No tooth collected ===', 'bad');
+            }
+        };
+    </script>
+</body>
+</html>

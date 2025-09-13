@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Forest Animal Runtime Test</title>
+</head>
+<body>
+    <h1>Forest Animal Dialogue Runtime Test</h1>
+    <div id="results"></div>
+    
+    <script type="module">
+        import { registerDialogueTree, startDialogue } from '/src/js/social/dialogueTreesV2.js';
+        import { forestDialogues } from '/src/js/data/forestDialogues.js';
+        import { SocialActions } from '/src/js/social/actions.js';
+        
+        const results = document.getElementById('results');
+        
+        // Register forest dialogues
+        forestDialogues.trees.forEach(tree => {
+            registerDialogueTree(tree.npcType, tree.biome, tree);
+            results.innerHTML += `<p>Registered: ${tree.npcType} for ${tree.biome}</p>`;
+        });
+        
+        // Test dialogue retrieval
+        const testPlayer = {
+            id: 'player',
+            quests: { active: [], completed: [], progress: {}, fetchQuests: {} }
+        };
+        
+        const testNPC = {
+            id: 'momma_bear',
+            name: 'Momma Bear',
+            dialogueType: 'momma_bear',
+            faction: 'forest_animals'
+        };
+        
+        const testState = {
+            player: testPlayer,
+            cx: 0,
+            cy: -2,
+            chunk: { biome: 'forest', isForest: true }
+        };
+        
+        // Try to start dialogue
+        const dialogue = startDialogue(testState, testPlayer, testNPC, 'forest');
+        
+        if (dialogue) {
+            results.innerHTML += `<p style="color:green">✓ Dialogue retrieved successfully!</p>`;
+            results.innerHTML += `<p>NPC Line: ${dialogue.npcLine}</p>`;
+            results.innerHTML += `<p>Options: ${dialogue.options ? dialogue.options.length : 0}</p>`;
+        } else {
+            results.innerHTML += `<p style="color:red">✗ Failed to retrieve dialogue</p>`;
+        }
+        
+        // Check SocialActions
+        results.innerHTML += `<h2>Social Actions Check</h2>`;
+        for (const [name, action] of Object.entries(SocialActions)) {
+            const hasReq = typeof action.requirements === 'function';
+            results.innerHTML += `<p>${name}: ${hasReq ? '✓' : '✗ MISSING REQUIREMENTS'}</p>`;
+        }
+    </script>
+</body>
+</html>

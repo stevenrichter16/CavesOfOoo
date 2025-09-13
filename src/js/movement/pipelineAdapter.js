@@ -16,11 +16,14 @@ let originalRunPlayerMove = null;
  * Can be controlled via environment or settings
  */
 export function isNewPipelineEnabled() {
-  // Check if we're in a browser environment
-  if (typeof process === 'undefined') {
-    return false; // Disable new pipeline due to input lag issues
-  }
-  return process.env.USE_NEW_MOVEMENT !== 'false';
+  // Force enable the new pipeline for tooth collection to work
+  return true;
+  
+  // Old logic (disabled):
+  // if (typeof process === 'undefined') {
+  //   return false; // Disable new pipeline due to input lag issues
+  // }
+  // return process.env.USE_NEW_MOVEMENT !== 'false';
 }
 
 /**
@@ -45,15 +48,21 @@ export function initializePipelineAdapter() {
 export function adaptRunPlayerMove(originalFunc) {
   originalRunPlayerMove = originalFunc;
   
-  return async function(state, action) {
+  return function(state, action) {
+    console.log('[FOX DEBUG] adaptRunPlayerMove called');
+    console.log('[FOX DEBUG] isNewPipelineEnabled?', isNewPipelineEnabled());
+    
     if (!isNewPipelineEnabled()) {
+      console.log('[FOX DEBUG] Using OLD pipeline');
       // Use original implementation
       return originalFunc(state, action);
     }
     
+    console.log('[FOX DEBUG] Using NEW pipeline');
     try {
-      // Use new pipeline
-      const result = await movementPipeline.execute(state, action);
+      // Use new pipeline SYNCHRONOUSLY to avoid input lag
+      // The execute method will be made sync-compatible
+      const result = movementPipeline.executeSync(state, action);
       
       // Convert result to match expected return value
       // Original returns true if action was consumed

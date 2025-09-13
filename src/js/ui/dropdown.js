@@ -84,6 +84,15 @@ function closeDropdownHandler(e) {
 function dropdownKeyHandler(e) {
   if (!activeDropdown || !activeOptions || activeOptions.length === 0) return;
   
+  // Check if dialogue or other UI is open that should take priority
+  const STATE = window.STATE;
+  if (STATE && STATE.ui && (STATE.ui.dialogueTreeOpen || STATE.ui.socialMenuOpen)) {
+    // Dialogue has priority, close dropdown and let dialogue handle input
+    console.log('[DROPDOWN] Closing dropdown - dialogue has priority');
+    closeDropdown();
+    return;
+  }
+  
   const k = e.key;
   
   // Navigation keys

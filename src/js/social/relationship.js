@@ -45,6 +45,13 @@ class RelationshipMatrix {
     const fromId = typeof from === 'string' ? from : from.id;
     const toId = typeof to === 'string' ? to : to.id;
     
+    console.log('🤝 [REPUTATION] Modifying relationship:', {
+      from: fromId,
+      to: toId,
+      changes: changes,
+      before: { value: r.value, trust: r.trust, fear: r.fear, respect: r.respect }
+    });
+    
     // Apply changes with clamping
     if (changes.value !== undefined) {
       r.value = clamp(r.value + changes.value, -100, 100);
@@ -58,6 +65,13 @@ class RelationshipMatrix {
     if (changes.respect !== undefined) {
       r.respect = clamp(r.respect + changes.respect, -100, 100);
     }
+    
+    console.log('🤝 [REPUTATION] After modification:', {
+      value: r.value,
+      trust: r.trust, 
+      fear: r.fear,
+      respect: r.respect
+    });
     
     // Add to history
     const turn = window.STATE?.turn || 0;
@@ -119,6 +133,14 @@ class RelationshipMatrix {
     const cur = this.getFactionStanding(entityId, factionId);
     const nv = clamp(cur + delta, -100, 100);
     this.factionStanding.set(k, nv);
+    
+    console.log('🏰 [FACTION] Modifying faction standing:', {
+      entity: entityId,
+      faction: factionId,
+      before: cur,
+      change: delta,
+      after: nv
+    });
     
     emit(EventType.FactionStandingChanged, {
       entity: entityId,

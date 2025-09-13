@@ -16,6 +16,18 @@ export function entityAt(state, x, y) {
     if (monster) return monster;
   }
   
+  // Check for NPCs at this position in the current chunk
+  if (state.npcs) {
+    const npc = state.npcs.find(n => 
+      n.x === x && 
+      n.y === y && 
+      n.hp > 0 &&
+      n.chunkX === state.cx &&
+      n.chunkY === state.cy
+    );
+    if (npc) return npc;
+  }
+  
   // Check for player at this position (though usually we know it's not the player)
   if (state.player && state.player.x === x && state.player.y === y) {
     return state.player;
@@ -176,6 +188,40 @@ export function tryEdgeTravel(state, player, nx, ny) {
   // Ensure items array exists
   if (!state.chunk.items) state.chunk.items = [];
   
+  // Handle shopping district NPCs specifically
+  if (tcx === 1 && tcy === 0 && state.chunk?.npcData) {
+    console.log('🛍️ Entering Shopping District via edge travel, spawning NPCs...');
+    // Dynamically import to avoid circular dependency
+    import('../social/init.js').then(socialModule => {
+      if (state.chunk?.npcData) {
+        // Initialize NPCs array if it doesn't exist
+        if (!state.npcs) state.npcs = [];
+        
+        const npcCount = state.chunk.npcData.length;
+        console.log(`📦 Found ${npcCount} NPCs to spawn in shopping district`);
+        
+        state.chunk.npcData.forEach(data => {
+          // Set the chunk coordinates for spawning - NPCs use chunkX/chunkY not cx/cy
+          data.chunkX = tcx;
+          data.chunkY = tcy;
+          const npc = socialModule.spawnSocialNPC(state, data);
+          if (npc) {
+            state.npcs.push(npc);
+            console.log(`✅ Spawned NPC: ${npc.name} at (${npc.x}, ${npc.y}) in chunk (${npc.chunkX}, ${npc.chunkY})`);
+          } else {
+            console.warn(`⚠️ Failed to spawn NPC: ${data.name}`);
+          }
+        });
+        
+        // Clear npcData after spawning to avoid duplicates
+        delete state.chunk.npcData;
+        console.log(`🎉 Successfully spawned ${state.npcs.filter(n => n.chunkX === tcx && n.chunkY === tcy).length} NPCs in shopping district`);
+      }
+    }).catch(err => {
+      console.error('❌ Error spawning shopping district NPCs:', err);
+    });
+  }
+  
   // Populate special chunks
   if (tcx === -1 && tcy === 0) {
     // Graveyard chunk - spawn Starchy and other graveyard NPCs
@@ -188,6 +234,22 @@ export function tryEdgeTravel(state, player, nx, ny) {
           gameModule.render(state);
         }, 50); // Short delay to ensure population is complete
       });
+    });
+  } else if (tcx === 0 && tcy === -2 && state.chunk?.isForest) {
+    // The Forest chunk - spawn forest animals and Forest Wizard
+    console.log('🌲 Entering The Forest, spawning NPCs...');
+    import('../world/theForest.js').then(module => {
+      module.spawnForestNPCs(state);
+      console.log('🌲 Forest NPCs spawned');
+      
+      // Trigger re-render after NPCs are spawned
+      import('../core/game.js').then(gameModule => {
+        setTimeout(() => {
+          gameModule.render(state);
+        }, 50);
+      });
+    }).catch(err => {
+      console.error('❌ Error spawning Forest NPCs:', err);
     });
   } else if (tcx === 0 && tcy === 0 && state.chunk?.isMarket) {
     // Candy Market chunk - spawn vendors

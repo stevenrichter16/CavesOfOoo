@@ -278,6 +278,12 @@ export function isActionAvailable(actor, target, actionType, context = {}) {
   const action = SocialActions[actionType];
   if (!action) return false;
   
+  // Check if requirements is a function
+  if (typeof action.requirements !== 'function') {
+    console.warn(`Action ${actionType} has invalid requirements:`, action.requirements);
+    return false;
+  }
+  
   const ctx = {
     actor,
     target,

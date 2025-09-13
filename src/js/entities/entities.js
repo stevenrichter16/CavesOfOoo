@@ -79,7 +79,7 @@ export function makePlayer() {
     faction: 'player',  // Player's faction for hostility checks
     weapon: null, armor: null, headgear: null,
     rings: [null, null],  // Two ring slots
-    gold: 0,  // Starting gold
+    gold: 1000,  // Starting gold - set to 1000 for testing shopping
     inventory: startingInventory, potionCount: 0,
     // statusEffects handled by Status Map in statusSystem.js
     turnsSinceRest: 0,
@@ -98,6 +98,17 @@ export function makeMonster(kind, x, y, tier = 1) {
   const templates = {
     // Basic enemies - significantly buffed HP and XP
     goober: { glyph: "g", name: "candy goober", hp: 60, str: 3, def: 0, spd: 2, xp: 10, ai: "chase" },
+    sweet_tooth_fox: { 
+      glyph: "F", 
+      name: "Sweet Tooth Fox", 
+      hp: 15, 
+      str: 3, 
+      def: 1, 
+      spd: 4, 
+      xp: 15, 
+      ai: "chase",
+      color: "orange"
+    },
     icething: { glyph: "i", name: "ice-thing", hp: 40, str: 4, def: 2, spd: 1, xp: 15, ai: "chase" },
     sootling: { glyph: "s", name: "sootling", hp: 25, str: 3, def: 0, spd: 4, xp: 8, ai: "wander" },
     firefly: { glyph: "f", name: "firefly", hp: 30, str: 2, def: 0, spd: 6, xp: 5, ai: "skittish" },
@@ -307,6 +318,12 @@ export function makeMonster(kind, x, y, tier = 1) {
   
   // Set hpMax to match hp for proper display
   base.hpMax = base.hp;
+  
+  // Add special properties for Sweet Tooth Fox
+  if (kind === 'sweet_tooth_fox') {
+    base.hasTeeth = true;
+    base.knockedOut = false;
+  }
   
   return { ...base, kind, x, y, alive: true, tier }; // statusEffects handled by Status Map
 }

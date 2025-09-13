@@ -16,6 +16,7 @@ import { getPathfindingSystem } from '../pathfinding/PathfindingSystem.js';
 import { getMovementCostCalculator } from '../pathfinding/MovementCostCalculator.js';
 import { getPathCache } from '../pathfinding/PathCache.js';
 import { MIN_HP_FOR_INTERACTION } from '../../social/integration/constants.js';
+import { QUEST_ITEMS } from '../items/questItems.js';
 
 export class MovementPipeline {
   constructor(eventBus = new EventBus()) {
@@ -85,7 +86,69 @@ export class MovementPipeline {
     context.result.metrics = context.metrics;
     
     // Emit final result event with full context for NPC processing
-    await this.eventBus.emitAsync('MovementComplete', {
+    this.eventBus.emit('MovementComplete', {
+      result: context.result,
+      state: context.state,
+      player: context.player
+    });
+    
+    return context.result;
+  }
+
+  /**
+   * Execute the movement pipeline SYNCHRONOUSLY
+   * This avoids input lag in browser environments
+   * @param {Object} state - Game state
+   * @param {Object} action - Movement action {type: 'move', dx, dy}
+   * @returns {MovementResult} Result of the movement attempt
+   */
+  executeSync(state, action) {
+    console.log('[FOX DEBUG] === Starting MovementPipeline.executeSync ===');
+    console.log('[FOX DEBUG] Action:', action);
+    console.log('[FOX DEBUG] Player position:', state.player?.x, state.player?.y);
+    
+    // Create movement context
+    const context = this.createContext(state, action);
+    console.log('[FOX DEBUG] Context created, target:', context.targetX, context.targetY);
+    
+    // Execute each step in sequence (synchronously)
+    for (const step of this.steps) {
+      console.log('[FOX DEBUG] Executing step:', step.name);
+      try {
+        const startTime = performance.now();
+        
+        // Call handler synchronously (no await)
+        const result = step.handler(context);
+        
+        // Handle if handler returns a promise (shouldn't happen in sync mode)
+        if (result && typeof result.then === 'function') {
+          console.warn(`Movement step '${step.name}' returned a promise in sync mode`);
+        }
+        
+        const duration = performance.now() - startTime;
+        context.metrics[step.name] = duration;
+        
+        // Check if movement was cancelled
+        if (context.cancelled) {
+          context.result.success = false;
+          context.result.step = step.name;
+          break;
+        }
+      } catch (error) {
+        console.error(`Error in movement step '${step.name}':`, error);
+        context.cancelled = true;
+        context.result.success = false;
+        context.result.error = error.message;
+        context.result.step = step.name;
+        break;
+      }
+    }
+
+    // Copy metrics to result
+    context.result.metrics = context.metrics;
+    
+    // Emit final result event synchronously
+    this.eventBus.emit('MovementComplete', {
       result: context.result,
       state: context.state,
       player: context.player
@@ -152,12 +215,20 @@ export class MovementPipeline {
   /**
    * Step 1: Validate the move action
    */
-  async validateMove(context) {
-    const { action } = context;
+  validateMove(context) {
+    const { action, state } = context;
     
     if (!action || action.type !== 'move') {
       context.cancelled = true;
       context.result.reason = 'Invalid move action';
+      return;
+    }
+
+    // Block movement if dialogue is open
+    if (state.ui?.dialogueOpen || state.ui?.dialogueTreeOpen) {
+      context.cancelled = true;
+      context.result.reason = 'Dialogue is open';
+      context.result.consumed = true; // Consume the action
       return;
     }
 
@@ -178,11 +249,11 @@ export class MovementPipeline {
   /**
    * Step 2: Pre-move checks and events
    */
-  async preMove(context) {
+  preMove(context) {
     const { fromX, fromY, targetX, targetY, player } = context;
     
     // Emit WillMove event - handlers can cancel movement
-    const preEvent = await this.eventBus.emitAsync('WillMove', {
+    const preEvent = this.eventBus.emit('WillMove', {
       player,
       from: { x: fromX, y: fromY },
       to: { x: targetX, y: targetY },
@@ -215,7 +286,7 @@ export class MovementPipeline {
   /**
    * Step 3: Check status effects that prevent movement
    */
-  async checkStatusEffects(context) {
+  checkStatusEffects(context) {
     const { player } = context;
     
     // Check if player is frozen
@@ -230,7 +301,7 @@ export class MovementPipeline {
     }
 
     // Check for other movement-preventing statuses
-    const statusEvent = await this.eventBus.emitAsync('CheckMovementStatus', {
+    const statusEvent = this.eventBus.emit('CheckMovementStatus', {
       player,
       context
     });
@@ -245,7 +316,7 @@ export class MovementPipeline {
   /**
    * Step 4: Check for collisions with world boundaries
    */
-  async checkCollisions(context) {
+  checkCollisions(context) {
     const { targetX, targetY, state } = context;
     
     // Check if we're moving out of bounds (edge transition handled later)
@@ -262,7 +333,7 @@ export class MovementPipeline {
   /**
    * Step 5: Handle NPC interactions
    */
-  async handleNPCInteraction(context) {
+  handleNPCInteraction(context) {
     const { targetX, targetY, state } = context;
     
     // Skip if edge transition
@@ -303,7 +374,7 @@ export class MovementPipeline {
     }
 
     // Interact with friendly NPC
-    await this.eventBus.emitAsync('NPCInteraction', { 
+    this.eventBus.emit('NPCInteraction', { 
       player: context.player, 
       npc,
       context 
@@ -326,36 +397,152 @@ export class MovementPipeline {
   /**
    * Step 6: Handle monster collisions
    */
-  async handleMonsterCollision(context) {
+  handleMonsterCollision(context) {
     const { targetX, targetY, state } = context;
+    
+    console.log('[FOX DEBUG] handleMonsterCollision called');
+    console.log('[FOX DEBUG] Target position:', targetX, targetY);
+    console.log('[FOX DEBUG] Is edge transition?', context.isEdgeTransition);
+    console.log('[FOX DEBUG] Already cancelled?', context.cancelled);
     
     // Skip if edge transition or already cancelled
     if (context.isEdgeTransition || context.cancelled) return;
     
     // Check for monster at target position
     const monster = entityAt(state, targetX, targetY);
+    console.log('[FOX DEBUG] Monster at target:', monster);
     
     if (monster && monster !== context.player) {
-      // Attack the monster
-      const result = attack(state, context.player, monster);
-      
-      context.result.attacked = true;
-      context.cancelled = true;
-      context.result.reason = 'Monster collision';
-      
-      // Emit combat event
-      await this.eventBus.emitAsync('CombatInitiated', {
-        attacker: context.player,
-        defender: monster,
-        result
+      console.log('[FOX DEBUG] Monster found:', {
+        kind: monster.kind,
+        asleep: monster.asleep,
+        hasTeeth: monster.hasTeeth,
+        position: `(${monster.x}, ${monster.y})`,
+        hp: monster.hp
       });
+      
+      // Check if it's a sleeping fox that can have teeth collected
+      if (monster.asleep && monster.kind === 'sweet_tooth_fox') {
+        console.log('[FOX DEBUG] It\'s a sleeping Sweet Tooth Fox!');
+        if (monster.hasTeeth !== false) { // Default to true if not set
+          console.log('[FOX DEBUG] Fox has teeth, attempting to collect...');
+          
+          // Use the QUEST_ITEMS definition for the tooth
+          const itemDef = QUEST_ITEMS.fox_sweet_tooth;
+          console.log('[FOX DEBUG] Item definition:', itemDef);
+          
+          // Create tooth item in correct format for inventory UI
+          const tooth = {
+            type: 'item',  // Quest items use 'item' type
+            item: { 
+              id: 'fox_sweet_tooth',
+              ...itemDef
+            },
+            id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,  // Unique inventory ID
+            count: 1  // Use 'count' not 'quantity'
+          };
+          
+          // Check if already has teeth in inventory
+          console.log('[FOX DEBUG] Current inventory:', context.player.inventory);
+          const existing = context.player.inventory?.find(i => 
+            i.type === 'item' && i.item?.id === 'fox_sweet_tooth'
+          );
+          
+          if (existing) {
+            console.log('[FOX DEBUG] Found existing teeth, incrementing count from', existing.count);
+            existing.count = (existing.count || 1) + 1;
+            console.log('[FOX DEBUG] New count:', existing.count);
+          } else {
+            console.log('[FOX DEBUG] No existing teeth, adding new item to inventory');
+            if (!context.player.inventory) {
+              console.log('[FOX DEBUG] Creating inventory array');
+              context.player.inventory = [];
+            }
+            context.player.inventory.push(tooth);
+            console.log('[FOX DEBUG] Inventory after adding:', context.player.inventory);
+            console.log('[FOX DEBUG] Added tooth item:', tooth);
+          }
+          
+          monster.hasTeeth = false;
+          
+          // Log the collection
+          console.log('[FOX DEBUG] About to log extraction message');
+          console.log('[FOX DEBUG] state.log exists?', !!state.log);
+          console.log('[FOX DEBUG] typeof state.log:', typeof state.log);
+          
+          if (state.log) {
+            console.log('[FOX DEBUG] Calling state.log with message');
+            state.log(state, 'You extract a sweet tooth from the sleeping fox!', 'good');
+          } else {
+            console.log('[FOX DEBUG] state.log not found, using emit');
+            emit(EventType.Log, { 
+              text: 'You extract a sweet tooth from the sleeping fox!', 
+              cls: 'good' 
+            });
+          }
+          
+          // Update quest progress if applicable
+          if (context.player.quests?.active?.includes('sweet_tooth_foxes')) {
+            if (!context.player.quests.progress['sweet_tooth_foxes']) {
+              context.player.quests.progress['sweet_tooth_foxes'] = { teeth: 0 };
+            }
+            context.player.quests.progress['sweet_tooth_foxes'].teeth++;
+            const progress = context.player.quests.progress['sweet_tooth_foxes'].teeth;
+            
+            if (state.log) {
+              state.log(state, `Quest progress: ${progress}/5 teeth collected`, 'note');
+            } else {
+              emit(EventType.Log, { 
+                text: `Quest progress: ${progress}/5 teeth collected`, 
+                cls: 'note' 
+              });
+            }
+          }
+          
+          context.result.interacted = true;
+          context.cancelled = true;
+          context.result.reason = 'Collected sweet tooth';
+        } else {
+          if (state.log) {
+            state.log(state, 'This fox has already had its teeth removed.', 'note');
+          } else {
+            emit(EventType.Log, { 
+              text: 'This fox has already had its teeth removed.', 
+              cls: 'note' 
+            });
+          }
+          
+          context.result.interacted = true;
+          context.cancelled = true;
+          context.result.reason = 'Already collected';
+        }
+      } else {
+        // Attack the monster normally
+        console.log('[FOX DEBUG] Not a sleeping fox, attacking normally');
+        console.log('[FOX DEBUG] Monster kind:', monster.kind);
+        console.log('[FOX DEBUG] Monster asleep:', monster.asleep);
+        
+        const result = attack(state, context.player, monster);
+        console.log('[FOX DEBUG] Attack result:', result);
+        
+        context.result.attacked = true;
+        context.cancelled = true;
+        context.result.reason = 'Monster collision';
+        
+        // Emit combat event
+        this.eventBus.emit('CombatInitiated', {
+          attacker: context.player,
+          defender: monster,
+          result
+        });
+      }
     }
   }
 
   /**
    * Step 7: Check terrain passability
    */
-  async checkTerrainPassability(context) {
+  checkTerrainPassability(context) {
     const { targetX, targetY, state } = context;
     
     // Skip if edge transition or already cancelled
@@ -377,7 +564,7 @@ export class MovementPipeline {
       }
       
       // Emit blocked event
-      await this.eventBus.emitAsync('MovementBlocked', {
+      this.eventBus.emit('MovementBlocked', {
         player: context.player,
         position: { x: targetX, y: targetY },
         tile,
@@ -389,7 +576,7 @@ export class MovementPipeline {
   /**
    * Step 8: Handle item pickup at target position
    */
-  async handleItemPickup(context) {
+  handleItemPickup(context) {
     const { targetX, targetY, state } = context;
     
     // Skip if cancelled or edge transition
@@ -414,7 +601,7 @@ export class MovementPipeline {
       
       // Emit item pickup event
       if (canPickup.length > 0) {
-        await this.eventBus.emitAsync('ItemsAvailable', {
+        this.eventBus.emit('ItemsAvailable', {
           player: context.player,
           items: canPickup,
           position: { x: targetX, y: targetY },
@@ -427,7 +614,7 @@ export class MovementPipeline {
   /**
    * Step 9: Apply the movement
    */
-  async applyMovement(context) {
+  applyMovement(context) {
     const { targetX, targetY, player, state } = context;
     
     // Skip if cancelled
@@ -452,27 +639,27 @@ export class MovementPipeline {
     }
     
     // Check for terrain effects at new position
-    await this.handleTerrainEffects(context);
+    this.handleTerrainEffects(context);
   }
 
   /**
    * Step 10: Handle edge transitions
    */
-  async handleEdgeTransition(context) {
-    const { targetX, targetY, state } = context;
+  handleEdgeTransition(context) {
+    const { targetX, targetY, state, player } = context;
     
     // Skip if not an edge transition or cancelled
     if (!context.isEdgeTransition || context.cancelled) return;
     
-    // Try to transition to new chunk
-    const transitioned = tryEdgeTravel(state, targetX, targetY);
+    // Try to transition to new chunk - pass player as second argument
+    const transitioned = tryEdgeTravel(state, player, targetX, targetY);
     
     if (transitioned) {
       context.result.moved = true;
       context.result.changedChunk = true;
       
       // Emit chunk change event
-      await this.eventBus.emitAsync('ChunkChanged', {
+      this.eventBus.emit('ChunkChanged', {
         player: context.player,
         from: { x: context.fromX, y: context.fromY },
         to: { x: state.player.x, y: state.player.y },
@@ -492,14 +679,14 @@ export class MovementPipeline {
   /**
    * Step 11: Post-move effects and events
    */
-  async postMove(context) {
+  postMove(context) {
     const { player, result } = context;
     
     // Skip if movement was cancelled
     if (context.cancelled) return;
     
     // Emit successful movement event
-    await this.eventBus.emitAsync('DidMove', {
+    this.eventBus.emit('DidMove', {
       player,
       from: { x: context.fromX, y: context.fromY },
       to: { x: player.x, y: player.y },
@@ -574,14 +761,14 @@ export class MovementPipeline {
   /**
    * Handle terrain effects at player's position
    */
-  async handleTerrainEffects(context) {
+  handleTerrainEffects(context) {
     const { player, state } = context;
     const tile = this.terrainSystem.getTerrainAt(state, player.x, player.y);
     
     // Don't modify cancelled state - it's for movement, not terrain
     
     // Emit terrain enter event
-    await this.eventBus.emitAsync('TerrainEntered', {
+    this.eventBus.emit('TerrainEntered', {
       player,
       tile,
       position: { x: player.x, y: player.y },

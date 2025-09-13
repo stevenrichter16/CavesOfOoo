@@ -232,6 +232,9 @@ export const QUEST_ITEMS = {
   ooze_sample: { name: "Ooze Sample", description: "Glowing green dungeon ooze.", value: 30 },
   ooze_core: { name: "Ooze Core", description: "The heart of Mother Ooze.", value: 200 },
   
+  // Quest creature items
+  fox_sweet_tooth: { name: "Fox Sweet Tooth", description: "A dangerously sweet tooth extracted from a sleeping fox.", value: 10, stackable: true },
+  
   // Lich items
   lich_essence: { name: "Lich Essence", description: "Pure evil in material form.", value: 100 },
   lich_dust: { name: "Lich Dust", description: "Remains of the Lich's power.", value: 150 },

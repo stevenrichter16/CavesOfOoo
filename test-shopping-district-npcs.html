@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shopping District NPC Test</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
+    button { margin: 10px; padding: 10px; }
+    #log { border: 1px solid #444; padding: 10px; margin: 20px 0; height: 400px; overflow-y: auto; }
+    .success { color: #4f4; }
+    .error { color: #f44; }
+    .info { color: #4af; }
+    .warn { color: #fa4; }
+  </style>
+</head>
+<body>
+  <h1>Shopping District NPC Test</h1>
+  <div>
+    <button onclick="testNPCSpawning()">Test NPC Spawning</button>
+    <button onclick="testNPCInteraction()">Test NPC Interaction</button>
+    <button onclick="testChunkTransition()">Test Chunk Transition</button>
+    <button onclick="clearLog()">Clear Log</button>
+  </div>
+  <div id="log"></div>
+
+  <script type="module">
+    import { generateShoppingDistrictChunk } from './src/js/world/candyShoppingDistrict.js';
+    import { spawnSocialNPC } from './src/js/social/init.js';
+    import { MovementPipeline } from './src/js/movement/MovementPipeline.js';
+    
+    const log = document.getElementById('log');
+    
+    function addLog(msg, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+    
+    window.clearLog = () => { log.innerHTML = ''; };
+    
+    window.testNPCSpawning = async () => {
+      addLog('Testing NPC Spawning in Shopping District...', 'info');
+      
+      try {
+        // Create a mock state
+        const state = {
+          cx: 1,
+          cy: 0,
+          worldSeed: 12345,
+          npcs: [],
+          player: { x: 10, y: 10, hp: 100, hpMax: 100 }
+        };
+        
+        // Generate shopping district chunk
+        const chunk = generateShoppingDistrictChunk(12345, 1, 0);
+        if (!chunk) {
+          addLog('ERROR: Failed to generate shopping district chunk', 'error');
+          return;
+        }
+        state.chunk = chunk;
+        
+        addLog(`Generated chunk at (1,0) with ${chunk.npcData ? chunk.npcData.length : 0} NPC data entries`, 'success');
+        
+        if (chunk.npcData) {
+          // Try spawning NPCs
+          let spawned = 0;
+          for (const data of chunk.npcData) {
+            data.chunkX = 1;
+            data.chunkY = 0;
+            
+            addLog(`Attempting to spawn: ${data.name} at (${data.x}, ${data.y})`, 'info');
+            
+            const npc = spawnSocialNPC(state, data);
+            if (npc) {
+              state.npcs.push(npc);
+              spawned++;
+              addLog(`✓ Spawned ${npc.name} with chunkX=${npc.chunkX}, chunkY=${npc.chunkY}`, 'success');
+            } else {
+              addLog(`✗ Failed to spawn ${data.name}`, 'error');
+            }
+          }
+          
+          addLog(`Successfully spawned ${spawned}/${chunk.npcData.length} NPCs`, spawned > 0 ? 'success' : 'error');
+          
+          // Test NPC properties
+          if (state.npcs.length > 0) {
+            const testNpc = state.npcs[0];
+            addLog(`\nFirst NPC properties:`, 'info');
+            addLog(`  Name: ${testNpc.name}`, 'info');
+            addLog(`  Position: (${testNpc.x}, ${testNpc.y})`, 'info');
+            addLog(`  Chunk: (${testNpc.chunkX}, ${testNpc.chunkY})`, 'info');
+            addLog(`  DialogueType: ${testNpc.dialogueType}`, 'info');
+            addLog(`  Faction: ${testNpc.faction}`, 'info');
+            addLog(`  HP: ${testNpc.hp}/${testNpc.hpMax}`, 'info');
+          }
+        } else {
+          addLog('No npcData found in chunk', 'warn');
+        }
+        
+      } catch (err) {
+        addLog(`ERROR: ${err.message}`, 'error');
+        console.error(err);
+      }
+    };
+    
+    window.testNPCInteraction = async () => {
+      addLog('Testing NPC Interaction Detection...', 'info');
+      
+      try {
+        // Create state with NPCs
+        const state = {
+          cx: 1,
+          cy: 0,
+          worldSeed: 12345,
+          npcs: [],
+          player: { x: 10, y: 10, hp: 100, hpMax: 100 },
+          chunk: { map: Array(22).fill().map(() => Array(48).fill('.')) }
+        };
+        
+        // Manually create a test NPC at a known position
+        const testNpc = {
+          id: 'test_npc',
+          name: 'Test NPC',
+          x: 11,
+          y: 10,
+          chunkX: 1,
+          chunkY: 0,
+          hp: 20,
+          hpMax: 20,
+          faction: 'merchants',
+          dialogueType: 'merchants'
+        };
+        state.npcs.push(testNpc);
+        
+        addLog(`Created test NPC at (${testNpc.x}, ${testNpc.y}) in chunk (${testNpc.chunkX}, ${testNpc.chunkY})`, 'success');
+        
+        // Test movement pipeline NPC detection
+        const pipeline = new MovementPipeline();
+        const context = {
+          state,
+          player: state.player,
+          targetX: 11, // NPC position
+          targetY: 10,
+          cancelled: false,
+          result: {}
+        };
+        
+        addLog('Testing MovementPipeline.handleNPCInteraction...', 'info');
+        await pipeline.handleNPCInteraction(context);
+        
+        if (context.cancelled) {
+          addLog('✓ NPC interaction detected and movement cancelled', 'success');
+          if (context.result.interacted) {
+            addLog('✓ Interaction flag set', 'success');
+          }
+        } else {
+          addLog('✗ NPC interaction not detected', 'error');
+        }
+        
+        // Test direct NPC detection
+        addLog('\nTesting direct NPC detection...', 'info');
+        const foundNpc = state.npcs.find(n => 
+          n.x === 11 && 
+          n.y === 10 && 
+          n.chunkX === 1 && 
+          n.chunkY === 0 &&
+          n.hp > 0
+        );
+        
+        if (foundNpc) {
+          addLog(`✓ Found NPC: ${foundNpc.name}`, 'success');
+        } else {
+          addLog('✗ NPC not found with search criteria', 'error');
+        }
+        
+      } catch (err) {
+        addLog(`ERROR: ${err.message}`, 'error');
+        console.error(err);
+      }
+    };
+    
+    window.testChunkTransition = async () => {
+      addLog('Testing Chunk Transition to Shopping District...', 'info');
+      
+      try {
+        const { tryEdgeTravel } = await import('./src/js/utils/queries.js');
+        
+        // Create state starting at (0,0)
+        const state = {
+          cx: 0,
+          cy: 0,
+          worldSeed: 12345,
+          npcs: [],
+          player: { x: 47, y: 10, hp: 100, hpMax: 100 }, // At right edge
+          chunk: { 
+            map: Array(22).fill().map(() => Array(48).fill('.')),
+            items: []
+          }
+        };
+        
+        addLog(`Starting at chunk (${state.cx}, ${state.cy})`, 'info');
+        addLog(`Player at (${state.player.x}, ${state.player.y})`, 'info');
+        
+        // Try moving east (to shopping district)
+        const moved = tryEdgeTravel(state, state.player, 48, 10); // x=48 is out of bounds east
+        
+        if (moved) {
+          addLog(`✓ Moved to chunk (${state.cx}, ${state.cy})`, 'success');
+          
+          if (state.chunk) {
+            addLog(`Chunk has ${state.chunk.npcData ? state.chunk.npcData.length : 0} NPC data entries`, 'info');
+            addLog(`Chunk special: ${state.chunk.special}`, 'info');
+            addLog(`Chunk isMarket: ${state.chunk.isMarket}`, 'info');
+          }
+          
+          // Wait a bit for async NPC spawning
+          setTimeout(() => {
+            addLog(`After async spawning: ${state.npcs.length} NPCs in state`, 
+                  state.npcs.length > 0 ? 'success' : 'warn');
+          }, 1000);
+        } else {
+          addLog('✗ Edge travel failed', 'error');
+        }
+        
+      } catch (err) {
+        addLog(`ERROR: ${err.message}`, 'error');
+        console.error(err);
+      }
+    };
+    
+    // Run initial test
+    addLog('Shopping District NPC Test Ready', 'success');
+    addLog('Click buttons above to run tests', 'info');
+  </script>
+</body>
+</html>

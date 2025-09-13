@@ -108,6 +108,12 @@ export function getAvailableInteractions(player, npc) {
   const rel = RelationshipSystem.getRelation(player, npc);
   
   for (const [type, action] of Object.entries(SocialActions)) {
+    // Skip invalid actions
+    if (!action || typeof action !== 'object') {
+      console.warn(`Invalid action ${type}:`, action);
+      continue;
+    }
+    
     const context = {
       actor: player,
       target: npc,

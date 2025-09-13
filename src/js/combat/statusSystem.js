@@ -252,7 +252,7 @@ export function applyStatusEffect(entity, type, turns, value = 0) {
  * Check if entity is frozen
  */
 export function isFrozen(entity) {
-  const entityId = entity.id || (entity === window.STATE?.player ? 'player' : `monster_${entity.x}_${entity.y}`);
+  const entityId = entity.id || (typeof window !== 'undefined' && entity === window.STATE?.player ? 'player' : `monster_${entity.x}_${entity.y}`);
   return hasStatusEffect(entityId, 'freeze');
 }
 
@@ -260,7 +260,7 @@ export function isFrozen(entity) {
  * Get status modifier for a stat
  */
 export function getStatusModifier(entity, stat) {
-  const entityId = entity.id || (entity === window.STATE?.player ? 'player' : `monster_${entity.x}_${entity.y}`);
+  const entityId = entity.id || (typeof window !== 'undefined' && entity === window.STATE?.player ? 'player' : `monster_${entity.x}_${entity.y}`);
   const effects = getStatusEffects(entityId);
   
   let mod = 0;

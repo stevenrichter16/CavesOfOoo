@@ -8,13 +8,26 @@ import { openDialogueTree } from './dialogueTree.js';
 
 // Create social interaction menu
 export function openNPCInteraction(state, npc) {
-  // Check if NPC has a dialogue tree (nobles, guards, merchants, peasants in Candy Kingdom)
+  console.log('🎮 [SOCIAL-UI] Opening NPC interaction for:', npc.name, 'faction:', npc.faction, 'dialogueType:', npc.dialogueType);
+  
+  // Close any open dropdown first to prevent input conflicts
+  import('../ui/dropdown.js').then(module => {
+    if (module.isDropdownOpen()) {
+      console.log('🎮 [SOCIAL-UI] Closing active dropdown before opening dialogue');
+      module.closeDropdown();
+    }
+  });
+  
+  // Check if NPC has a dialogue tree
   const hasDialogueTree = (npc.faction && 
-    ['nobles', 'guards', 'merchants', 'peasants'].includes(npc.faction)) ||
+    ['nobles', 'guards', 'merchants', 'peasants', 'forest_animals', 'wizards'].includes(npc.faction)) ||
     npc.dialogueType;
+  
+  console.log('🎮 [SOCIAL-UI] Has dialogue tree?', hasDialogueTree);
   
   if (hasDialogueTree) {
     // Use dialogue tree system
+    console.log('🎮 [SOCIAL-UI] Using dialogue tree system');
     openDialogueTree(state, npc);
     return;
   }

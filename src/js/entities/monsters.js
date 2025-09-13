@@ -20,6 +20,12 @@ export function processMonsterTurns(state) {
   for (const monster of monsters) {
     if (!monster.alive) continue;
     
+    // Check if monster is asleep (sweet tooth foxes) - skip turn if so
+    if (monster.asleep && monster.kind === 'sweet_tooth_fox') {
+      // Sleeping foxes don't act
+      continue;
+    }
+    
     // Check if monster is frozen - skip turn if so
     if (isFrozen(monster)) {
       log(state, `${monster.name} is frozen and can't move!`, "magic");

@@ -4,6 +4,8 @@ import { RelationshipSystem } from './relationship.js';
 
 export class DialogueGenerator {
   constructor() {
+    this.trees = {}; // NPC-specific dialogue trees
+    this.templatesByType = {}; // Type-level dialogue templates
     this.templates = {
       // Attitude-based responses
       hostile: [
@@ -147,6 +149,14 @@ export class DialogueGenerator {
         "Find someone else."
       ]
     };
+  }
+  
+  /**
+   * Pick a random element from an array
+   */
+  pick(array) {
+    if (!array || array.length === 0) return '';
+    return array[Math.floor(Math.random() * array.length)];
   }
   
   generate(npc, player, context = {}) {

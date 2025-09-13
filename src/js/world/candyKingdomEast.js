@@ -461,11 +461,11 @@ export function spawnEastGateNPCs(state) {
   // Market guards
   npcs.push(spawnSocialNPC(state, {
     id: 'market_guard_1',
-    name: 'Market Guard',
+    name: 'Banana Guard',
     x: 2,
     y: 10,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['watchful', 'stern'],
     hp: 25,
     hpMax: 25
@@ -473,11 +473,11 @@ export function spawnEastGateNPCs(state) {
   
   npcs.push(spawnSocialNPC(state, {
     id: 'market_guard_2',
-    name: 'Market Guard',
+    name: 'Banana Guard',
     x: 45,
     y: 10,
     faction: 'guards',
-    dialogueType: 'guards',
+    dialogueType: 'banana_guard',
     traits: ['alert', 'fair'],
     hp: 25,
     hpMax: 25

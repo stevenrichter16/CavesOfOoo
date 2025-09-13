@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sweet Tooth Fox Quest Turn-In Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+        }
+        .status {
+            padding: 20px;
+            border: 1px solid #0f0;
+            margin: 20px 0;
+        }
+        button {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+        .good { color: #0f0; }
+        .bad { color: #f00; }
+        .info { color: #0ff; }
+        .gold { color: #ff0; }
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #555;
+            margin: 20px 0;
+        }
+        .checklist {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #555;
+        }
+        .checklist li {
+            margin: 5px 0;
+        }
+        .complete { text-decoration: line-through; color: #080; }
+    </style>
+</head>
+<body>
+    <h1>🦊 Sweet Tooth Fox Quest Turn-In Test 🦷</h1>
+    
+    <div class="status">
+        <h3>Quest Status:</h3>
+        <div>Active Quest: <span id="quest-status">Loading...</span></div>
+        <div>Teeth in Inventory: <span id="teeth-count">0</span></div>
+        <div>Player Gold: <span id="gold-count">0</span></div>
+        <div>Player Position: <span id="player-pos">-</span></div>
+    </div>
+
+    <div class="checklist">
+        <h3>Quest Turn-In Checklist:</h3>
+        <ol id="checklist">
+            <li id="check-quest">❌ Quest is active</li>
+            <li id="check-teeth">❌ Have 5+ teeth in inventory</li>
+            <li id="check-npc">❌ Banana Guard NPC spawned</li>
+            <li id="check-dialogue">❌ Turn-in dialogue option available</li>
+            <li id="check-complete">❌ Quest completed successfully</li>
+            <li id="check-rewards">❌ Rewards received</li>
+        </ol>
+    </div>
+
+    <div>
+        <button onclick="setupTest()">Setup Test (Quest + 5 Teeth)</button>
+        <button onclick="spawnBananaGuard()">Spawn Banana Guard</button>
+        <button onclick="checkDialogue()">Check Dialogue Options</button>
+        <button onclick="clearAll()">Clear All</button>
+    </div>
+
+    <div id="log">
+        <div class="info">Test console ready. Load the game to begin.</div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <script type="module">
+        let gameLoaded = false;
+        
+        function log(msg, cls = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = cls;
+            entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Load the game
+        import('./src/js/core/game.js').then(() => {
+            gameLoaded = true;
+            log('Game loaded successfully!', 'good');
+            
+            // Start status updates
+            setInterval(updateStatus, 500);
+        }).catch(err => {
+            log('Error loading game: ' + err.message, 'bad');
+        });
+        
+        function updateStatus() {
+            const state = window.gameState || window.state;
+            if (!state || !state.player) return;
+            
+            // Update position
+            document.getElementById('player-pos').textContent = `(${state.player.x}, ${state.player.y})`;
+            
+            // Update gold
+            document.getElementById('gold-count').textContent = state.player.gold || 0;
+            
+            // Update teeth count
+            const teeth = state.player.inventory?.find(i => 
+                i.item?.id === 'fox_sweet_tooth'
+            );
+            const teethCount = teeth ? (teeth.count || teeth.quantity || 0) : 0;
+            document.getElementById('teeth-count').textContent = teethCount;
+            
+            // Update quest status
+            const hasQuest = state.player.quests?.active?.includes('sweet_tooth_foxes');
+            const isComplete = state.player.quests?.completed?.includes('sweet_tooth_foxes');
+            
+            if (isComplete) {
+                document.getElementById('quest-status').textContent = '✅ COMPLETED';
+                document.getElementById('quest-status').className = 'good';
+            } else if (hasQuest) {
+                document.getElementById('quest-status').textContent = '🎯 ACTIVE';
+                document.getElementById('quest-status').className = 'gold';
+            } else {
+                document.getElementById('quest-status').textContent = '❌ Not started';
+                document.getElementById('quest-status').className = 'bad';
+            }
+            
+            // Update checklist
+            updateChecklist();
+        }
+        
+        function updateChecklist() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            // Check 1: Quest active
+            const hasQuest = state.player?.quests?.active?.includes('sweet_tooth_foxes');
+            document.getElementById('check-quest').textContent = 
+                hasQuest ? '✅ Quest is active' : '❌ Quest is active';
+            document.getElementById('check-quest').className = hasQuest ? 'complete' : '';
+            
+            // Check 2: Have teeth
+            const teeth = state.player?.inventory?.find(i => 
+                i.item?.id === 'fox_sweet_tooth'
+            );
+            const teethCount = teeth ? (teeth.count || teeth.quantity || 0) : 0;
+            const hasEnoughTeeth = teethCount >= 5;
+            document.getElementById('check-teeth').textContent = 
+                hasEnoughTeeth ? `✅ Have ${teethCount} teeth in inventory` : `❌ Have ${teethCount}/5 teeth`;
+            document.getElementById('check-teeth').className = hasEnoughTeeth ? 'complete' : '';
+            
+            // Check 3: NPC spawned
+            const guard = state.npcs?.find(n => n.type === 'banana_guard');
+            document.getElementById('check-npc').textContent = 
+                guard ? '✅ Banana Guard NPC spawned' : '❌ Banana Guard NPC spawned';
+            document.getElementById('check-npc').className = guard ? 'complete' : '';
+            
+            // Check 5: Quest complete
+            const isComplete = state.player?.quests?.completed?.includes('sweet_tooth_foxes');
+            document.getElementById('check-complete').textContent = 
+                isComplete ? '✅ Quest completed successfully' : '❌ Quest completed successfully';
+            document.getElementById('check-complete').className = isComplete ? 'complete' : '';
+        }
+        
+        window.setupTest = function() {
+            const state = window.gameState || window.state;
+            if (!state) {
+                log('Game not loaded', 'bad');
+                return;
+            }
+            
+            log('Setting up test...', 'info');
+            
+            // 1. Start the quest
+            if (!state.player.quests) {
+                state.player.quests = { active: [], completed: [], progress: {} };
+            }
+            
+            if (!state.player.quests.active.includes('sweet_tooth_foxes')) {
+                state.player.quests.active.push('sweet_tooth_foxes');
+                state.player.quests.progress['sweet_tooth_foxes'] = { teeth: 0 };
+                log('Started Sweet Tooth Fox quest', 'good');
+            }
+            
+            // 2. Give 5 teeth
+            if (!state.player.inventory) state.player.inventory = [];
+            
+            const existingTeeth = state.player.inventory.find(i => 
+                i.item?.id === 'fox_sweet_tooth'
+            );
+            
+            if (existingTeeth) {
+                existingTeeth.count = 5;
+                log('Set teeth count to 5', 'good');
+            } else {
+                state.player.inventory.push({
+                    type: 'item',
+                    item: {
+                        id: 'fox_sweet_tooth',
+                        name: 'Fox Sweet Tooth',
+                        description: 'A dangerously sweet tooth extracted from a sleeping fox.',
+                        value: 10,
+                        stackable: true
+                    },
+                    id: `item_${Date.now()}_test`,
+                    count: 5
+                });
+                log('Added 5 teeth to inventory', 'good');
+            }
+            
+            // Update quest progress
+            state.player.quests.progress['sweet_tooth_foxes'].teeth = 5;
+            
+            log('Test setup complete! Now spawn a Banana Guard to turn in the quest.', 'gold');
+        };
+        
+        window.spawnBananaGuard = function() {
+            const state = window.gameState || window.state;
+            if (!state) {
+                log('Game not loaded', 'bad');
+                return;
+            }
+            
+            // Import social system to spawn NPC
+            import('./src/js/social/init.js').then(module => {
+                const px = state.player.x;
+                const py = state.player.y;
+                
+                const npcData = {
+                    id: 'banana_guard_test',
+                    name: 'Banana Guard',
+                    type: 'banana_guard',
+                    x: px + 2,
+                    y: py,
+                    chunkX: state.cx,
+                    chunkY: state.cy,
+                    hp: 20,
+                    hpMax: 20,
+                    glyph: 'B',
+                    color: 'yellow',
+                    dialogue: true
+                };
+                
+                if (!state.npcs) state.npcs = [];
+                
+                // Remove any existing guards
+                state.npcs = state.npcs.filter(n => n.type !== 'banana_guard');
+                
+                const npc = module.spawnSocialNPC(state, npcData);
+                if (npc) {
+                    state.npcs.push(npc);
+                    log(`Spawned Banana Guard at (${npc.x}, ${npc.y})`, 'good');
+                    log('Walk up to the guard and bump into them to start dialogue!', 'gold');
+                } else {
+                    log('Failed to spawn Banana Guard', 'bad');
+                }
+            });
+        };
+        
+        window.checkDialogue = function() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            log('=== Checking Dialogue Conditions ===', 'info');
+            
+            // Check if we have the quest
+            const hasQuest = state.player?.quests?.active?.includes('sweet_tooth_foxes');
+            log(`Has quest: ${hasQuest}`, hasQuest ? 'good' : 'bad');
+            
+            // Check teeth count
+            const teeth = state.player?.inventory?.find(i => 
+                i.item?.id === 'fox_sweet_tooth'
+            );
+            const teethCount = teeth ? (teeth.count || teeth.quantity || 0) : 0;
+            log(`Teeth count: ${teethCount}/5`, teethCount >= 5 ? 'good' : 'bad');
+            
+            // Check NPC
+            const guard = state.npcs?.find(n => n.type === 'banana_guard');
+            log(`Banana Guard present: ${!!guard}`, guard ? 'good' : 'bad');
+            
+            if (hasQuest && teethCount >= 5 && guard) {
+                log('✅ All conditions met! Turn-in dialogue should be available.', 'gold');
+                document.getElementById('check-dialogue').textContent = '✅ Turn-in dialogue option available';
+                document.getElementById('check-dialogue').className = 'complete';
+            } else {
+                log('❌ Not all conditions met for turn-in.', 'bad');
+            }
+        };
+        
+        window.clearAll = function() {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            // Clear quest
+            if (state.player.quests) {
+                state.player.quests.active = state.player.quests.active?.filter(q => 
+                    q !== 'sweet_tooth_foxes'
+                ) || [];
+                state.player.quests.completed = state.player.quests.completed?.filter(q => 
+                    q !== 'sweet_tooth_foxes'
+                ) || [];
+                delete state.player.quests.progress['sweet_tooth_foxes'];
+            }
+            
+            // Clear teeth
+            if (state.player.inventory) {
+                state.player.inventory = state.player.inventory.filter(i => 
+                    i.item?.id !== 'fox_sweet_tooth'
+                );
+            }
+            
+            // Clear NPCs
+            if (state.npcs) {
+                state.npcs = state.npcs.filter(n => n.type !== 'banana_guard');
+            }
+            
+            log('Cleared quest, teeth, and NPCs', 'info');
+        };
+        
+        // Monitor for quest completion
+        let lastComplete = false;
+        setInterval(() => {
+            const state = window.gameState || window.state;
+            if (!state) return;
+            
+            const isComplete = state.player?.quests?.completed?.includes('sweet_tooth_foxes');
+            if (isComplete && !lastComplete) {
+                log('🎉 QUEST COMPLETED! 🎉', 'gold');
+                document.getElementById('check-complete').textContent = '✅ Quest completed successfully';
+                document.getElementById('check-complete').className = 'complete';
+                
+                // Check rewards
+                log(`Gold received! Current gold: ${state.player.gold}`, 'gold');
+                document.getElementById('check-rewards').textContent = '✅ Rewards received';
+                document.getElementById('check-rewards').className = 'complete';
+            }
+            lastComplete = isComplete;
+        }, 100);
+    </script>
+</body>
+</html>

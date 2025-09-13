@@ -22,20 +22,50 @@ export const ShopTransactionEvents = {
  * Sets up vendor ID and prepares vendor data
  */
 export function initializeVendor(state, vendor) {
+  console.log('🛍️ initializeVendor called with vendor:', {
+    id: vendor.id,
+    name: vendor.name,
+    goods: vendor.goods,
+    shopkeeper: vendor.shopkeeper,
+    hasInventory: !!vendor.inventory,
+    inventoryLength: vendor.inventory?.length
+  });
+  
   // Ensure vendor has an ID
   if (!vendor.id) {
     vendor.id = `vendor_${state.worldSeed}_${vendor.x}_${vendor.y}`;
+    console.log('🆔 Generated vendor ID:', vendor.id);
+  }
+  
+  // Generate inventory based on goods type if not present or empty
+  if (!vendor.inventory || vendor.inventory.length === 0) {
+    console.log('📦 No/empty inventory found, generating for goods type:', vendor.goods);
+    vendor.inventory = generateVendorInventory(vendor);
+    console.log('✅ Generated inventory:', vendor.inventory);
+  } else {
+    console.log('📦 Vendor already has inventory:', vendor.inventory);
   }
   
   // Return vendor data (no mutations beyond ID)
-  return {
+  const vendorData = {
     id: vendor.id,
     inventory: vendor.inventory || [],
     x: vendor.x,
     y: vendor.y,
     name: vendor.name || 'Vendor',
-    fetchQuest: vendor.fetchQuest
+    fetchQuest: vendor.fetchQuest,
+    goods: vendor.goods
   };
+  
+  console.log('🎯 Returning vendor data:', {
+    id: vendorData.id,
+    name: vendorData.name,
+    goods: vendorData.goods,
+    inventoryCount: vendorData.inventory.length,
+    inventory: vendorData.inventory
+  });
+  
+  return vendorData;
 }
 
 /**
@@ -70,8 +100,8 @@ export function purchaseItem(state, vendorId, itemIndex) {
   // Check gold
   if (state.player.gold < price) {
     emit(EventType.Log, { 
-      message: "Not enough gold!", 
-      style: 'bad' 
+      text: "Not enough gold!", 
+      cls: 'bad' 
     });
     return { 
       success: false, 
@@ -119,8 +149,8 @@ export function purchaseItem(state, vendorId, itemIndex) {
     ? item.item.replace(/_/g, ' ') 
     : item.item.name;
   emit(EventType.Log, { 
-    message: `Bought ${itemName} for ${price}g!`, 
-    style: 'good' 
+    text: `Bought ${itemName} for ${price}g!`, 
+    cls: 'good' 
   });
   
   // Remove from vendor inventory
@@ -249,8 +279,8 @@ export function sellItem(state, itemIndex, forceConfirm = false) {
   
   // Log success
   emit(EventType.Log, { 
-    message: `Sold ${item.item.name || item.name} for ${sellPrice}g!`, 
-    style: 'good' 
+    text: `Sold ${item.item.name || item.name} for ${sellPrice}g!`, 
+    cls: 'good' 
   });
   
   // Update selected index if needed
@@ -280,7 +310,20 @@ export function sellItem(state, itemIndex, forceConfirm = false) {
  * Sets up shop state
  */
 export function openShop(state, vendor) {
+  console.log('🏪 openShop called with vendor:', {
+    id: vendor?.id,
+    name: vendor?.name,
+    goods: vendor?.goods,
+    shopkeeper: vendor?.shopkeeper
+  });
+  
   const vendorData = initializeVendor(state, vendor);
+  
+  console.log('🎪 Setting up shop state with vendor data:', {
+    vendorName: vendorData.name,
+    inventoryCount: vendorData.inventory?.length,
+    shopMode: 'buy'
+  });
   
   // Set up shop state
   state.ui.shopOpen = true;
@@ -289,6 +332,13 @@ export function openShop(state, vendor) {
   state.ui.shopSelectedIndex = 0;
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
+  
+  console.log('✅ Shop state after setup:', {
+    shopOpen: state.ui.shopOpen,
+    vendorName: state.ui.shopVendor?.name,
+    inventoryCount: state.ui.shopVendor?.inventory?.length,
+    shopMode: state.ui.shopMode
+  });
   
   return vendorData;
 }
@@ -430,4 +480,80 @@ function addPotionToInventory(state, potion) {
   }
   
   state.player.potionCount++;
+}
+
+/**
+ * Generate vendor inventory based on goods type
+ */
+function generateVendorInventory(vendor) {
+  console.log('🏭 generateVendorInventory called for:', {
+    vendorId: vendor.id,
+    vendorName: vendor.name,
+    goods: vendor.goods
+  });
+  
+  const inventories = [];
+  
+  // Special handling for pharmacy
+  if (vendor.goods === 'medicine' || vendor.id === 'pharmacist_ann') {
+    console.log('💊 Generating pharmacy inventory');
+    // Import pharmacy items and convert to vendor format
+    return [
+      { type: 'potion', item: { name: 'Sugar Pills', desc: "Basic candy medicine. They say it's just placebo, but it works!", heal: 5, effect: 'heal', value: 5 }, price: 5 },
+      { type: 'potion', item: { name: 'Candy Medicine', desc: 'Proper medicinal candy. Tastes like cherry.', heal: 20, effect: 'heal', value: 20 }, price: 20 },
+      { type: 'potion', item: { name: 'Strength Syrup', desc: 'Makes your muscles feel like rock candy.', buff: 'str', effect: 'buff_str', value: 50, turns: 5 }, price: 30 },
+      { type: 'potion', item: { name: 'Defense Drops', desc: 'Peppermint drops that harden your candy coating.', buff: 'def', effect: 'buff_def', value: 30, turns: 5 }, price: 30 },
+      { type: 'potion', item: { name: 'Speed Soda', desc: 'Fizzy cola that makes you jittery and fast.', buff: 'spd', heal: 5, effect: 'buff_spd', value: 35, turns: 5 }, price: 35 },
+      { type: 'potion', item: { name: 'Pain Pops', desc: 'Numbing lollipops that reduce incoming damage.', damageReduction: true, heal: 10, effect: 'heal', value: 10 }, price: 40 },
+      { type: 'potion', item: { name: 'Max Health Mints', desc: 'Rare mints that permanently increase your vitality!', maxHpBoost: 10, effect: 'max_hp', value: 10 }, price: 100 },
+      { type: 'potion', item: { name: 'Energy Elixir', desc: 'Premium elixir. Fully restores health and grants regeneration.', fullRestore: true, effect: 'max_heal' }, price: 200 }
+    ];
+  }
+  
+  // Default inventories for other goods types
+  const defaultInventories = {
+    candy_corn: [
+      { type: 'potion', item: { name: 'Candy Corn', desc: 'Classic triangular candy. Tastes like autumn.', heal: 5 }, price: 5 },
+      { type: 'potion', item: { name: 'Candy Corn Bag', desc: 'A whole bag of candy corn! Perfect for sharing (or not).', heal: 20 }, price: 20 }
+    ],
+    lollipops: [
+      { type: 'potion', item: { name: 'Small Lollipop', desc: 'A tiny sweet treat on a stick.', heal: 3 }, price: 3 },
+      { type: 'potion', item: { name: 'Giant Lollipop', desc: 'A massive swirled lollipop that takes forever to finish.', heal: 15 }, price: 15 },
+      { type: 'potion', item: { name: 'Rainbow Lollipop', desc: 'All the colors make you feel speedy!', heal: 25, buff: 'spd' }, price: 25 }
+    ],
+    chocolate: [
+      { type: 'potion', item: { name: 'Chocolate Bar', desc: 'Smooth milk chocolate that melts in your mouth.', heal: 8 }, price: 8 },
+      { type: 'potion', item: { name: 'Dark Chocolate', desc: 'Bitter chocolate that toughens your resolve.', heal: 10, buff: 'def' }, price: 12 }
+    ],
+    pizza: [
+      { type: 'potion', item: { name: 'Pizza Slice', desc: 'A perfect triangle of cheesy goodness.', heal: 10 }, price: 10 },
+      { type: 'potion', item: { name: 'Whole Pizza', desc: 'An entire pizza! Eight slices of heaven.', heal: 50 }, price: 50 },
+      { type: 'potion', item: { name: 'Garlic Knots', desc: 'Twisted bread with garlic butter.', heal: 5 }, price: 5 }
+    ],
+    brooms: [
+      { type: 'weapon', item: { name: 'Basic Broom', desc: 'A simple sweeping broom that doubles as a weapon.', dmg: 2 }, price: 20 },
+      { type: 'weapon', item: { name: 'Quality Broom', desc: 'Well-crafted bristles perfect for sweeping foes.', dmg: 3 }, price: 50 },
+      { type: 'weapon', item: { name: 'Magic Broom', desc: 'Enchanted broom that sparkles with power.', dmg: 5 }, price: 100 }
+    ],
+    royal_tarts: [
+      { type: 'potion', item: { name: 'Royal Tart', desc: 'A fancy pastry fit for royalty.', heal: 30 }, price: 30 },
+      { type: 'potion', item: { name: 'Mini Tart', desc: 'A bite-sized version of the royal favorite.', heal: 10 }, price: 10 },
+      { type: 'potion', item: { name: 'Tart Sampler', desc: 'A variety pack of different tart flavors.', heal: 40 }, price: 50 }
+    ],
+    miscellaneous: [
+      { type: 'item', item: { name: 'Mystery Box', desc: "Who knows what's inside? Could be anything!" }, price: 25 },
+      { type: 'item', item: { name: 'Shiny Trinket', desc: 'A sparkly bauble that catches the light.', sellValue: 10 }, price: 15 },
+      { type: 'item', item: { name: 'Golden Medallion', desc: 'An ornate golden disc with mysterious symbols.', sellValue: 75 }, price: 100 }
+    ]
+  };
+  
+  // Return inventory based on goods type or default
+  const goods = vendor.goods || 'miscellaneous';
+  const selectedInventory = defaultInventories[goods] || defaultInventories.miscellaneous;
+  
+  console.log('📋 Selected inventory for goods type:', goods);
+  console.log('📦 Inventory items:', selectedInventory);
+  console.log('📊 Item count:', selectedInventory.length);
+  
+  return selectedInventory;
 }

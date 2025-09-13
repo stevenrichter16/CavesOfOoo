@@ -105,8 +105,8 @@ export function acceptVendorQuest(state, vendor) {
   
   if (questAccepted) {
     emit(EventType.Log, { 
-      message: `Quest accepted: ${quest.name}`, 
-      style: 'good' 
+      text: `Quest accepted: ${quest.name}`, 
+      cls: 'good' 
     });
     
     emit(VendorQuestEvents.QuestAccepted, {

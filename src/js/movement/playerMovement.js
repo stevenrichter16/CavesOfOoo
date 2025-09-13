@@ -153,6 +153,52 @@ export async function loadOrGenChunk(state, cx, cy) {
     });
   }
   
+  // If this is the shopping district, spawn NPCs from npcData
+  if (cx === 1 && cy === 0 && state.chunk?.npcData) {
+    console.log('🛍️ Entering Shopping District, spawning NPCs...');
+    import('../social/init.js').then(socialModule => {
+      if (state.chunk?.npcData) {
+        // Initialize NPCs array if it doesn't exist
+        if (!state.npcs) state.npcs = [];
+        
+        const npcCount = state.chunk.npcData.length;
+        console.log(`📦 Found ${npcCount} NPCs to spawn in shopping district`);
+        
+        state.chunk.npcData.forEach(data => {
+          // Set the chunk coordinates for spawning - NPCs use chunkX/chunkY not cx/cy
+          data.chunkX = cx;
+          data.chunkY = cy;
+          
+          console.log(`🔍 Spawning NPC with data:`, {
+            id: data.id,
+            name: data.name,
+            goods: data.goods,
+            shopkeeper: data.shopkeeper,
+            x: data.x,
+            y: data.y
+          });
+          
+          const npc = socialModule.spawnSocialNPC(state, data);
+          if (npc) {
+            state.npcs.push(npc);
+            console.log(`✅ Spawned NPC: ${npc.name} at (${npc.x}, ${npc.y}) in chunk (${npc.chunkX}, ${npc.chunkY})`, {
+              goods: npc.goods,
+              shopkeeper: npc.shopkeeper
+            });
+          } else {
+            console.warn(`⚠️ Failed to spawn NPC: ${data.name}`);
+          }
+        });
+        
+        // Clear npcData after spawning to avoid duplicates
+        delete state.chunk.npcData;
+        console.log(`🎉 Successfully spawned ${state.npcs.filter(n => n.cx === cx && n.cy === cy).length} NPCs in shopping district`);
+      }
+    }).catch(err => {
+      console.error('❌ Error spawning shopping district NPCs:', err);
+    });
+  }
+  
   // Restore itemCheck functions for vendor fetch quests (lost during JSON serialization)
   if (state.chunk.items && state.FETCH_ITEMS) {
     state.chunk.items.forEach(item => {
