@@ -907,6 +907,80 @@ export const uniqueNPCDialogues = {
         id: 'end_cultured',
         npcLine: "Return anytime! Together we shall elevate zee chocolate arts to new heights!",
         choices: []
+      },
+      {
+        id: 'respected',
+        npcLine: "Ah, merci! Your appreciation for zee craft is refreshing. Not many understand zee years of dedication it takes to master chocolate. Perhaps... you would like to see my special collection?",
+        choices: [
+          {
+            text: "I'd love to buy some chocolates",
+            action: 'openShop'
+          },
+          {
+            text: "What's your most popular creation?",
+            next: 'recommendation'
+          },
+          {
+            text: "Thank you for sharing your story",
+            next: 'end_cultured'
+          }
+        ]
+      },
+      {
+        id: 'accent',
+        npcLine: "*huffs indignantly* Fancy?! This is not fancy, this is AUTHENTIQUE! I am from zee Dessert Desert, where all zee great chocolatiers train! You uncultured swine!",
+        choices: [
+          {
+            text: "I didn't mean to offend",
+            next: 'greeting',
+            effects: { trust: -1 }
+          },
+          {
+            text: "The Dessert Desert?",
+            next: 'backstory'
+          }
+        ]
+      },
+      {
+        id: 'peasant',
+        npcLine: "*sniffs disdainfully* Affordable? You want AFFORDABLE chocolate? Perhaps you should visit zee Candy Corn stand! My chocolates are ART, not mere sustenance!",
+        choices: [
+          {
+            text: "You're right, quality has its price",
+            next: 'flattered',
+            effects: { respect: 1 }
+          },
+          {
+            text: "Never mind then",
+            next: 'insulted'
+          }
+        ]
+      },
+      {
+        id: 'haggle',
+        npcLine: "Haggle? HAGGLE?! You dare to haggle with Chocopierre?! *sighs dramatically* Fine... for you, because I sense potential... 10% off. But only if you promise to savor every bite!",
+        choices: [
+          {
+            text: "Deal! I'll take something",
+            action: 'openShop'
+          },
+          {
+            text: "Still too much",
+            next: 'insulted'
+          }
+        ]
+      },
+      {
+        id: 'purchase_milk',
+        npcLine: "Ah, zee classic choice! Perfect for zee beginner's palate. This will be your gateway to greater chocolate adventures!",
+        effects: { coins: -10 },
+        giveItem: { type: 'food', name: 'Milk Chocolate Dream', heal: 20, description: 'Smooth and creamy perfection' },
+        choices: [
+          {
+            text: "Thank you!",
+            next: 'end_cultured'
+          }
+        ]
       }
     ]
   },

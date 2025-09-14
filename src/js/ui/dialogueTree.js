@@ -9,7 +9,7 @@ import {
 import { getNPCDialogue } from '../social/dialogueBootstrap.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
-import { getAvailableInteractions } from '../social/index.js';
+import { getAvailableInteractions } from '../../social/migrationAdapter.js';
 import { renderSocialMenu } from './social.js';
 
 let currentDialogueUI = null;

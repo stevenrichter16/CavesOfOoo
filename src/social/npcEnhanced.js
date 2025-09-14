@@ -234,6 +234,57 @@ export class NPC extends BaseNPC {
   }
   
   /**
+   * Evaluate hostility towards another entity
+   * @param {Object} target - The target to evaluate hostility towards
+   * @returns {Object} Hostility result with hostile flag and reason
+   */
+  evaluateHostilityTo(target) {
+    // Check if explicitly hostile attitude
+    if (this.attitude === 'hostile') {
+      return { hostile: true, reason: 'hostile_attitude' };
+    }
+    
+    // Check if explicitly friendly attitude
+    if (this.attitude === 'friendly') {
+      return { hostile: false, reason: 'friendly_attitude' };
+    }
+    
+    // Check faction-based hostility
+    const targetFactions = target.factions || (target.faction ? [target.faction] : ['player']);
+    const npcFactions = this.factions || (this.faction ? [this.faction] : []);
+    
+    // Guards are hostile to bandits
+    if (npcFactions.includes('guards') && targetFactions.includes('bandits')) {
+      return { hostile: true, reason: 'faction_enemy' };
+    }
+    
+    // Bandits are hostile to guards and players
+    if (npcFactions.includes('bandits') && 
+        (targetFactions.includes('guards') || targetFactions.includes('player'))) {
+      return { hostile: true, reason: 'faction_enemy' };
+    }
+    
+    // Check memory-based hostility (grudges)
+    if (this.memory && this.memory.grudges) {
+      const targetId = target.id || 'player';
+      if (this.memory.grudges.has(targetId)) {
+        return { hostile: true, reason: 'has_grudge' };
+      }
+    }
+    
+    // Check relationship-based hostility
+    if (this.memory) {
+      const relationship = this.memory.getRelationship(target.id || 'player');
+      if (relationship < -50) {
+        return { hostile: true, reason: 'hated' };
+      }
+    }
+    
+    // Default to non-hostile
+    return { hostile: false, reason: 'neutral' };
+  }
+  
+  /**
    * Export for dialogue system compatibility
    */
   toDialogueContext() {

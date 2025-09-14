@@ -3,7 +3,7 @@
 
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
-import { spawnSocialNPC } from '../social/index.js';
+import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { setStoryFlag, getStoryFlag } from '../../social/dialogue.js';
 
 // Quest definitions with actual gameplay implementation

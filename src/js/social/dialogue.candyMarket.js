@@ -2,7 +2,7 @@
 // Registers Candy Market dialogue trees & templates.
 
 import { DialogueGenerator } from './dialogue.js';
-import { SocialActions } from './actions.js';
+import { SocialActions } from '../../social/socialActions.js';
 
 // Initialize stub methods for actions that don't exist yet
 function initializeActionStubs() {

@@ -3,7 +3,7 @@ import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { entityAt, isPassable, tryEdgeTravel } from '../utils/queries.js';
 import { attack } from '../combat/combat.js';
-import { isNPCHostileToPlayer } from '../social/disguise.js';
+import { isNPCHostileToPlayer } from '../../social/hostilityUtils.js';
 import { adaptRunPlayerMove, initializePipelineAdapter } from './pipelineAdapter.js';
 import { QUEST_ITEMS } from '../items/questItems.js';
 

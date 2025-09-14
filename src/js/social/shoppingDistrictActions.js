@@ -4,7 +4,7 @@
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { RelationshipSystem } from './relationship.js';
-import { propagateReputation } from './behavior.js';
+// Note: propagateReputation was removed - behavior.js is part of OLD system
 
 /**
  * Shopping District dialogue actions

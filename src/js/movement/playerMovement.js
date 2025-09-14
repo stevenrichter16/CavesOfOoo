@@ -156,7 +156,7 @@ export async function loadOrGenChunk(state, cx, cy) {
   // If this is the shopping district, spawn NPCs from npcData
   if (cx === 1 && cy === 0 && state.chunk?.npcData) {
     console.log('🛍️ Entering Shopping District, spawning NPCs...');
-    import('../social/init.js').then(socialModule => {
+    import('../../social/migrationAdapter.js').then(socialModule => {
       if (state.chunk?.npcData) {
         // Initialize NPCs array if it doesn't exist
         if (!state.npcs) state.npcs = [];

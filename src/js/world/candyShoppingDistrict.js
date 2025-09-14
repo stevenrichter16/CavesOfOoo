@@ -832,7 +832,7 @@ export function spawnShoppingDistrictNPCs(state) {
   if (!state.chunk?.npcData) return [];
   
   const npcs = [];
-  const { spawnSocialNPC } = require('../social/init.js');
+  const { spawnSocialNPC } = require('../../social/migrationAdapter.js');
   
   state.chunk.npcData.forEach(data => {
     const npc = spawnSocialNPC(state, data);

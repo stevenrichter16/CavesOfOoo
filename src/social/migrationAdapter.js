@@ -6,10 +6,7 @@
  * without breaking the entire codebase.
  */
 
-import { NPC, spawnSocialNPC as spawnNPC, initializeNPC } from './npcEnhanced.js';
-
-// Re-export spawnSocialNPC for backward compatibility
-export const spawnSocialNPC = spawnNPC;
+import { NPC, spawnSocialNPC, initializeNPC } from './npcEnhanced.js';
 
 /**
  * Main migration adapter class
@@ -153,16 +150,13 @@ export function migrateMovementSystem() {
 }
 
 /**
- * Export OLD system function names for drop-in replacement
- * These are the functions that existing code imports
+ * Note: spawnSocialNPC and initializeNPC are already imported at the top
+ * and available for use throughout this module
  */
-export { 
-  spawnSocialNPC,
-  initializeNPC 
-} from './npcEnhanced.js';
 
-// Re-export the enhanced NPC class
+// Re-export the enhanced NPC class and functions
 export { NPC } from './npcEnhanced.js';
+export { spawnSocialNPC, initializeNPC };
 
 /**
  * Get available interactions between player and NPC

@@ -36,9 +36,8 @@ import '../engine/testRules.instantKillWetElectric.js'; // our test rule
 import '../engine/candyDustRule.js';      // candy dust explosion rules
 import { applyStatusEffect } from '../combat/statusSystem.js';
 // Migration: Using enhanced NPC system with backward compatibility
-import { spawnSocialNPC, initializeMigration } from '../../social/migrationAdapter.js';
-import { processNPCSocialTurn, initializeSocialSystem } from '../social/index.js';
-import { processHostileNPCs } from '../social/hostility.js';
+import { spawnSocialNPC, initializeMigration, initializeSocialSystem } from '../../social/migrationAdapter.js';
+// processNPCSocialTurn and processHostileNPCs are no longer needed with NEW system
 import { RelationshipSystem } from '../social/relationship.js';
 import * as WorldIntegration from '../world/gameIntegration.js';
 import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/social.js';
@@ -352,13 +351,12 @@ export function turnEnd(state) {
   const playerEffects = getStatusEffectsAsArray(state.player);
   console.log(`[TURN-END] Active effects: ${playerEffects.map(e => e.type).join(', ') || 'none'}`);
   
-  // Process hostile NPCs first (they attack instead of socializing)
-  console.log(`[TURN-END] Processing hostile NPCs...`);
-  processHostileNPCs(state);
+  // NOTE: Hostile NPC processing and social turns are now handled by the NEW system
+  // The enhanced NPC class handles hostility evaluation internally
+  // Social interactions are handled through the InteractionSystem
   
-  // Process NPC social interactions
-  console.log(`[TURN-END] Processing NPC social turns...`);
-  processNPCSocialTurn(state);
+  // Process NPCs (NEW system handles this automatically through NPC class)
+  console.log(`[TURN-END] NPCs use NEW social system with enhanced features`);
   
   // Process status effects using the new system
   console.log(`[TURN-END] Processing status effects...`);
@@ -809,7 +807,7 @@ export async function newWorld() {
   } else if (state.chunk?.isMarket && state.chunk?.special === 'shopping_district') {
     // Handle Shopping District NPCs
     console.log('🛍️ Shopping District detected, spawning NPCs...');
-    import('../social/init.js').then(socialModule => {
+    import('../../social/migrationAdapter.js').then(socialModule => {
       if (state.chunk?.npcData) {
         const npcCount = state.chunk.npcData.length;
         console.log(`📦 Found ${npcCount} NPC data entries to spawn`);

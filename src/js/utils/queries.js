@@ -192,7 +192,7 @@ export function tryEdgeTravel(state, player, nx, ny) {
   if (tcx === 1 && tcy === 0 && state.chunk?.npcData) {
     console.log('🛍️ Entering Shopping District via edge travel, spawning NPCs...');
     // Dynamically import to avoid circular dependency
-    import('../social/init.js').then(socialModule => {
+    import('../../social/migrationAdapter.js').then(socialModule => {
       if (state.chunk?.npcData) {
         // Initialize NPCs array if it doesn't exist
         if (!state.npcs) state.npcs = [];
