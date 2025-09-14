@@ -6,7 +6,6 @@ import {
   selectChoice, 
   endDialogue 
 } from '../../social/dialogue.js';
-import { getNPCDialogue } from '../social/dialogueBootstrap.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { getAvailableInteractions } from '../../social/migrationAdapter.js';

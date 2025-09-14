@@ -2,7 +2,7 @@
 // Starchy's conspiracy and paranormal quest chains
 
 import { grantQuestItem } from '../items/questItems.js';
-import { RelationshipSystem } from '../social/relationship.js';
+import { RelationshipSystem } from '../../social/migrationAdapter.js';
 
 // Quest definitions for Starchy
 export const STARCHY_QUESTS = {

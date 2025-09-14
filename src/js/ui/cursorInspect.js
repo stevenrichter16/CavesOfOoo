@@ -3,7 +3,7 @@
 import { CANVAS_CONFIG } from '../core/config.js';
 import { getStatusEffectsAsArray } from '../combat/statusSystem.js';
 import { isNPCHostileToPlayer } from '../../social/hostilityUtils.js';
-import { RelationshipSystem } from '../social/relationship.js';
+import { RelationshipSystem } from '../../social/migrationAdapter.js';
 
 let tooltipElement = null;
 let currentHoverInfo = null;

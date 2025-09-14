@@ -3,7 +3,7 @@
 import { emit, on } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { getAvailableInteractions, runPlayerNPCInteraction } from '../../social/migrationAdapter.js';
-import { RelationshipSystem } from '../social/relationship.js';
+import { RelationshipSystem } from '../../social/migrationAdapter.js';
 import { openDialogueTree } from './dialogueTree.js';
 
 // Create social interaction menu

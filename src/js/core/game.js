@@ -38,7 +38,7 @@ import { applyStatusEffect } from '../combat/statusSystem.js';
 // Migration: Using enhanced NPC system with backward compatibility
 import { spawnSocialNPC, initializeMigration, initializeSocialSystem } from '../../social/migrationAdapter.js';
 // processNPCSocialTurn and processHostileNPCs are no longer needed with NEW system
-import { RelationshipSystem } from '../social/relationship.js';
+import { RelationshipSystem } from '../../social/migrationAdapter.js';
 import * as WorldIntegration from '../world/gameIntegration.js';
 import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/social.js';
 import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../../social/dialogue.js';
@@ -767,20 +767,13 @@ export async function newWorld() {
     console.error('🌲 [GAME] No forest dialogues found!');
   }
   
-  // Register Shopping District dialogue trees and actions
+  // Register Shopping District dialogue trees
   import('../data/shoppingDistrictDialogues.js').then(module => {
     module.registerShoppingDistrictDialogues();
     console.log('🛍️ [GAME] Shopping District dialogue trees loaded');
-    
-    // Also register shopping district actions
-    return import('../social/shoppingDistrictActions.js');
-  }).then(module => {
-    if (module) {
-      module.registerShoppingDistrictActions();
-      console.log('🛍️ [GAME] Shopping District actions registered');
-    }
+    // Shopping district actions are now handled by the NEW social system
   }).catch(err => {
-    console.error('Failed to load Shopping District dialogues/actions:', err);
+    console.error('Failed to load Shopping District dialogues:', err);
   });
   
   // Register unique NPC dialogue trees

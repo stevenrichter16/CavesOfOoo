@@ -7,6 +7,7 @@
  */
 
 import { NPC, spawnSocialNPC, initializeNPC } from './npcEnhanced.js';
+import { RelationshipSystem } from './relationshipStubs.js';
 
 /**
  * Main migration adapter class
@@ -157,6 +158,7 @@ export function migrateMovementSystem() {
 // Re-export the enhanced NPC class and functions
 export { NPC } from './npcEnhanced.js';
 export { spawnSocialNPC, initializeNPC };
+export { RelationshipSystem };
 
 /**
  * Get available interactions between player and NPC
