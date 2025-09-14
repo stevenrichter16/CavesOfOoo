@@ -4,7 +4,7 @@
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { spawnSocialNPC } from '../social/index.js';
-import { setStoryFlag, getStoryFlag } from '../social/dialogueTreesV2.js';
+import { setStoryFlag, getStoryFlag } from '../../social/dialogue.js';
 
 // Quest definitions with actual gameplay implementation
 export const CANDY_KINGDOM_QUESTS = {

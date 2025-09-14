@@ -1,7 +1,8 @@
 // src/js/world/candyKingdomTown.js
 // Candy Kingdom Town - Main starting area within the kingdom walls
+// Migrated from OLD social system
 
-import { spawnSocialNPC } from '../social/init.js';
+import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 

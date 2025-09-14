@@ -5,7 +5,7 @@ import {
   getCurrentNode, 
   selectChoice, 
   endDialogue 
-} from '../social/dialogueTreesV2.js';
+} from '../../social/dialogue.js';
 import { getNPCDialogue } from '../social/dialogueBootstrap.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';

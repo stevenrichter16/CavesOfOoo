@@ -1,11 +1,10 @@
-// Migrated from OLD social system
 // src/js/world/candyShoppingDistrict.js
 // Candy Kingdom Shopping District - Commercial extension east of main kingdom
 // Located at (1, 0) - directly east of the entrance
 // This represents the expanded commercial area outside the main castle walls but still protected
 
 import { W, H } from '../core/config.js';
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 import { generateCleanShoppingDistrict } from './candyShoppingDistrictClean.js';
 
 const CHUNK_WIDTH = W;  // 48

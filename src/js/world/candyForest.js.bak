@@ -1,8 +1,7 @@
-// Migrated from OLD social system
 // src/js/world/candyForest.js
 // Cotton Candy Forest - Magical forest surrounding the Candy Kingdom
 
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 import { makeMonster } from '../entities/entities.js';
 
 const CHUNK_WIDTH = 48;

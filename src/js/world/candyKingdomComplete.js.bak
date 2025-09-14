@@ -1,10 +1,9 @@
-// Migrated from OLD social system
 // src/js/world/candyKingdomComplete.js
 // Complete Candy Kingdom within walls - the main chunk at (0,0)
 // Contains: Castle, Shopping District, Bad Part of Town, Royal Garden, all facilities
 
 import { W, H } from '../core/config.js';
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 
 const CHUNK_WIDTH = W;  // 48
 const CHUNK_HEIGHT = H; // 22

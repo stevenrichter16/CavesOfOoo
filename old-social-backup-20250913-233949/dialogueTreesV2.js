@@ -251,7 +251,7 @@ function evaluateConditionInternal(condition, state, player, npc) {
   
   // NOT condition (negation)
   if (condition.not) {
-    return !evaluateCondition(condition.not);
+    return !evaluateConditionInternal(condition.not, state, player, npc);
   }
   
   return true;

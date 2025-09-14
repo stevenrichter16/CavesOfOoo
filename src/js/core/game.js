@@ -35,12 +35,14 @@ import '../engine/universalRules.js';     // (empty for now, fine to keep)
 import '../engine/testRules.instantKillWetElectric.js'; // our test rule
 import '../engine/candyDustRule.js';      // candy dust explosion rules
 import { applyStatusEffect } from '../combat/statusSystem.js';
-import { processNPCSocialTurn, initializeSocialSystem, spawnSocialNPC } from '../social/index.js';
+// Migration: Using enhanced NPC system with backward compatibility
+import { spawnSocialNPC, initializeMigration } from '../../social/migrationAdapter.js';
+import { processNPCSocialTurn, initializeSocialSystem } from '../social/index.js';
 import { processHostileNPCs } from '../social/hostility.js';
 import { RelationshipSystem } from '../social/relationship.js';
 import * as WorldIntegration from '../world/gameIntegration.js';
 import { openNPCInteraction, closeSocialMenu, handleSocialInput } from '../ui/social.js';
-import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../social/dialogueTreesV2.js';
+import { loadExpandedCandyKingdomDialogues, registerDialogueTree } from '../../social/dialogue.js';
 import { candyKingdomDialoguesV3 } from '../data/candyKingdomDialoguesV3.js';
 import { starchyDialogues } from '../data/starchyDialogues.js';
 import { forestDialogues } from '../data/forestDialogues.js';
@@ -719,6 +721,10 @@ export async function newWorld() {
   
   // Initialize social system for existing entities
   initializeSocialSystem(state);
+  
+  // Initialize NPC migration to enhanced system
+  initializeMigration(state);
+  console.log('🚀 [GAME] Enhanced NPC system initialized with migration adapter');
   
   // Initialize quest spawner system
   const questSpawner = getQuestSpawner();

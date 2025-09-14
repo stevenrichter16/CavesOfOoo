@@ -1380,7 +1380,7 @@ export const shoppingDistrictDialogues = {
 // Register all shopping district dialogues
 export function registerShoppingDistrictDialogues() {
   // Use dynamic import to avoid circular dependencies
-  import('../social/dialogueTreesV2.js').then(module => {
+  import('../../social/dialogue.js').then(module => {
     const { registerDialogueTree } = module;
     
     // Register each dialogue tree

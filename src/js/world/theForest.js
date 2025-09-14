@@ -1,8 +1,9 @@
 // The Forest - Main forest location from Adventure Time
 // Home to talking animals and the Forest Wizard
 // Location for Sweet Tooth Fox quest
+// Migrated from OLD social system
 
-import { spawnSocialNPC } from '../social/init.js';
+import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { makeMonster } from '../entities/entities.js';
 
 // Forest chunk configuration

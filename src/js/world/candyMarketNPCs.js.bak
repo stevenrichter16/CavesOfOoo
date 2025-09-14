@@ -1,8 +1,7 @@
-// Migrated from OLD social system
 // src/js/world/candyMarketNPCs.js
 // Spawns Candy Kingdom shopping-district NPCs, tuned to your social system.
 
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 
 export function populateCandyMarketNPCs(state, opts = {}) {
   const cx = opts.cx ?? 0, cy = opts.cy ?? 0;

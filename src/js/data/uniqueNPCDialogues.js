@@ -658,6 +658,133 @@ export const uniqueNPCDialogues = {
         id: 'end_cautious',
         npcLine: "Good! Good! Stay vigilant! The truth is out there, covered in sugar and lies! *mutters and wanders off*",
         choices: []
+      },
+      {
+        id: 'defensive',
+        npcLine: "Paranoid?! PARANOID?! That's what THEY want you to think! You're probably one of their agents, aren't you? Trying to discredit me!",
+        choices: [
+          {
+            text: "I'm sorry, I didn't mean to upset you",
+            next: 'conspiracy_intro',
+            effects: { trust: -1 }
+          },
+          {
+            text: "I'm not an agent of anyone",
+            next: 'suspicious'
+          },
+          {
+            text: "Maybe you should calm down",
+            next: 'not_crazy'
+          }
+        ]
+      },
+      {
+        id: 'suspicious',
+        npcLine: "That's EXACTLY what an agent would say! But... wait... *squints* ...no, you're too obvious. They'd never send someone so... unprepared. Unless that's what they WANT me to think!",
+        choices: [
+          {
+            text: "I just want to understand",
+            next: 'conspiracy_intro',
+            effects: { trust: 1 }
+          },
+          {
+            text: "This is exhausting",
+            next: 'end_cautious'
+          }
+        ]
+      },
+      {
+        id: 'not_crazy',
+        npcLine: "I'm NOT crazy! I'm the only SANE one left! Everyone else is walking around, happy and oblivious, while the Princess watches from her tower! ALWAYS WATCHING!",
+        choices: [
+          {
+            text: "What is she watching for?",
+            next: 'conspiracy_reason',
+            effects: { trust: 1 }
+          },
+          {
+            text: "Maybe she's just protecting the kingdom",
+            next: 'logical'
+          }
+        ]
+      },
+      {
+        id: 'conspiracy_reason',
+        npcLine: "Control! ABSOLUTE CONTROL! She monitors our sugar levels, our happiness metrics, our productivity! One wrong move and POOF - you're 'relocated' to the Dungeon of the Crystal Eye!",
+        choices: [
+          {
+            text: "Has anyone actually been relocated?",
+            next: 'proof'
+          },
+          {
+            text: "That sounds terrifying",
+            next: 'disturbed'
+          },
+          {
+            text: "How do we stop her?",
+            next: 'revolution'
+          }
+        ]
+      },
+      {
+        id: 'revolution',
+        npcLine: "*eyes widen* You want to... to fight back? *whispers* There's a resistance. We meet in secret. We're stockpiling sugar-free alternatives. When the time comes... we'll be ready.",
+        choices: [
+          {
+            text: "Count me in",
+            next: 'believer',
+            effects: { trust: 10 }
+          },
+          {
+            text: "That sounds dangerous",
+            next: 'end_cautious'
+          }
+        ]
+      },
+      {
+        id: 'spreading',
+        npcLine: "I've tried! But they all think I'm crazy! The few who believed me... they're gone now. 'Vacation' they said. But I know better. I KNOW!",
+        choices: [
+          {
+            text: "I believe you",
+            next: 'believer',
+            effects: { trust: 5 }
+          },
+          {
+            text: "Maybe they really went on vacation",
+            next: 'logical'
+          }
+        ]
+      },
+      {
+        id: 'disbelief',
+        npcLine: "You're blind! BLIND! These aren't scribbles, they're EVIDENCE! But fine, stay asleep! Stay a sheep! A candy-coated sheep!",
+        choices: [
+          {
+            text: "I'm sorry, show me again",
+            next: 'proof',
+            effects: { trust: -2 }
+          },
+          {
+            text: "Goodbye",
+            next: 'end_cautious'
+          }
+        ]
+      },
+      {
+        id: 'logical',
+        npcLine: "Just candy people?! JUST?! That's the programming talking! They've gotten to you already! Your mind is full of sugar and lies!",
+        choices: [
+          {
+            text: "Maybe you have a point",
+            next: 'conspiracy_intro',
+            effects: { trust: 1 }
+          },
+          {
+            text: "I should go",
+            next: 'end_cautious'
+          }
+        ]
       }
     ]
   },

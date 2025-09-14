@@ -1,8 +1,7 @@
-// Migrated from OLD social system
 // src/js/world/candyKingdomEast.js
 // East Gate chunk - Massive merchant quarter and bazaar
 
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;

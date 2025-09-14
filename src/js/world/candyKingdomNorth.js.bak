@@ -1,8 +1,7 @@
-// Migrated from OLD social system
 // src/js/world/candyKingdomNorth.js
 // North Gate chunk - Castle approach and noble district
 
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;

@@ -1,8 +1,7 @@
-// Migrated from OLD social system
 // src/js/world/candyKingdomChunks.js
 // Adjacent chunks for the Candy Kingdom that connect to the main town
 
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 
 // Full viewport dimensions
 const CHUNK_WIDTH = 48;

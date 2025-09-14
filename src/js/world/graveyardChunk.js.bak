@@ -1,9 +1,8 @@
-// Migrated from OLD social system
 // src/js/world/graveyardChunk.js
 // Candy Kingdom Graveyard - Fixed chunk at coordinates (-1, 0)
 
 import { W, H } from '../core/config.js';
-import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { spawnSocialNPC } from '../social/init.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 
