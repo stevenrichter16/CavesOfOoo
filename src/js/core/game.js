@@ -652,6 +652,7 @@ export async function newWorld() {
       shopSelectedIndex: 0,
       confirmSell: false,
       confirmChoice: "no",
+      confirmItemIndex: null, // Actual inventory index of item to sell
       selectingQuest: false,
       selectedQuestIndex: 0,
       selectingFetchItem: null,

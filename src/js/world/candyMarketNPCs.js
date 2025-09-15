@@ -41,6 +41,20 @@ export function populateCandyMarketNPCs(state, opts = {}) {
     });
   });
 
+  spawnSocialNPC(state, {
+    id: 'steven',
+    name: 'Steven',
+    x: 10, 
+    y: 10,
+    chunkX: cx,
+    chunkY: cy,
+    faction: 'nobles',
+    dialogueType: 'steven',
+    traits: ['mysterious','cunning','polite'],
+    hp: 35, 
+    hpMax: 35
+  });
+
   // ───────────────────────────────────────────────────────────────────────────
   // UNIQUE MARKET PERSONALITIES
   // ───────────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { ShopTransactionEvents } from '../items/shop.js';
 import { getQuestDisplay } from '../quests/vendorQuests.js';
 import { checkFetchQuestItem } from '../quests/quests.js';
 import { QUEST_TEMPLATES } from '../core/config.js';
+import { renderShopDialogueStyle, closeShopDialogueUI } from './shopDialogue.js';
 
 // UI state (for rendering only, not game state)
 let shopUIState = {
@@ -58,6 +59,10 @@ export function openShopUI() {
  * Close the shop UI overlay
  */
 export function closeShopUI() {
+  // Close dialogue-style shop
+  closeShopDialogueUI();
+  
+  // Also close old overlay if it exists
   const overlay = document.getElementById('overlay');
   if (overlay) {
     overlay.style.display = 'none';
@@ -75,6 +80,13 @@ export function renderShop(state) {
     vendorInventoryCount: state.ui?.shopVendor?.inventory?.length
   });
   
+  // Use new dialogue-style rendering
+  if (state.ui.shopOpen) {
+    renderShopDialogueStyle(state);
+    return;
+  }
+  
+  // Fallback to old style if needed (for compatibility)
   const overlay = document.getElementById('overlay');
   const content = document.getElementById('overlayContent');
   const title = document.getElementById('overlayTitle');
@@ -94,7 +106,7 @@ export function renderShop(state) {
   // Handle confirmation dialog
   if (state.ui.confirmSell) {
     renderConfirmDialog(content, state);
-    hint.textContent = '←→ Select • Enter to confirm • Esc to cancel';
+    hint.textContent = '↑↓ Select • Enter to confirm • Esc to cancel';
     return;
   }
   

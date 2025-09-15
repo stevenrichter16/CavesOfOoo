@@ -332,6 +332,7 @@ export function openShop(state, vendor) {
   state.ui.shopSelectedIndex = 0;
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
+  state.ui.confirmItemIndex = null;
   
   console.log('✅ Shop state after setup:', {
     shopOpen: state.ui.shopOpen,
@@ -355,6 +356,7 @@ export function closeShop(state) {
   state.ui.shopSelectedIndex = 0;
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
+  state.ui.confirmItemIndex = null;
   
   // Emit close event
   emit(ShopTransactionEvents.ShopClosed);
@@ -368,6 +370,7 @@ export function switchShopMode(state, newMode) {
   state.ui.shopSelectedIndex = 0;
   state.ui.confirmSell = false;
   state.ui.confirmChoice = 'no';
+  state.ui.confirmItemIndex = null;
   // Reset quest turn-in index when switching modes
   if (newMode === 'turn-in') {
     state.ui.questTurnInIndex = 0;
@@ -410,15 +413,17 @@ export function handleSellConfirmation(state, confirm) {
   if (!state.ui.confirmSell) return;
   
   if (confirm && state.ui.confirmChoice === 'yes') {
-    // Proceed with sale
-    const result = sellItem(state, state.ui.shopSelectedIndex, true);
+    // Proceed with sale - use stored actual inventory index
+    const result = sellItem(state, state.ui.confirmItemIndex, true);
     state.ui.confirmSell = false;
     state.ui.confirmChoice = 'no';
+    state.ui.confirmItemIndex = null; // Clear stored index
     return result;
   } else {
     // Cancel
     state.ui.confirmSell = false;
     state.ui.confirmChoice = 'no';
+    state.ui.confirmItemIndex = null; // Clear stored index
     return { success: false, cancelled: true };
   }
 }

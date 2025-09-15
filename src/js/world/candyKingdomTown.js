@@ -213,6 +213,18 @@ export function generateCandyKingdomMap() {
  */
 export function spawnCandyKingdomNPCs(state) {
   const npcs = [];
+
+  npcs.push(spawnSocialNPC(state, {
+    id: 'steven',
+    name: 'Steven',
+    x: 10, 
+    y: 10,
+    faction: 'nobles',
+    dialogueType: 'steven',
+    traits: ['mysterious','cunning','polite'],
+    hp: 35, 
+    hpMax: 35
+  }));
   
   // Gate Guards
   npcs.push(spawnSocialNPC(state, {

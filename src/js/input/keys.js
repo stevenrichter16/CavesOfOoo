@@ -702,8 +702,17 @@ function handleQuestTurnInControls(STATE, e) {
 function handleShopControls(STATE, e) {
   // Handle confirmation dialog
   if (STATE.ui.confirmSell) {
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      ShopSystem.navigateShop(STATE, 'left');
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      // Use up/down for vertical layout - toggle between yes and no
+      STATE.ui.confirmChoice = STATE.ui.confirmChoice === 'yes' ? 'no' : 'yes';
+      ShopUI.renderShop(STATE);
+    } else if (e.key === "1") {
+      // Number key support for YES
+      STATE.ui.confirmChoice = 'yes';
+      ShopUI.renderShop(STATE);
+    } else if (e.key === "2") {
+      // Number key support for NO
+      STATE.ui.confirmChoice = 'no';
       ShopUI.renderShop(STATE);
     } else if (e.key === "Enter") {
       if (STATE.ui.confirmChoice === "yes") {
@@ -713,11 +722,13 @@ function handleShopControls(STATE, e) {
       } else {
         // Cancel
         STATE.ui.confirmSell = false;
+        STATE.ui.confirmItemIndex = null;
         ShopUI.renderShop(STATE);
       }
     } else if (e.key === "Escape") {
       // Cancel confirmation
       STATE.ui.confirmSell = false;
+      STATE.ui.confirmItemIndex = null;
       ShopUI.renderShop(STATE);
     }
     e.preventDefault();
@@ -914,6 +925,7 @@ function handleSellToVendor(STATE) {
   if (result.needsConfirmation) {
     STATE.ui.confirmSell = true;
     STATE.ui.confirmChoice = 'no';
+    STATE.ui.confirmItemIndex = actualIndex; // Store actual inventory index
     ShopUI.renderShop(STATE);
   } else if (result.success) {
     ShopUI.renderShop(STATE);

@@ -1,7 +1,42 @@
 // src/js/data/uniqueNPCDialogues.js
 // Unique dialogue trees for special NPCs in Candy Kingdom
 
+import { choice } from "../utils/utils.js";
+
 export const uniqueNPCDialogues = {
+  // Steven
+  steven: {
+    biome: 'candy_kingdom',
+    npcType: 'steven',
+    start: 'greeting',
+    nodes: [
+      {
+        id: 'greeting',
+        npcLine: "Hello, I am the creator of this world.",
+        choices: [
+          {
+            text: "Wow that's pretty cool",
+            next: 'appreciated'
+          },
+          {
+            text: "Yeah right, and I'm from Pluto.",
+            next: 'insulted'
+          }
+        ]
+      },
+      {
+        id: 'appreciated',
+        npcLine: "It is cool isn't it?",
+        choices: []
+      },
+      {
+        id: 'insulted',
+        npcLine: "Maybe you are.",
+        choices: []
+      }
+    ]
+  },
+
   // Captain Root Beer - Gate Guard Captain
   captain_rootbeer: {
     biome: 'candy_kingdom',
