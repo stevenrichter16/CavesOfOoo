@@ -346,20 +346,15 @@ export function turnEnd(state) {
   // Increment turn counter
   state.turn = (state.turn || 0) + 1;
   
-  console.log(`\n[TURN-END] ═══════════ END OF TURN ${state.turn} ═══════════`);
-  console.log(`[TURN-END] Player HP: ${state.player.hp}/${state.player.hpMax}`);
   const playerEffects = getStatusEffectsAsArray(state.player);
-  console.log(`[TURN-END] Active effects: ${playerEffects.map(e => e.type).join(', ') || 'none'}`);
   
   // NOTE: Hostile NPC processing and social turns are now handled by the NEW system
   // The enhanced NPC class handles hostility evaluation internally
   // Social interactions are handled through the InteractionSystem
   
   // Process NPCs (NEW system handles this automatically through NPC class)
-  console.log(`[TURN-END] NPCs use NEW social system with enhanced features`);
   
   // Process status effects using the new system
-  console.log(`[TURN-END] Processing status effects...`);
   endOfTurnStatusPass(state, applyStatusDamage, applyStatusHeal);
   
   // Process water_slow effect (special case that doesn't use the Map system)
@@ -393,12 +388,8 @@ export function turnEnd(state) {
   }
 
   if (state.player.alive) {
-    console.log(`[TURN-END] Running engine tick phase...`);
     runTickForEntity(state, state.player);
   }
-  
-  console.log(`[TURN-END] Final HP: ${state.player.hp}/${state.player.hpMax}`);
-  console.log(`[TURN-END] ═══════════════════════════════════\n`);
   render(state);
 }
 

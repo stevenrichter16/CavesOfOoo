@@ -5,7 +5,10 @@
 
 import { emit } from '../js/utils/events.js';
 import { EventType } from '../js/utils/eventTypes.js';
+import { QuestManager } from '../js/world/quests/QuestManager.js';
+import { createQuests } from '../js/world/quests/definitions/openInventory.js';
 
+const questManager = new QuestManager(null, null);
 // Store dialogue trees and global story flags
 const DIALOGUE_TREES = new Map();
 const STORY_FLAGS = new Map();
@@ -456,6 +459,12 @@ export function processDialogueAction(action, state, npc) {
   
   // Handle object actions (standard format)
   switch (action.type) {
+    case 'start_quest':
+      console.log("STARTING QUEST:", action);
+      var quests = createQuests();
+      var selectedQuest = quests[action.id];
+      //questManager.addQuest(selectedQuest);
+      console.log("SELECTED QUEST:", selectedQuest);
     case 'give_gold':
       if (player.gold !== undefined) {
         player.gold += action.amount || 0;

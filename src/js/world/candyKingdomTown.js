@@ -223,7 +223,9 @@ export function spawnCandyKingdomNPCs(state) {
     dialogueType: 'steven',
     traits: ['mysterious','cunning','polite'],
     hp: 35, 
-    hpMax: 35
+    hpMax: 35,
+    questGiver: true,
+    quests: ['open_inventory_quest']
   }));
   
   // Gate Guards

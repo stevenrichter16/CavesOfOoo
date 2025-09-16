@@ -10,31 +10,133 @@ export const uniqueNPCDialogues = {
     npcType: 'steven',
     start: 'greeting',
     nodes: [
-      {
-        id: 'greeting',
-        npcLine: "Hello, I am the creator of this world.",
-        choices: [
-          {
-            text: "Wow that's pretty cool",
-            next: 'appreciated'
+    {
+      id: 'greeting',
+      npcLine: "Hello, I am the creator of this world.",
+      choices: [
+        // Quest offer (shown when quest not started)
+        {
+          text: "[QUEST] Can you teach me something?",
+          next: 'offer_quest',
+          conditions: [
+            { flagNotSet: 'inventory_tutorial_completed' },
+            { questNotActive: 'open_inventory_quest' }
+          ]
+        },
+        // Quest turn-in (shown when objective complete)
+        {
+          text: "[QUEST] I've opened my inventory!",
+          next: 'complete_quest',
+          conditions: [
+            { questActive: 'open_inventory_quest' },
+            { customCheck: (state, questManager) => {
+              const quest = questManager.getQuest('open_inventory_quest');
+              const obj = quest?.objectives.find(o => o.id === 'open_inventory');
+              return obj?.completed === true;
+            }}
+          ]
+        },
+        // Quest reminder (shown when quest active but not complete)
+        // {
+        //   text: "How do I open my inventory again?",
+        //   next: 'quest_reminder',
+        //   conditions: [
+        //     { questActive: 'open_inventory_quest' },
+        //     { customCheck: (state, questManager) => {
+        //       const quest = questManager.getQuest('open_inventory_quest');
+        //       const obj = quest?.objectives.find(o => o.id === 'open_inventory');
+        //       return obj?.completed !== true;
+        //     }}
+        //   ]
+        // },
+        // Normal dialogue options
+        {
+          text: "Wow that's pretty cool",
+          next: 'appreciated'
+        },
+        {
+          text: "Yeah right, and I'm from Pluto.",
+          next: 'insulted'
+        }
+      ]
+    },
+    
+    // Quest offer node
+    {
+      id: 'offer_quest',
+      npcLine: [
+        "Ah, you look new here! Let me teach you something basic.",
+        "Every adventurer needs to know how to manage their inventory.",
+        "Press the 'i' key to open it. Do that, and I'll reward you with 2000 gold!"
+      ],
+      choices: [
+        {
+            text: "I'd love to!!!",
+            action: { type: 'start_quest', id: 'open_inventory_quest'}
           },
-          {
-            text: "Yeah right, and I'm from Pluto.",
-            next: 'insulted'
-          }
-        ]
-      },
-      {
-        id: 'appreciated',
-        npcLine: "It is cool isn't it?",
-        choices: []
-      },
-      {
-        id: 'insulted',
-        npcLine: "Maybe you are.",
-        choices: []
-      }
-    ]
+        {
+          text: "Thanks! I'll try that.",
+          end: true,
+          effects: [
+            {
+              startQuest: { id: "open_inventory_quest" }
+            }
+          ]
+        }
+      ]
+    },
+    
+    // Quest completion node
+    {
+      id: 'complete_quest',
+      npcLine: [
+        "Well done! You've mastered the basics of inventory management.",
+        "As promised, here's your reward: 2000 gold pieces!",
+        "Use them wisely on your adventures."
+      ],
+      choices: [
+        {
+          text: "Thank you, Steven!",
+          end: true,
+          effects: [
+            {
+              completeQuest: { id: "open_inventory_quest" }
+            },
+            {
+              giveGold: 2000
+            }
+          ]
+        }
+      ]
+    },
+    
+    // Quest reminder node
+    // {
+    //   id: 'quest_reminder',
+    //   npcLine: [
+    //     "Just press the 'i' key to open your inventory.",
+    //     "Once you do that, come back and I'll give you your reward."
+    //   ],
+    //   choices: [
+    //     {
+    //       text: "Got it, thanks!",
+    //       end: true
+    //     }
+    //   ]
+    // },
+    
+    // Original dialogue nodes
+    {
+      id: 'appreciated',
+      npcLine: "It is cool isn't it?",
+      choices: []
+    },
+    {
+      id: 'insulted',
+      npcLine: "Maybe you are.",
+      choices: []
+    }
+  ]
   },
 
   // Captain Root Beer - Gate Guard Captain

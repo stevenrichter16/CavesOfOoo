@@ -8,14 +8,12 @@ const STATUSES  = new Map();
 
 // --- Registry API ---
 export function registerMaterial(mat /** @type {Entry} */) {
-  console.log(`[ENGINE] Registered material '${mat.id}' with tags: [${(mat.tags || []).join(', ')}]`);
   MATERIALS.set(mat.id, { id: mat.id, tags: [...(mat.tags ?? [])], props: { ...(mat.props || {}) } });
 }
 export function getMaterial(id) { return MATERIALS.get(id); }
 export function allMaterials() { return [...MATERIALS.values()]; }
 
 export function registerStatus(st /** @type {Entry} */) {
-  console.log(`[ENGINE] Registered status '${st.id}' with tags: [${(st.tags || []).join(', ')}]`);
   STATUSES.set(st.id, { id: st.id, tags: [...(st.tags ?? [])], props: { ...(st.props || {}) } });
 }
 export function getStatus(id) { return STATUSES.get(id); }

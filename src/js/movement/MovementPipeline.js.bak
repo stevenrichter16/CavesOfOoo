@@ -103,12 +103,17 @@ export class MovementPipeline {
    * @returns {MovementResult} Result of the movement attempt
    */
   executeSync(state, action) {
+    console.log('[FOX DEBUG] === Starting MovementPipeline.executeSync ===');
+    console.log('[FOX DEBUG] Action:', action);
+    console.log('[FOX DEBUG] Player position:', state.player?.x, state.player?.y);
     
     // Create movement context
     const context = this.createContext(state, action);
+    console.log('[FOX DEBUG] Context created, target:', context.targetX, context.targetY);
     
     // Execute each step in sequence (synchronously)
     for (const step of this.steps) {
+      console.log('[FOX DEBUG] Executing step:', step.name);
       try {
         const startTime = performance.now();
         
@@ -395,20 +400,36 @@ export class MovementPipeline {
   handleMonsterCollision(context) {
     const { targetX, targetY, state } = context;
     
+    console.log('[FOX DEBUG] handleMonsterCollision called');
+    console.log('[FOX DEBUG] Target position:', targetX, targetY);
+    console.log('[FOX DEBUG] Is edge transition?', context.isEdgeTransition);
+    console.log('[FOX DEBUG] Already cancelled?', context.cancelled);
     
     // Skip if edge transition or already cancelled
     if (context.isEdgeTransition || context.cancelled) return;
     
     // Check for monster at target position
     const monster = entityAt(state, targetX, targetY);
+    console.log('[FOX DEBUG] Monster at target:', monster);
     
     if (monster && monster !== context.player) {
+      console.log('[FOX DEBUG] Monster found:', {
+        kind: monster.kind,
+        asleep: monster.asleep,
+        hasTeeth: monster.hasTeeth,
+        position: `(${monster.x}, ${monster.y})`,
+        hp: monster.hp
+      });
+      
       // Check if it's a sleeping fox that can have teeth collected
       if (monster.asleep && monster.kind === 'sweet_tooth_fox') {
+        console.log('[FOX DEBUG] It\'s a sleeping Sweet Tooth Fox!');
         if (monster.hasTeeth !== false) { // Default to true if not set
+          console.log('[FOX DEBUG] Fox has teeth, attempting to collect...');
           
           // Use the QUEST_ITEMS definition for the tooth
           const itemDef = QUEST_ITEMS.fox_sweet_tooth;
+          console.log('[FOX DEBUG] Item definition:', itemDef);
           
           // Create tooth item in correct format for inventory UI
           const tooth = {
@@ -422,26 +443,38 @@ export class MovementPipeline {
           };
           
           // Check if already has teeth in inventory
+          console.log('[FOX DEBUG] Current inventory:', context.player.inventory);
           const existing = context.player.inventory?.find(i => 
             i.type === 'item' && i.item?.id === 'fox_sweet_tooth'
           );
           
           if (existing) {
+            console.log('[FOX DEBUG] Found existing teeth, incrementing count from', existing.count);
             existing.count = (existing.count || 1) + 1;
+            console.log('[FOX DEBUG] New count:', existing.count);
           } else {
+            console.log('[FOX DEBUG] No existing teeth, adding new item to inventory');
             if (!context.player.inventory) {
+              console.log('[FOX DEBUG] Creating inventory array');
               context.player.inventory = [];
             }
             context.player.inventory.push(tooth);
+            console.log('[FOX DEBUG] Inventory after adding:', context.player.inventory);
+            console.log('[FOX DEBUG] Added tooth item:', tooth);
           }
           
           monster.hasTeeth = false;
           
           // Log the collection
+          console.log('[FOX DEBUG] About to log extraction message');
+          console.log('[FOX DEBUG] state.log exists?', !!state.log);
+          console.log('[FOX DEBUG] typeof state.log:', typeof state.log);
           
           if (state.log) {
+            console.log('[FOX DEBUG] Calling state.log with message');
             state.log(state, 'You extract a sweet tooth from the sleeping fox!', 'good');
           } else {
+            console.log('[FOX DEBUG] state.log not found, using emit');
             emit(EventType.Log, { 
               text: 'You extract a sweet tooth from the sleeping fox!', 
               cls: 'good' 
@@ -485,8 +518,12 @@ export class MovementPipeline {
         }
       } else {
         // Attack the monster normally
+        console.log('[FOX DEBUG] Not a sleeping fox, attacking normally');
+        console.log('[FOX DEBUG] Monster kind:', monster.kind);
+        console.log('[FOX DEBUG] Monster asleep:', monster.asleep);
         
         const result = attack(state, context.player, monster);
+        console.log('[FOX DEBUG] Attack result:', result);
         
         context.result.attacked = true;
         context.cancelled = true;

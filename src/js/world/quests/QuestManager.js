@@ -75,14 +75,7 @@ export class QuestManager {
     
     // Update progress
     if (updates.progress !== undefined) {
-      // Validate progress bounds
-      if (objective.count !== undefined) {
-        // Has a maximum, clamp between 0 and count
-        objective.progress = Math.max(0, Math.min(updates.progress, objective.count));
-      } else {
-        // No maximum, just ensure non-negative
-        objective.progress = Math.max(0, updates.progress);
-      }
+      objective.progress = updates.progress;
       
       // Check if completed
       if (objective.count && objective.progress >= objective.count) {
@@ -276,23 +269,15 @@ export class QuestManager {
           });
         }
       } else if (obj.type === QuestObjective.DEFEAT) {
-        // Get passable tiles for enemy placement
-        const emptyTiles = chunk.findEmptyTiles ? chunk.findEmptyTiles() : [];
-        
-        if (emptyTiles.length === 0) {
-          console.warn('No passable tiles available for quest enemies');
-          return;
-        }
-        
-        // Spawn quest enemies on passable tiles
+        // Spawn quest enemies
         for (let i = 0; i < obj.count; i++) {
-          // Pick random passable tile
-          const tile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
+          const x = Math.floor(Math.random() * CHUNK_WIDTH);
+          const y = Math.floor(Math.random() * CHUNK_HEIGHT);
           
           chunk.monsters.push({
             type: obj.enemyType,
-            x: tile.x,
-            y: tile.y,
+            x: x,
+            y: y,
             questId: quest.id,
             hp: 20,
             alive: true

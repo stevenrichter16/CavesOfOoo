@@ -49,12 +49,16 @@ export function adaptRunPlayerMove(originalFunc) {
   originalRunPlayerMove = originalFunc;
   
   return function(state, action) {
+    console.log('[FOX DEBUG] adaptRunPlayerMove called');
+    console.log('[FOX DEBUG] isNewPipelineEnabled?', isNewPipelineEnabled());
     
     if (!isNewPipelineEnabled()) {
+      console.log('[FOX DEBUG] Using OLD pipeline');
       // Use original implementation
       return originalFunc(state, action);
     }
     
+    console.log('[FOX DEBUG] Using NEW pipeline');
     try {
       // Use new pipeline SYNCHRONOUSLY to avoid input lag
       // The execute method will be made sync-compatible
