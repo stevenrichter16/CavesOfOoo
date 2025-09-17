@@ -30,7 +30,7 @@ export class QuestManager {
   /**
    * Add a quest to active quests
    */
-  addQuest(quest) {
+  addQuest(state, quest) {
     if (!quest.state) {
       quest.state = QuestState.ACTIVE;
     }
@@ -40,7 +40,7 @@ export class QuestManager {
     
     this.activeQuests.push(quest);
     this.questMap.set(quest.id, quest);
-    
+    quest.start(state, this, quest);
     // Update statistics
     this.statistics.totalStarted++;
     

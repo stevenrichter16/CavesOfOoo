@@ -463,7 +463,7 @@ export function processDialogueAction(action, state, npc) {
       console.log("STARTING QUEST:", action);
       var quests = createQuests();
       var selectedQuest = quests[action.id];
-      //questManager.addQuest(selectedQuest);
+      questManager.addQuest(state, selectedQuest);
       console.log("SELECTED QUEST:", selectedQuest);
     case 'give_gold':
       if (player.gold !== undefined) {

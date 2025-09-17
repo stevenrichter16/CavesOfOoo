@@ -27,14 +27,11 @@ export const uniqueNPCDialogues = {
         {
           text: "[QUEST] I've opened my inventory!",
           next: 'complete_quest',
-          conditions: [
-            { questActive: 'open_inventory_quest' },
-            { customCheck: (state, questManager) => {
-              const quest = questManager.getQuest('open_inventory_quest');
-              const obj = quest?.objectives.find(o => o.id === 'open_inventory');
-              return obj?.completed === true;
-            }}
-          ]
+          condition: {
+            and: [
+              { type: 'flag', flag: 'inventory_tutorial_completed' }
+            ]
+          }
         },
         // Quest reminder (shown when quest active but not complete)
         // {
@@ -95,19 +92,15 @@ export const uniqueNPCDialogues = {
         "Use them wisely on your adventures."
       ],
       choices: [
-        {
-          text: "Thank you, Steven!",
-          end: true,
-          effects: [
-            {
-              completeQuest: { id: "open_inventory_quest" }
-            },
-            {
-              giveGold: 2000
+          {
+            text: "Thank you, Steven!",
+            end: true,
+            effect: {
+              type: 'give_gold',
+              amount: 2000
             }
-          ]
-        }
-      ]
+          }
+        ]
     },
     
     // Quest reminder node
