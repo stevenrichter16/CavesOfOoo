@@ -6,9 +6,6 @@
 import { emit } from '../js/utils/events.js';
 import { EventType } from '../js/utils/eventTypes.js';
 import { QuestManager } from '../js/world/quests/QuestManager.js';
-import { createQuests } from '../js/world/quests/definitions/openInventory.js';
-
-const questManager = new QuestManager(null, null);
 // Store dialogue trees and global story flags
 const DIALOGUE_TREES = new Map();
 const STORY_FLAGS = new Map();
@@ -242,6 +239,11 @@ export function evaluateConditionInternal(condition, state, player, npc) {
     return !evaluateConditionInternal(condition.not, state, player, npc);
   }
   
+  // NOT condition (alternative format)
+  if (condition.type === 'not' && condition.condition) {
+    return !evaluateConditionInternal(condition.condition, state, player, npc);
+  }
+  
   // Gold condition
   if (condition.type === 'gold') {
     const playerGold = player.gold || 0;
@@ -303,6 +305,12 @@ export function evaluateConditionInternal(condition, state, player, npc) {
   
   if (condition.hasCompletedQuest) {
     return player.quests?.completed?.includes(condition.hasCompletedQuest) || false;
+  }
+  
+  // Check if quest can be turned in (completed but not yet turned in for rewards)
+  if (condition.type === 'questCanTurnIn' || condition.canTurnInQuest) {
+    const questId = condition.quest || condition.canTurnInQuest;
+    return QuestManager.canTurnInQuest(questId);
   }
   
   // Relationship condition
@@ -461,10 +469,14 @@ export function processDialogueAction(action, state, npc) {
   switch (action.type) {
     case 'start_quest':
       console.log("STARTING QUEST:", action);
-      var quests = createQuests();
-      var selectedQuest = quests[action.id];
-      questManager.addQuest(state, selectedQuest);
-      console.log("SELECTED QUEST:", selectedQuest);
+      // Use the new QuestManager to start quest
+      const success = QuestManager.startQuest(state, action.id);
+      if (success) {
+        console.log(`[DIALOGUE] Successfully started quest: ${action.id}`);
+      } else {
+        console.log(`[DIALOGUE] Failed to start quest: ${action.id}`);
+      }
+      break;
     case 'give_gold':
       if (player.gold !== undefined) {
         player.gold += action.amount || 0;
@@ -508,21 +520,10 @@ export function processDialogueAction(action, state, npc) {
       break;
       
     case 'complete_quest':
-      if (player.quests) {
-        // Remove from active
-        if (player.quests.active) {
-          const index = player.quests.active.indexOf(action.quest);
-          if (index >= 0) {
-            player.quests.active.splice(index, 1);
-          }
-        }
-        // Add to completed
-        if (player.quests.completed) {
-          if (!player.quests.completed.includes(action.quest)) {
-            player.quests.completed.push(action.quest);
-          }
-        }
-        console.log(`[DIALOGUE] Quest completed:`, action.quest);
+      // Use the new QuestManager to complete quest
+      const rewards = QuestManager.completeQuest(state, action.quest);
+      if (rewards) {
+        console.log(`[DIALOGUE] Quest completed: ${action.quest}`, rewards);
       }
       break;
       

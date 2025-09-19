@@ -20,6 +20,13 @@ class ProjectileSystem {
    * @returns {Promise} Resolves when projectile reaches target
    */
   async launch(config) {
+    console.log('[PROJECTILE] Launch called with config:', {
+      from: `(${config.fromX}, ${config.fromY})`,
+      to: `(${config.toX}, ${config.toY})`,
+      type: config.type,
+      speed: config.speed
+    });
+    
     const {
       fromX,
       fromY,
@@ -55,6 +62,7 @@ class ProjectileSystem {
     const trajectory = this.calculateTrajectory(fromX, fromY, toX, toY);
     const distance = trajectory.distance;
     const duration = Math.max(100, (distance / speed) * 1000); // Min 100ms duration
+    console.log(`[PROJECTILE] Calculated trajectory - Distance: ${distance.toFixed(2)}, Duration: ${duration.toFixed(0)}ms`);
     
     // Create projectile object
     const projectile = {
@@ -89,11 +97,14 @@ class ProjectileSystem {
     // Return promise that resolves when projectile reaches target
     return new Promise((resolve) => {
       projectile.onComplete = () => {
+        console.log(`[PROJECTILE] Projectile ${projectile.id} completed`);
         this.activeProjectiles.delete(projectile.id);
         // Use actual impact position (may have changed due to collision)
         const impactX = projectile.toX;
         const impactY = projectile.toY;
+        console.log(`[PROJECTILE] Impact position: (${impactX}, ${impactY})`);
         if (onImpact) {
+          console.log(`[PROJECTILE] Calling onImpact callback`);
           onImpact(impactX, impactY);
         }
         resolve({ x: impactX, y: impactY });

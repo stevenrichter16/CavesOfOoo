@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quest Flow Test</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        button {
+            background: #333;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #444;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #0f0;
+            min-height: 300px;
+            white-space: pre-wrap;
+        }
+        .quest-active {
+            color: yellow;
+        }
+        .quest-completed {
+            color: cyan;
+        }
+        .quest-turned-in {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Quest System Flow Test</h1>
+    
+    <div>
+        <button onclick="startQuest()">1. Start Quest (Talk to Steven)</button>
+        <button onclick="openInventory()">2. Open Inventory (Press 'i')</button>
+        <button onclick="checkTurnIn()">3. Check Turn-in Dialogue</button>
+        <button onclick="completeQuest()">4. Complete Quest (Turn in)</button>
+        <button onclick="reset()">Reset</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script type="module">
+        import { QuestManager } from './src/js/world/quests/QuestManager.js';
+        import { evaluateConditionInternal } from './src/social/dialogue.js';
+        
+        window.output = document.getElementById('output');
+        window.log = (msg, className = '') => {
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = msg + '\n';
+            window.output.appendChild(span);
+            console.log(msg);
+        };
+
+        // Initialize mock state
+        window.mockState = {
+            player: {
+                gold: 0,
+                experience: 0,
+                inventory: [],
+                quests: {
+                    active: [],
+                    completed: []
+                }
+            },
+            flags: {},
+            log: (msg) => window.log(`[GAME] ${msg}`)
+        };
+
+        // Initialize quest system
+        QuestManager.initialize(window.mockState);
+        window.QuestManager = QuestManager;
+        
+        window.startQuest = () => {
+            log('\n=== Starting Quest ===');
+            
+            // Check offer condition
+            const offerCondition = {
+                and: [
+                    { type: 'not', condition: { type: 'quest', quest: 'open_inventory_quest' } },
+                    { type: 'not', condition: { hasCompletedQuest: 'open_inventory_quest' } }
+                ]
+            };
+            
+            const canOffer = evaluateConditionInternal(offerCondition, window.mockState, window.mockState.player, {});
+            log(`Can offer quest: ${canOffer}`);
+            
+            if (canOffer) {
+                const success = QuestManager.startQuest(window.mockState, 'open_inventory_quest');
+                log(`Quest started: ${success}`, 'quest-active');
+                
+                const quest = QuestManager.getQuest('open_inventory_quest');
+                log(`Quest state: ${quest?.state}`, 'quest-active');
+                log(`Active quests: ${window.mockState.player.quests.active.join(', ')}`);
+            }
+        };
+
+        window.openInventory = () => {
+            log('\n=== Opening Inventory ===');
+            
+            // Simulate inventory opened event
+            QuestManager.emitEvent('INVENTORY_OPENED', {
+                timestamp: Date.now()
+            });
+            
+            // Check quest state after small delay
+            setTimeout(() => {
+                const quest = QuestManager.getQuest('open_inventory_quest');
+                log(`Quest state: ${quest?.state}`, quest?.state === 'COMPLETED' ? 'quest-completed' : '');
+                log(`Objective completed: ${quest?.objectives[0]?.completed}`, 'quest-completed');
+            }, 100);
+        };
+
+        window.checkTurnIn = () => {
+            log('\n=== Checking Turn-in Dialogue ===');
+            
+            const turnInCondition = {
+                type: 'questCanTurnIn',
+                quest: 'open_inventory_quest'
+            };
+            
+            const canTurnIn = evaluateConditionInternal(turnInCondition, window.mockState, window.mockState.player, {});
+            log(`Can turn in quest: ${canTurnIn}`, canTurnIn ? 'quest-completed' : '');
+            
+            if (canTurnIn) {
+                log('Dialogue option "[QUEST] I\'ve opened my inventory!" would appear', 'quest-completed');
+            }
+        };
+
+        window.completeQuest = () => {
+            log('\n=== Completing Quest (Turning in) ===');
+            
+            const canTurnIn = QuestManager.canTurnInQuest('open_inventory_quest');
+            if (!canTurnIn) {
+                log('Quest not ready to turn in!', 'error');
+                return;
+            }
+            
+            const rewards = QuestManager.completeQuest(window.mockState, 'open_inventory_quest');
+            log(`Rewards received:`, 'quest-turned-in');
+            log(`  Gold: ${rewards?.gold}`, 'quest-turned-in');
+            log(`  Experience: ${rewards?.experience}`, 'quest-turned-in');
+            
+            log(`Player gold: ${window.mockState.player.gold}`, 'quest-turned-in');
+            log(`Player experience: ${window.mockState.player.experience}`, 'quest-turned-in');
+            log(`Completed quests: ${window.mockState.player.quests.completed.join(', ')}`, 'quest-turned-in');
+        };
+
+        window.reset = () => {
+            log('\n=== Resetting ===');
+            location.reload();
+        };
+
+        log('Quest System Test Ready');
+        log('Follow the numbered buttons to test the quest flow');
+    </script>
+</body>
+</html>

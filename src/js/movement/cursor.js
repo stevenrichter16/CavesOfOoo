@@ -42,8 +42,12 @@ export function initCursor(x, y) {
  * Activate cursor mode
  */
 export function activateCursor(mode = 'examine', options = {}) {
+  console.log(`[CURSOR] activateCursor called with mode: '${mode}', options:`, options);
   const state = window.STATE;
-  if (!state || !state.player) return false;
+  if (!state || !state.player) {
+    console.log(`[CURSOR] Cannot activate cursor - STATE: ${!!state}, player: ${!!state?.player}`);
+    return false;
+  }
   
   cursorState.active = true;
   cursorState.mode = mode;
@@ -57,7 +61,10 @@ export function activateCursor(mode = 'examine', options = {}) {
     initCursor(state.player.x, state.player.y);
   }
   
-  console.log(`Cursor activated in ${mode} mode at (${cursorState.x}, ${cursorState.y})`);
+  console.log(`[CURSOR] Cursor activated in ${mode} mode at (${cursorState.x}, ${cursorState.y})`);
+  if (mode === 'throw' && state.pendingThrowable) {
+    console.log(`[CURSOR] Throw mode: Pending throwable is ${state.pendingThrowable.item.name || state.pendingThrowable.item.id}`);
+  }
   
   emit(EventType.CursorActivated, { 
     mode, 
@@ -93,12 +100,27 @@ export function moveCursor(dx, dy, fast = false) {
   if (!cursorState.active) return false;
   
   const moveAmount = fast ? CURSOR_CONFIG.FAST_MOVE_TILES : 1;
+  const oldX = cursorState.x;
+  const oldY = cursorState.y;
   const newX = cursorState.x + (dx * moveAmount);
   const newY = cursorState.y + (dy * moveAmount);
   
   // Clamp to map bounds
   cursorState.x = Math.max(0, Math.min(W - 1, newX));
   cursorState.y = Math.max(0, Math.min(H - 1, newY));
+  
+  if (cursorState.mode === 'throw') {
+    console.log(`[CURSOR] Throw mode: Moved cursor from (${oldX}, ${oldY}) to (${cursorState.x}, ${cursorState.y})`);
+    const state = window.STATE;
+    if (state?.chunk) {
+      const monster = state.chunk.monsters?.find(m => 
+        m.x === cursorState.x && m.y === cursorState.y && m.alive
+      );
+      if (monster) {
+        console.log(`[CURSOR] Throw mode: Cursor is now over monster: ${monster.name}`);
+      }
+    }
+  }
   
   emit(EventType.CursorMoved, { 
     x: cursorState.x, 
@@ -202,14 +224,23 @@ export function executeCursorAction() {
   
   // Handle throw mode
   if (mode === 'throw') {
+    console.log(`[CURSOR] executeCursorAction in throw mode at (${x}, ${y})`);
     const state = window.STATE;
-    if (!state || !state.pendingThrowable) return false;
+    if (!state || !state.pendingThrowable) {
+      console.log(`[CURSOR] Cannot execute throw - STATE: ${!!state}, pendingThrowable: ${!!state?.pendingThrowable}`);
+      return false;
+    }
+    
+    console.log(`[CURSOR] Executing throw with item: ${state.pendingThrowable.item.name || state.pendingThrowable.item.id}`);
+    console.log(`[CURSOR] Target position: (${x}, ${y}), Player position: (${state.player.x}, ${state.player.y})`);
     
     // Execute the throw
     import('../combat/throwables.js').then(throwModule => {
+      console.log(`[CURSOR] Throwables module imported, calling executeThrow`);
       throwModule.executeThrow(state, x, y);
     });
     
+    console.log(`[CURSOR] Deactivating cursor after throw`);
     deactivateCursor();
     return true;
   }

@@ -19,7 +19,8 @@
       "Bash(cp:*)",
       "Bash(rm:*)",
       "Bash(echo \"Exit code: $?\")",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -18,19 +18,41 @@ export const uniqueNPCDialogues = {
         {
           text: "[QUEST] Can you teach me something?",
           next: 'offer_quest',
-          conditions: [
-            { flagNotSet: 'inventory_tutorial_completed' },
-            { questNotActive: 'open_inventory_quest' }
-          ]
+          condition: {
+            and: [
+              { type: 'not', condition: { type: 'quest', quest: 'open_inventory_quest' } },
+              { type: 'not', condition: { hasCompletedQuest: 'open_inventory_quest' } }
+            ]
+          }
         },
         // Quest turn-in (shown when objective complete)
         {
           text: "[QUEST] I've opened my inventory!",
           next: 'complete_quest',
           condition: {
+            type: 'questCanTurnIn',
+            quest: 'open_inventory_quest'
+          }
+        },
+        // Pot Throwing Quest offer (shown after completing inventory quest)
+        {
+          text: "[QUEST] Can you teach me about throwing?",
+          next: 'offer_throwing_quest',
+          condition: {
             and: [
-              { type: 'flag', flag: 'inventory_tutorial_completed' }
+              { hasCompletedQuest: 'open_inventory_quest' },  // Must complete first quest
+              { type: 'not', condition: { type: 'quest', quest: 'pot_throwing_practice' } },
+              { type: 'not', condition: { hasCompletedQuest: 'pot_throwing_practice' } }
             ]
+          }
+        },
+        // Pot Throwing Quest turn-in
+        {
+          text: "[QUEST] I've thrown both pots!",
+          next: 'complete_throwing_quest',
+          condition: {
+            type: 'questCanTurnIn',
+            quest: 'pot_throwing_practice'
           }
         },
         // Quest reminder (shown when quest active but not complete)
@@ -95,12 +117,53 @@ export const uniqueNPCDialogues = {
           {
             text: "Thank you, Steven!",
             end: true,
-            effect: {
-              type: 'give_gold',
-              amount: 2000
+            action: {
+              type: 'complete_quest',
+              quest: 'open_inventory_quest'
             }
           }
         ]
+    },
+    
+    // Pot Throwing Quest offer node
+    {
+      id: 'offer_throwing_quest',
+      npcLine: [
+        "Excellent! Now that you know about inventory, let's learn combat basics.",
+        "Throwable pots are powerful ranged weapons.",
+        "I'll give you some pots to practice with. Throw one Sugar Pot and one Clay Pot.",
+        "Press 'T' to enter throw mode, then click where you want to throw!"
+      ],
+      choices: [
+        {
+          text: "I'm ready to learn!",
+          action: { type: 'start_quest', id: 'pot_throwing_practice' }
+        },
+        {
+          text: "Maybe later.",
+          end: true
+        }
+      ]
+    },
+    
+    // Pot Throwing Quest completion node
+    {
+      id: 'complete_throwing_quest',
+      npcLine: [
+        "Excellent throwing technique! You're a natural.",
+        "Different pots have different effects - Fire Pots burn, Mint Pots freeze, and so on.",
+        "Here's 1500 gold for your excellent performance!"
+      ],
+      choices: [
+        {
+          text: "Thanks for the lesson!",
+          end: true,
+          action: {
+            type: 'complete_quest',
+            quest: 'pot_throwing_practice'
+          }
+        }
+      ]
     },
     
     // Quest reminder node

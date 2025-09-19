@@ -8,6 +8,7 @@ import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { applyStatusEffect } from './statusSystem.js';
 import { launchProjectile } from '../systems/ProjectileSystem.js';
+import { QuestManager } from '../world/quests/QuestManager.js';
 
 /**
  * Get friendly name for tile type
@@ -28,19 +29,22 @@ function getTileName(tile) {
  * @async
  */
 export async function executeThrow(state, targetX, targetY) {
+  console.log(`[THROWABLES] executeThrow called - Target: (${targetX}, ${targetY})`);
   try {
     // Validate target coordinates
     if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
-      console.error('Invalid target coordinates:', { targetX, targetY });
+      console.error('[THROWABLES] Invalid target coordinates:', { targetX, targetY });
       if (state.log) state.log("Invalid target position!", "bad");
       return false;
     }
     
     if (!state.pendingThrowable) {
+      console.log('[THROWABLES] No pendingThrowable in state!');
       if (state.log) state.log("No item selected to throw!", "bad");
       return false;
     }
     
+    console.log('[THROWABLES] pendingThrowable:', state.pendingThrowable);
     const { item: inventoryItem, inventoryIndex } = state.pendingThrowable;
     
     // Validate inventory index
@@ -52,8 +56,10 @@ export async function executeThrow(state, targetX, targetY) {
     
     // Get the full pot configuration (merge inventory item with pot definition)
     const potId = inventoryItem.id || inventoryItem.type;
+    console.log(`[THROWABLES] Getting pot definition for id: ${potId}`);
     const potDefinition = getThrowablePot(potId);
     const item = potDefinition ? { ...potDefinition, ...inventoryItem } : inventoryItem;
+    console.log(`[THROWABLES] Final item config:`, { id: item.id, name: item.name, type: item.type });
     
     // Get projectile configuration from item or use defaults
     const projectileConfig = item.projectileConfig || {
@@ -62,6 +68,7 @@ export async function executeThrow(state, targetX, targetY) {
       trail: false,
       arcHeight: 0.5
     };
+    console.log(`[THROWABLES] Projectile config:`, projectileConfig);
     
     // Validate player exists and has position
     if (!state.player || !Number.isFinite(state.player.x) || !Number.isFinite(state.player.y)) {
@@ -71,6 +78,7 @@ export async function executeThrow(state, targetX, targetY) {
     }
     
     // Launch projectile with configuration
+    console.log(`[THROWABLES] Launching projectile from (${state.player.x}, ${state.player.y}) to (${targetX}, ${targetY})`);
     const impactResult = await launchProjectile({
       fromX: state.player.x,
       fromY: state.player.y,
@@ -78,9 +86,13 @@ export async function executeThrow(state, targetX, targetY) {
       toY: targetY,
       ...projectileConfig,
       checkCollision: (x, y) => isBlockedByTerrain(state, x, y),
-      onImpact: (x, y) => handleImpactEffects(state, x, y, item)
+      onImpact: (x, y) => {
+        console.log(`[THROWABLES] Projectile impacted at (${x}, ${y})`);
+        handleImpactEffects(state, x, y, item);
+      }
     });
     
+    console.log(`[THROWABLES] Projectile animation complete, impact at (${impactResult.x}, ${impactResult.y})`);
     // Process the actual throw effects after animation (use actual impact position)
     await processThrowEffects(state, impactResult.x, impactResult.y, item, inventoryIndex);
     
@@ -117,10 +129,12 @@ function handleImpactEffects(state, x, y, item) {
  * @async
  */
 async function processThrowEffects(state, targetX, targetY, item, inventoryIndex) {
+  console.log(`[THROWABLES] processThrowEffects called for ${item.name || item.id} at (${targetX}, ${targetY})`);
   return new Promise((resolve) => {
     // Check what's at the target position
     const target = entityAt(state, targetX, targetY);
     const targetTile = state.chunk?.map?.[targetY]?.[targetX];
+    console.log(`[THROWABLES] Target check - Entity: ${target?.name || 'none'}, Tile: '${targetTile}'`);
     
     if (!target || target === state.player) {
     // Check for tile interactions
@@ -214,17 +228,46 @@ async function processThrowEffects(state, targetX, targetY, item, inventoryIndex
     });
   }
     
+    // Emit quest event for thrown item BEFORE removing from inventory
+    const itemId = item.id || item.type;
+    console.log(`[THROWABLES] ===== QUEST EVENT EMISSION =====`);
+    console.log(`[THROWABLES] Emitting ITEM_THROWN event for item: ${itemId}`);
+    console.log(`[THROWABLES] Event data:`, {
+      item: { id: itemId, name: item.name, type: item.type || 'throwable' },
+      targetX: targetX,
+      targetY: targetY,
+      hit: !!target
+    });
+    
+    QuestManager.emitEvent('ITEM_THROWN', {
+      item: {
+        id: itemId,
+        name: item.name,
+        type: item.type || 'throwable'
+      },
+      targetX: targetX,
+      targetY: targetY,
+      hit: !!target,
+      timestamp: Date.now()
+    });
+    
+    console.log(`[THROWABLES] ITEM_THROWN event emitted successfully`);
+    
     // Remove or reduce the thrown item from inventory
     // Re-validate inventory index as state may have changed during animation
+    console.log(`[THROWABLES] Updating inventory - removing/reducing item at index ${inventoryIndex}`);
     if (state.player && state.player.inventory && inventoryIndex < state.player.inventory.length) {
       const invItem = state.player.inventory[inventoryIndex];
       if (invItem) {
+        console.log(`[THROWABLES] Found item in inventory: ${invItem.name || invItem.id}, count: ${invItem.count || 1}`);
         if (invItem.count && invItem.count > 1) {
           invItem.count--;
+          console.log(`[THROWABLES] Reduced count to ${invItem.count}`);
           if (state.log) {
             state.log(`${item.name} x${invItem.count} remaining`, "dim");
           }
         } else {
+          console.log(`[THROWABLES] Removing item from inventory completely`);
           state.player.inventory.splice(inventoryIndex, 1);
         }
       }

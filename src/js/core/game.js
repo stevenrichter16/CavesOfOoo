@@ -28,6 +28,7 @@ import { renderEquipmentPanel, getStatusChar, getStatusClass } from '../ui/equip
 import { CanvasRenderer } from '../renderer/canvas.js';
 import { getCursorState, isValidCursorPosition } from '../movement/cursor.js';
 import { runTickForEntity, runPreDamage, runMovementForEntity } from '../engine/adapters/cavesOfOoo.js';
+import { QuestManager } from '../world/quests/QuestManager.js';
 import '../engine/materials.js';          // ensure defaults loaded
 import '../engine/statusDefinitions.js';  // register all status definitions
 import '../engine/statusRules.js';        // load status interaction rules
@@ -715,6 +716,10 @@ export async function newWorld() {
   // Initialize NPC migration to enhanced system
   initializeMigration(state);
   console.log('🚀 [GAME] Enhanced NPC system initialized with migration adapter');
+  
+  // Initialize the new quest system
+  QuestManager.initialize(state);
+  console.log('🎯 [GAME] New quest system initialized');
   
   // Initialize quest spawner system
   const questSpawner = getQuestSpawner();

@@ -197,7 +197,11 @@ function handleGameControls(STATE, e) {
 
   // World Interaction
   else if (k === ".") { waitTurn(STATE); e.preventDefault(); }
-  else if (k.toLowerCase() === "i") { openInventory(STATE); e.preventDefault(); }
+  else if (k.toLowerCase() === "i") { 
+    console.log("[KEYS] 'i' key pressed - opening inventory");
+    openInventory(STATE); 
+    e.preventDefault(); 
+  }
   else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "q") { displayActiveQuests(STATE); e.preventDefault(); }
   else if (k.toLowerCase() === "x") { 
@@ -207,6 +211,46 @@ function handleGameControls(STATE, e) {
     showCursorInfo(STATE); // Show info about what's under the cursor immediately
     render(STATE);
     e.preventDefault(); 
+  }
+  else if (k.toLowerCase() === "t") {
+    console.log("[KEYS] 't' key pressed - checking for throwables in inventory");
+    
+    // Check if player has any throwable items
+    const throwables = STATE.player.inventory.filter(item => item.type === 'throwable');
+    console.log(`[KEYS] Found ${throwables.length} throwable items in inventory:`, throwables.map(t => `${t.name || t.id} x${t.count || 1}`));
+    
+    if (throwables.length === 0) {
+      console.log("[KEYS] No throwables in inventory - showing message to player");
+      log(STATE, "You don't have any throwable items!", "bad");
+    } else if (throwables.length === 1) {
+      // Single throwable - activate throw mode directly
+      const throwable = throwables[0];
+      const actualIndex = STATE.player.inventory.indexOf(throwable);
+      const throwableName = throwable.name || throwable.id || 'throwable';
+      console.log(`[KEYS] Single throwable found: ${throwableName} at index ${actualIndex}`);
+      console.log("[KEYS] Activating throw mode directly with this throwable:", throwable);
+      
+      STATE.pendingThrowable = {
+        item: throwable,
+        inventoryIndex: actualIndex
+      };
+      console.log("[KEYS] Set pendingThrowable:", STATE.pendingThrowable);
+      
+      // Activate cursor for targeting
+      console.log("[KEYS] Activating cursor in throw mode");
+      import('../movement/cursor.js').then(cursorModule => {
+        cursorModule.activateCursor('throw');
+        console.log(`[KEYS] Cursor activated - player can now aim ${throwableName}`);
+        log(STATE, `Aiming ${throwableName}... Use arrows to aim, Enter to throw, Escape to cancel`, "note");
+        render(STATE);
+      });
+    } else {
+      // Multiple throwables - open inventory with throwable tab selected
+      console.log("[KEYS] Multiple throwables found - opening inventory with throwable tab");
+      STATE.ui.inventoryTab = 'throwable';
+      openInventory(STATE);
+    }
+    e.preventDefault();
   }
   else if (k.toLowerCase() === "v") {
     // Check if standing next to vendor
@@ -279,7 +323,7 @@ function handleGameControls(STATE, e) {
   else if (k.toLowerCase() === "h") {
     log(STATE, "=== HELP ===", "note");
     log(STATE, "WASD/Arrows: Move | .: Wait | I: Inventory", "note");
-    log(STATE, "X: Examine | Q: Quests | M: Map", "note");
+    log(STATE, "X: Examine | Q: Quests | M: Map | T: Throw", "note");
     log(STATE, "p: Place ward (graveyard) | V: Talk to vendor", "note");
     log(STATE, "R: New Game | Walk off edges to explore", "note");
     log(STATE, "Find weapons, armor, and potions to survive!", "note");

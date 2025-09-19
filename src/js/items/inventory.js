@@ -2,15 +2,25 @@ import { applyStatusEffect } from '../combat/statusSystem.js';
 import { runOnEquipHooks, runOnUnequipHooks } from '../combat/effects.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { QuestManager } from '../world/quests/QuestManager.js';
 
 export function openInventory(state) {
+  console.log("[INVENTORY] openInventory() called");
   state.ui.inventoryOpen = true;
   state.ui.selectedIndex = 0;
   // Initialize inventory tab if not set
   if (!state.ui.inventoryTab) {
     state.ui.inventoryTab = 'all';
   }
+  console.log("[INVENTORY] About to render inventory UI");
   renderInventory(state);
+  
+  // Emit quest event for inventory opened
+  console.log("[INVENTORY] Emitting INVENTORY_OPENED event to QuestManager");
+  QuestManager.emitEvent('INVENTORY_OPENED', {
+    timestamp: Date.now()
+  });
+  console.log("[INVENTORY] INVENTORY_OPENED event emitted successfully");
 }
 
 export function closeInventory(state) {
@@ -205,17 +215,27 @@ export function renderInventory(state) {
         </div>
       `;
     } else if (item.type === "throwable") {
-      // Throwable pots
+      // Throwable pots - handle both item.item and direct item structures
+      const throwableData = item.item || item;
       const countText = item.count > 1 ? ` x${item.count}` : "";
-      let damageText = ` (DMG ${item.item.damage || 5})`;
-      if (item.item.statusEffect) {
-        damageText += `, ${item.item.statusEffect}`;
+      const name = throwableData.name || item.name || item.id || 'Unknown Throwable';
+      const desc = throwableData.desc || throwableData.description || 'A throwable item';
+      
+      let damageText = "";
+      if (throwableData.damage) {
+        damageText = ` (DMG ${throwableData.damage})`;
+      } else if (throwableData.dmg) {
+        damageText = ` (DMG ${throwableData.dmg})`;
+      }
+      
+      if (throwableData.statusEffect) {
+        damageText += damageText ? `, ${throwableData.statusEffect}` : ` (${throwableData.statusEffect})`;
       }
       
       div.innerHTML = `
         <div>
-          <div class="name">⚱ ${item.item.name}${countText}</div>
-          <div class="desc">${item.item.desc}${damageText}</div>
+          <div class="name">⚱ ${name}${countText}</div>
+          <div class="desc">${desc}${damageText}</div>
         </div>
       `;
     } else if (item.type === "item") {
@@ -326,16 +346,24 @@ export function useInventoryItem(state) {
     // Activate throw mode with cursor
     closeInventory(state);
     
+    // Handle both item.item and direct item structures
+    const throwableData = item.item || item;
+    const throwableName = throwableData.name || item.name || item.id || 'throwable';
+    
+    console.log(`[INVENTORY] Selected throwable from inventory:`, item);
+    console.log(`[INVENTORY] Setting pendingThrowable with data:`, throwableData);
+    
     // Store the throwable item for when throw is executed
     state.pendingThrowable = {
-      item: item.item,
+      item: throwableData,
       inventoryIndex: actualIndex
     };
     
     // Activate cursor for targeting
     import('../movement/cursor.js').then(cursorModule => {
+      console.log(`[INVENTORY] Activating cursor for throw mode`);
       cursorModule.activateCursor('throw');
-      state.log(`Aiming ${item.item.name}... Use arrows to aim, Enter to throw, Escape to cancel`, "note");
+      state.log(`Aiming ${throwableName}... Use arrows to aim, Enter to throw, Escape to cancel`, "note");
     });
     
     return; // Don't consume the item yet
