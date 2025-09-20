@@ -73,13 +73,13 @@ export function makePlayer() {
   ];
   
   return { 
-    x: 2, y: 2, hp: 30, hpMax: 30, str: 6, def: 2, spd: 3,
-    level: 1, xp: 0, xpNext: 30,
+    x: 2, y: 2, hp: 20, hpMax: 20, str: 5, def: 1, spd: 3,
+    level: 1, xp: 0, xpNext: 10,
     alive: true,
     faction: 'player',  // Player's faction for hostility checks
     weapon: null, armor: null, headgear: null,
     rings: [null, null],  // Two ring slots
-    gold: 1000,  // Starting gold - set to 1000 for testing shopping
+    gold: 0,  // Starting gold
     inventory: startingInventory, potionCount: 0,
     // statusEffects handled by Status Map in statusSystem.js
     turnsSinceRest: 0,
@@ -96,58 +96,46 @@ export function makePlayer() {
 
 export function makeMonster(kind, x, y, tier = 1) {
   const templates = {
-    // Basic enemies - significantly buffed HP and XP
-    goober: { glyph: "g", name: "candy goober", hp: 60, str: 3, def: 0, spd: 2, xp: 10, ai: "chase" },
-    sweet_tooth_fox: { 
-      glyph: "F", 
-      name: "Sweet Tooth Fox", 
-      hp: 15, 
-      str: 3, 
-      def: 1, 
-      spd: 4, 
-      xp: 15, 
-      ai: "chase",
-      color: "orange"
-    },
-    icething: { glyph: "i", name: "ice-thing", hp: 40, str: 4, def: 2, spd: 1, xp: 15, ai: "chase" },
-    sootling: { glyph: "s", name: "sootling", hp: 25, str: 3, def: 0, spd: 4, xp: 8, ai: "wander" },
-    firefly: { glyph: "f", name: "firefly", hp: 30, str: 2, def: 0, spd: 6, xp: 5, ai: "skittish" },
-    boss: { glyph: "B", name: "Lich King", hp: 150, str: 10, def: 5, spd: 3, xp: 100, ai: "smart" },
+    goober: { glyph: "g", name: "candy goober", hp: 1, str: 3, def: 0, spd: 2, xp: 2, ai: "chase" },
+    icething: { glyph: "i", name: "ice-thing", hp: 8, str: 4, def: 1, spd: 1, xp: 3, ai: "chase" },
+    sootling: { glyph: "s", name: "sootling", hp: 5, str: 3, def: 0, spd: 4, xp: 2, ai: "wander" },
+    firefly: { glyph: "f", name: "firefly", hp: 3, str: 2, def: 0, spd: 6, xp: 1, ai: "skittish" },
+    boss: { glyph: "B", name: "Lich King", hp: 30, str: 8, def: 3, spd: 2, xp: 20, ai: "smart" },
     
-    // Mid-tier ability monsters - buffed significantly
+    // New ability monsters
     flamepup: { 
       glyph: "☼", 
       name: "flame pup", 
-      hp: 35, 
-      str: 5, 
+      hp: 7, 
+      str: 4, 
       def: 1,
       spd: 3,
-      xp: 15, 
+      xp: 3, 
       ai: "chase",
       ability: { 
         type: "fireBlast",
         chance: 0.05, // 5% chance per turn
         range: 3,
-        damage: 6,
+        damage: 4,
         effect: "burn",
         effectTurns: 2,
-        effectValue: 3
+        effectValue: 2
       }
     },
     frostbite: { 
       glyph: "F", 
       name: "frostbite", 
-      hp: 45, 
-      str: 4, 
-      def: 3,
+      hp: 8, 
+      str: 3, 
+      def: 2,
       spd: 2,
-      xp: 20, 
+      xp: 4, 
       ai: "chase",
       ability: { 
         type: "iceBreath",
         chance: 0.04,
         range: 2,
-        damage: 5,
+        damage: 3,
         effect: "freeze",
         effectTurns: 1,
         effectValue: 0
@@ -156,59 +144,59 @@ export function makeMonster(kind, x, y, tier = 1) {
     toxicslime: { 
       glyph: "T", 
       name: "toxic slime", 
-      hp: 120, 
-      str: 3, 
-      def: 2,
+      hp: 10, 
+      str: 2, 
+      def: 1,
       spd: 1,
-      xp: 40, 
+      xp: 3, 
       ai: "wander",
       ability: { 
         type: "poisonSpit",
         chance: 0.06,
         range: 4,
-        damage: 4,
+        damage: 2,
         effect: "poison",
         effectTurns: 3,
-        effectValue: 3
+        effectValue: 2
       }
     },
     sparkler: { 
       glyph: "S", 
       name: "sparkler", 
-      hp: 80, 
-      str: 4, 
-      def: 1,
+      hp: 5, 
+      str: 3, 
+      def: 0,
       spd: 5,
-      xp: 35, 
+      xp: 2, 
       ai: "wander",
       ability: { 
         type: "electricPulse",
         chance: 0.08,
         range: 2,
-        damage: 7,
+        damage: 5,
         effect: "shock",
         effectTurns: 2,
-        effectValue: 2
+        effectValue: 1
       }
     },
     
-    // High-tier monsters - Corrupted Dungeon (buffed significantly)
+    // Tier 5 monsters - Corrupted Dungeon
     wraith: { 
       glyph: "W", 
       name: "wraith", 
-      hp: 60, 
-      str: 8, 
-      def: 3,
+      hp: 15, 
+      str: 7, 
+      def: 2,
       spd: 4,
-      xp: 45, 
+      xp: 8, 
       ai: "smart",
       undead: true,  // Marked as undead
       ability: { 
         type: "lifeDrain",
         chance: 0.08,
         range: 2,
-        damage: 6,
-        heal: 3, // Heals the wraith
+        damage: 4,
+        heal: 2, // Heals the wraith
         effect: "weakness",
         effectTurns: 2,
         effectValue: -2 // Reduces player STR
@@ -217,33 +205,33 @@ export function makeMonster(kind, x, y, tier = 1) {
     shadow_beast: { 
       glyph: "◆", 
       name: "shadow beast", 
-      hp: 75, 
-      str: 9, 
-      def: 4,
+      hp: 18, 
+      str: 8, 
+      def: 3,
       spd: 3,
-      xp: 50, 
+      xp: 10, 
       ai: "chase",
       undead: true,  // Shadow creature, counts as undead
       ability: { 
         type: "shadowStrike",
         chance: 0.06,
         range: 3,
-        damage: 8,
+        damage: 6,
         effect: "blind",
         effectTurns: 1,
         effectValue: 0 // Reduces accuracy
       }
     },
     
-    // Elite-tier monsters - Lich Domain (heavily buffed)
+    // Tier 6 monsters - Lich Domain
     bone_knight: { 
       glyph: "K", 
       name: "bone knight", 
-      hp: 90, 
-      str: 10, 
-      def: 6,
+      hp: 22, 
+      str: 9, 
+      def: 5,
       spd: 2,
-      xp: 60, 
+      xp: 12, 
       ai: "smart",
       undead: true,  // Skeleton warrior
       ability: { 
@@ -252,27 +240,27 @@ export function makeMonster(kind, x, y, tier = 1) {
         selfBuff: true,
         effect: "armor",
         effectTurns: 3,
-        effectValue: 4 // Temporary DEF boost
+        effectValue: 3 // Temporary DEF boost
       }
     },
     demon: { 
       glyph: "D", 
       name: "demon", 
-      hp: 100, 
-      str: 12, 
-      def: 5,
+      hp: 25, 
+      str: 10, 
+      def: 4,
       spd: 4,
-      xp: 75, 
+      xp: 15, 
       ai: "smart",
       undead: true,  // Demonic entity
       ability: { 
         type: "hellfire",
         chance: 0.07,
         range: 4,
-        damage: 10,
+        damage: 8,
         effect: "burn",
         effectTurns: 3,
-        effectValue: 4
+        effectValue: 3
       }
     }
   };
@@ -282,32 +270,32 @@ export function makeMonster(kind, x, y, tier = 1) {
   // Apply tier modifiers (bosses are always tier 3)
   if (kind !== "boss") {
     if (tier === 2) {
-      // Veteran tier (green) - moderately stronger
+      // Veteran tier (green) - slightly stronger
       base.name = "veteran " + base.name;
-      base.hp = Math.floor(base.hp * 1.5);  // 1.5x HP
+      base.hp = Math.floor(base.hp * 1.5);
       base.str = base.str + 2;
       base.def = base.def + 1;
       base.spd = base.spd ? base.spd + 1 : 1;
-      base.xp = Math.floor(base.xp * 1.5);  // Reduced from 2x
+      base.xp = Math.floor(base.xp * 2);
       // Scale ability for veterans
       if (base.ability) {
-        base.ability.chance = Math.min(1.0, base.ability.chance * 1.3);
+        base.ability.chance = Math.min(1.0, base.ability.chance * 1.5);
         base.ability.damage = Math.floor(base.ability.damage * 1.2);
       }
     } else if (tier === 3) {
       // Elite tier (red) - much stronger
       base.name = "elite " + base.name;
-      base.hp = Math.floor(base.hp * 2.5);  // 2.5x HP
+      base.hp = Math.floor(base.hp * 2.5);
       base.str = base.str + 4;
-      base.def = base.def + 3;
+      base.def = base.def + 2;
       base.spd = base.spd ? base.spd + 2 : 2;
-      base.xp = Math.floor(base.xp * 3);  // Reduced from 4x
+      base.xp = Math.floor(base.xp * 4);
       // Elite monsters are smarter
       if (base.ai === "wander") base.ai = "chase";
       if (base.ai === "skittish") base.ai = "wander";
       // Scale ability for elites
       if (base.ability) {
-        base.ability.chance = Math.min(1.0, base.ability.chance * 1.5);
+        base.ability.chance = Math.min(1.0, base.ability.chance * 2);
         base.ability.damage = Math.floor(base.ability.damage * 1.5);
       }
     }
@@ -319,23 +307,17 @@ export function makeMonster(kind, x, y, tier = 1) {
   // Set hpMax to match hp for proper display
   base.hpMax = base.hp;
   
-  // Add special properties for Sweet Tooth Fox
-  if (kind === 'sweet_tooth_fox') {
-    base.hasTeeth = true;
-    base.knockedOut = false;
-  }
-  
   return { ...base, kind, x, y, alive: true, tier }; // statusEffects handled by Status Map
 }
 
 export function levelUp(state) {
   const p = state.player;
   p.level++;
-  p.xpNext = p.level * 50;  // Increased XP requirements to match higher XP rewards
-  p.hpMax += 8;  // More HP per level to survive tougher enemies
+  p.xpNext = p.level * 15;
+  p.hpMax += 5;
   p.hp = p.hpMax;
-  p.str += 3;  // Better strength growth
-  p.def += 2;  // Better defense growth
+  p.str += 2;
+  p.def += 1;
   p.spd += 1;
   
   if (state.log) {

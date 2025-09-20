@@ -23,7 +23,8 @@ import { saveChunk } from '../utils/persistence.js';
 import { openInventory, closeInventory, useInventoryItem, dropInventoryItem, renderInventory } from '../items/inventory.js';
 import { handleMapNavigation } from '../world/worldMap.js';
 import { openMap, closeMap, renderMap } from '../ui/map.js';
-import { displayActiveQuests, hasQuest, giveQuest, checkFetchQuestItem } from '../quests/quests.js';
+import { hasQuest, giveQuest, checkFetchQuestItem } from '../quests/quests.js';
+import { openQuestMenu, closeQuestMenu, handleQuestMenuInput } from '../ui/questMenu.js';
 import { QUEST_TEMPLATES } from '../core/config.js';
 import { applyStatusEffect, isFrozen, Status } from '../combat/statusSystem.js';
 import { tagsForStatus } from '../engine/adapters/cavesOfOoo.js';
@@ -105,7 +106,7 @@ export function initKeyboardControls() {
     
     // Prevent Tab key from selecting HTML elements when any UI is open
     if (e.key === "Tab" && (STATE.ui.questTurnInOpen || STATE.ui.mapOpen || 
-        STATE.ui.shopOpen || STATE.ui.inventoryOpen || STATE.ui.socialMenuOpen || STATE.ui.dialogueTreeOpen)) {
+        STATE.ui.shopOpen || STATE.ui.inventoryOpen || STATE.ui.socialMenuOpen || STATE.ui.dialogueTreeOpen || STATE.ui.questMenuOpen)) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -133,6 +134,14 @@ export function initKeyboardControls() {
         e.preventDefault();
         return;
       }
+    }
+    
+    // Quest menu controls
+    if (STATE.ui.questMenuOpen) {
+      if (handleQuestMenuInput(STATE, e.key)) {
+        e.preventDefault();
+      }
+      return;
     }
     
     // Quest turn-in controls
@@ -203,7 +212,11 @@ function handleGameControls(STATE, e) {
     e.preventDefault(); 
   }
   else if (k.toLowerCase() === "m") { openMap(STATE); e.preventDefault(); }
-  else if (k.toLowerCase() === "q") { displayActiveQuests(STATE); e.preventDefault(); }
+  else if (k.toLowerCase() === "q") { 
+    console.log("[KEYS] 'q' key pressed - opening quest menu");
+    openQuestMenu(STATE); 
+    e.preventDefault(); 
+  }
   else if (k.toLowerCase() === "x") { 
     // Toggle cursor mode for examining
     activateCursor('examine');
@@ -323,7 +336,7 @@ function handleGameControls(STATE, e) {
   else if (k.toLowerCase() === "h") {
     log(STATE, "=== HELP ===", "note");
     log(STATE, "WASD/Arrows: Move | .: Wait | I: Inventory", "note");
-    log(STATE, "X: Examine | Q: Quests | M: Map | T: Throw", "note");
+    log(STATE, "X: Examine | Q: Quest Menu | M: Map | T: Throw", "note");
     log(STATE, "p: Place ward (graveyard) | V: Talk to vendor", "note");
     log(STATE, "R: New Game | Walk off edges to explore", "note");
     log(STATE, "Find weapons, armor, and potions to survive!", "note");

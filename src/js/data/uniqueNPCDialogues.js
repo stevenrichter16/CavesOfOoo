@@ -34,13 +34,32 @@ export const uniqueNPCDialogues = {
             quest: 'open_inventory_quest'
           }
         },
+        {
+          text: "[QUEST] Any dangerous monsters need slaying?",
+          next: 'offer_kill_monster_quest',
+          condition: {
+            and: [
+              { type: 'not', condition: { type: 'quest', quest: 'kill_monster_quest' } },
+              { type: 'not', condition: { hasCompletedQuest: 'kill_monster_quest' } }
+            ]
+          }
+        },
+        // Monster kill Quest turn-in
+        {
+          text: "[QUEST] I've slain a monster!",
+          next: 'complete_kill_monster_quest',
+          condition: {
+            type: 'questCanTurnIn',
+            quest: 'kill_monster_quest'
+          }
+        },
         // Pot Throwing Quest offer (shown after completing inventory quest)
         {
           text: "[QUEST] Can you teach me about throwing?",
           next: 'offer_throwing_quest',
           condition: {
             and: [
-              { hasCompletedQuest: 'open_inventory_quest' },  // Must complete first quest
+              //{ hasCompletedQuest: 'open_inventory_quest' },  // Must complete first quest
               { type: 'not', condition: { type: 'quest', quest: 'pot_throwing_practice' } },
               { type: 'not', condition: { hasCompletedQuest: 'pot_throwing_practice' } }
             ]
@@ -161,6 +180,46 @@ export const uniqueNPCDialogues = {
           action: {
             type: 'complete_quest',
             quest: 'pot_throwing_practice'
+          }
+        }
+      ]
+    },
+    
+    // Kill Monster Quest offer node
+    {
+      id: 'offer_kill_monster_quest',
+      npcLine: [
+        "Ah, you seek danger! The kingdom needs brave souls like you.",
+        "There are monsters roaming the wilderness. Slay one to prove your worth!",
+        "I'll reward you handsomely - 5250 gold and valuable experience!"
+      ],
+      choices: [
+        {
+          text: "I'll destroy any monster I find!",
+          action: { type: 'start_quest', id: 'kill_monster_quest'}
+        },
+        {
+          text: "I need to prepare first.",
+          end: true
+        }
+      ]
+    },
+    
+    // Kill Monster Quest completion node
+    {
+      id: 'complete_kill_monster_quest',
+      npcLine: [
+        "WOW! You're a natural killer!",
+        "The kingdom is safer thanks to your bravery.",
+        "Here's your reward for killing that thing - 5250 gold and 1000 experience!"
+      ],
+      choices: [
+        {
+          text: "It was an honor to serve!",
+          end: true,
+          action: {
+            type: 'complete_quest',
+            quest: 'kill_monster_quest'
           }
         }
       ]

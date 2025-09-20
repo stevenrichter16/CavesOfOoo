@@ -278,6 +278,22 @@ export function applyAttack(state, attacker, defender, result) {
     
     // Grant rewards if player killed a monster
     if (attacker === state.player && defender.xp) {
+      // Emit MONSTER_KILLED event for quest system
+      import('../world/quests/QuestManager.js').then(module => {
+        const monsterData = {
+          monster: {
+            id: defender.id || `${defender.kind}_${defender.x}_${defender.y}`,
+            name: defender.name || result.vs,
+            kind: defender.kind,
+            x: defender.x,
+            y: defender.y,
+            tier: defender.tier || 1
+          },
+          timestamp: Date.now()
+        };
+        console.log('[COMBAT] Emitting MONSTER_KILLED event:', monsterData);
+        module.QuestManager.emitEvent('MONSTER_KILLED', monsterData);
+      });
       // XP reward
       state.player.xp += defender.xp;
       emit(EventType.Log, { text: `+${defender.xp} XP`, cls: "xp" });

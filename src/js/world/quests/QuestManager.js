@@ -2,6 +2,7 @@ import { QuestEventBus } from './QuestEventBus.js';
 import { QuestService } from './QuestService.js';
 import { openInventoryQuestDef } from './definitions/openInventoryQuest.js';
 import { potThrowingQuestDef } from './definitions/potThrowingQuest.js';
+import { killMonsterQuestDef } from './definitions/killMonsterQuest.js';
 
 /**
  * QuestManager - Singleton that manages the quest system
@@ -55,6 +56,12 @@ class QuestManagerImpl {
     this.questService.registerQuestDefinition(
       potThrowingQuestDef.id,
       potThrowingQuestDef
+    );
+    
+    // Register kill monster quest
+    this.questService.registerQuestDefinition(
+      killMonsterQuestDef.id,
+      killMonsterQuestDef
     );
     
     // Additional quests can be registered here
@@ -183,11 +190,19 @@ class QuestManagerImpl {
   }
 
   /**
-   * Get all active quests
+   * Get all active quests (only those with ACTIVE state)
    * @returns {Array} Active quests
    */
   getActiveQuests() {
     return this.questService.getActiveQuests();
+  }
+
+  /**
+   * Get all quests in progress (ACTIVE or COMPLETED but not turned in)
+   * @returns {Array} Quests in progress
+   */
+  getQuestsInProgress() {
+    return this.questService.getQuestsInProgress();
   }
 
   /**

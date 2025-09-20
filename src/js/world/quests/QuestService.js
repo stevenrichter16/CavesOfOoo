@@ -317,11 +317,22 @@ export class QuestService {
   }
 
   /**
-   * Get all active quests
+   * Get all active quests (only those with ACTIVE state)
    * @returns {Array} Array of active quest objects
    */
   getActiveQuests() {
     return Array.from(this.quests.values()).filter(q => q.state === 'ACTIVE');
+  }
+
+  /**
+   * Get all quests that haven't been turned in yet (ACTIVE or COMPLETED states)
+   * This includes quests ready to turn in but not yet turned in
+   * @returns {Array} Array of quest objects
+   */
+  getQuestsInProgress() {
+    return Array.from(this.quests.values()).filter(q => 
+      q.state === 'ACTIVE' || q.state === 'COMPLETED'
+    );
   }
 
   /**
