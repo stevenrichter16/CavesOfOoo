@@ -3,10 +3,12 @@ export const H = 22;
 
 // Canvas rendering configuration
 export const CANVAS_CONFIG = {
-  TILE_SIZE: 16,           // Size of each tile in pixels
+  TILE_WIDTH: 16,          // Tile width in pixels
+  TILE_HEIGHT: 24,         // Tile height in pixels (supports 16x24 sprites)
+  TILE_SIZE: 16,           // Backwards compatibility (treated as width)
   FONT_SIZE: 14,           // For ASCII mode
   FONT_FAMILY: 'Menlo, Consolas, "Courier New", monospace',
-  RENDER_MODE: 'ASCII',    // 'ASCII' or 'SPRITE'
+  RENDER_MODE: 'SPRITE',   // 'ASCII' or 'SPRITE'
   ENABLE_SMOOTH: false,    // Pixel-perfect rendering
   BACKGROUND: '#0b0b0f',
   FOREGROUND: '#c9ffd6',

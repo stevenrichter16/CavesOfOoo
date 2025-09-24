@@ -1,4 +1,4 @@
-import { W, H, TILE, QUOTES, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, TIMES, WEATHERS, QUEST_TEMPLATES, FETCH_ITEMS } from './config.js';
+import { W, H, TILE, QUOTES, WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, TIMES, WEATHERS, QUEST_TEMPLATES, FETCH_ITEMS, CANVAS_CONFIG } from './config.js';
 import { rnd, choice, esc } from '../utils/utils.js';
 import { makePlayer, levelUp } from '../entities/entities.js';
 import { genChunk, findOpenSpot } from '../world/worldGen.js';
@@ -665,6 +665,9 @@ export async function newWorld() {
     render: () => render(state),
     openNPCInteraction: (state, npc) => openNPCInteraction(state, npc)
   };
+  state.tileWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+  state.tileHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE ?? state.tileWidth;
+  state.tileSize = state.tileWidth; // legacy compatibility
   state.FETCH_ITEMS = FETCH_ITEMS; // Set reference for PlayerMovement module
   // Load initial chunk and wait for it
   try {

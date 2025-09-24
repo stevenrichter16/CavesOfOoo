@@ -204,8 +204,47 @@ export function generateCandyKingdomMap() {
     }
   }
   map[7][31] = '+'; // Door
-  
+
+  applyBuildingWallAutotiles(map);
+
   return map;
+}
+
+function applyBuildingWallAutotiles(map) {
+  const height = map.length;
+  const width = map[0] ? map[0].length : 0;
+  const buildingMask = Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => map[y][x] === '▪')
+  );
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!buildingMask[y][x]) continue;
+
+      const up = y > 0 && buildingMask[y - 1][x];
+      const down = y < height - 1 && buildingMask[y + 1][x];
+      const left = x > 0 && buildingMask[y][x - 1];
+      const right = x < width - 1 && buildingMask[y][x + 1];
+
+      const connectedUp = up || (y > 0 && map[y - 1][x] === '+');
+      const connectedDown = down || (y < height - 1 && map[y + 1][x] === '+');
+      const connectedLeft = left || (x > 0 && map[y][x - 1] === '+');
+      const connectedRight = right || (x < width - 1 && map[y][x + 1] === '+');
+
+      let glyph;
+      if (!connectedUp && !connectedLeft && connectedRight && connectedDown) glyph = '┌';
+      else if (!connectedUp && !connectedRight && connectedLeft && connectedDown) glyph = '┐';
+      else if (!connectedDown && !connectedLeft && connectedRight && connectedUp) glyph = '└';
+      else if (!connectedDown && !connectedRight && connectedLeft && connectedUp) glyph = '┘';
+      else if ((!connectedUp && connectedDown && (connectedLeft || connectedRight)) || (connectedUp && !connectedDown && (connectedLeft || connectedRight)) || (connectedLeft && connectedRight && !connectedUp && !connectedDown)) glyph = '─';
+      else if ((!connectedLeft && connectedRight && (connectedUp || connectedDown)) || (connectedLeft && !connectedRight && (connectedUp || connectedDown)) || ((connectedUp && connectedDown) && !connectedLeft && !connectedRight)) glyph = '│';
+      else if ((connectedUp || connectedDown) && !connectedLeft && !connectedRight) glyph = '│';
+      else if ((connectedLeft || connectedRight) && !connectedUp && !connectedDown) glyph = '─';
+      else glyph = '█';
+
+      map[y][x] = glyph;
+    }
+  }
 }
 
 /**

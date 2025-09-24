@@ -1,5 +1,6 @@
 // ui/dropdown.js - Context menu/dropdown system for cursor interactions
 
+import { CANVAS_CONFIG } from '../core/config.js';
 let activeDropdown = null;
 let activeOptions = null;
 let selectedIndex = 0;
@@ -20,11 +21,12 @@ export function createDropdown(x, y, options, gameState) {
   // Calculate pixel position based on tile coordinates
   const canvas = document.getElementById('game-canvas');
   const canvasRect = canvas.getBoundingClientRect();
-  const tileSize = 16; // From CANVAS_CONFIG
+  const tileWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+  const tileHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
   
-  // Position at the tile location
-  const pixelX = canvasRect.left + (x * tileSize) + tileSize;
-  const pixelY = canvasRect.top + (y * tileSize);
+  // Position at the tile location (anchor to top-right of tile)
+  const pixelX = canvasRect.left + (x * tileWidth) + tileWidth;
+  const pixelY = canvasRect.top + (y * tileHeight);
   
   dropdown.style.left = `${pixelX}px`;
   dropdown.style.top = `${pixelY}px`;

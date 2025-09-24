@@ -61,9 +61,10 @@ function handleMouseMove(event, canvas, state) {
   const y = event.clientY - rect.top;
   
   // Convert to tile coordinates
-  const tileSize = CANVAS_CONFIG.TILE_SIZE;
-  const tileX = Math.floor(x / tileSize);
-  const tileY = Math.floor(y / tileSize);
+  const tileWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE;
+  const tileHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE;
+  const tileX = Math.floor(x / tileWidth);
+  const tileY = Math.floor(y / tileHeight);
   
   // Get info about what's at this tile
   const info = getTileInfo(state, tileX, tileY);

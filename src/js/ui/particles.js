@@ -1,6 +1,7 @@
 // particles.js - ASCII particle effects for status effects
 import { on } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { CANVAS_CONFIG } from '../core/config.js';
 
 // Particle configurations for each status effect
 const particleConfigs = {
@@ -242,8 +243,8 @@ function createSingleParticle(x, y, statusType) {
   if (!particleContainer) return;
   
   // Canvas mode only - use fixed dimensions based on canvas tile size
-  const charWidth = 16;  // CANVAS_CONFIG.TILE_SIZE
-  const charHeight = 16; // CANVAS_CONFIG.TILE_SIZE
+  const charWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+  const charHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
   
   // Create particle element
   const particle = document.createElement('div');
@@ -285,8 +286,10 @@ function createExplosionBurst(x, y) {
   centerParticle.className = 'explosion-center';
   centerParticle.textContent = '💥';
   centerParticle.style.position = 'absolute';
-  centerParticle.style.left = `${x * 16 - 8}px`; // Center it
-  centerParticle.style.top = `${y * 16 - 8}px`;
+  const tileWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+  const tileHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+  centerParticle.style.left = `${x * tileWidth - tileWidth / 2}px`; // Center it
+  centerParticle.style.top = `${y * tileHeight - tileHeight / 2}px`;
   centerParticle.style.fontSize = '32px';
   centerParticle.style.zIndex = '1001';
   centerParticle.style.pointerEvents = 'none';

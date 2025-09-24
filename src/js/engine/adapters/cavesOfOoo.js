@@ -208,6 +208,22 @@ function applyAreaEffect(state, source, act) {
                 state.player.xp = (state.player.xp || 0) + (monster.xpValue || 10);
                 state.player.kills = (state.player.kills || 0) + 1;
               }
+
+              // Emit MONSTER_KILLED for quest tracking
+              import('../../world/quests/QuestManager.js').then(module => {
+                const monsterData = {
+                  monster: {
+                    id: monster.id || `${monster.kind}_${monster.x}_${monster.y}`,
+                    name: monster.name || 'monster',
+                    kind: monster.kind,
+                    x: monster.x,
+                    y: monster.y,
+                    tier: monster.tier || 1
+                  },
+                  timestamp: Date.now()
+                };
+                module.QuestManager.emitEvent('MONSTER_KILLED', monsterData);
+              }).catch(() => {});
               
               if (state.log) state.log(`${monster.name} was electrocuted!`, "good");
             } else {
@@ -475,6 +491,22 @@ function applyAreaEffect(state, source, act) {
               state.player.xp = (state.player.xp || 0) + (monster.xpValue || 10);
               state.player.kills = (state.player.kills || 0) + 1;
             }
+
+            // Emit MONSTER_KILLED for quest tracking
+            import('../../world/quests/QuestManager.js').then(module => {
+              const monsterData = {
+                monster: {
+                  id: monster.id || `${monster.kind}_${monster.x}_${monster.y}`,
+                  name: monster.name || 'monster',
+                  kind: monster.kind,
+                  x: monster.x,
+                  y: monster.y,
+                  tier: monster.tier || 1
+                },
+                timestamp: Date.now()
+              };
+              module.QuestManager.emitEvent('MONSTER_KILLED', monsterData);
+            }).catch(() => {});
           }
         } else {
         }

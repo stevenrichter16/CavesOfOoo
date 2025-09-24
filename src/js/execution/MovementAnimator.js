@@ -3,6 +3,7 @@
  * Provides visual feedback during path execution
  */
 import { getGameEventBus } from '../systems/EventBus.js';
+import { CANVAS_CONFIG } from '../core/config.js';
 
 // Configuration constants
 export const MOVEMENT_ANIMATOR_CONFIG = {
@@ -62,9 +63,10 @@ export class MovementAnimator {
     }
     
     // Calculate pixel offsets
-    const tileSize = state.tileSize || 16;
-    const deltaX = (to.x - from.x) * tileSize;
-    const deltaY = (to.y - from.y) * tileSize;
+    const tileWidth = state.tileWidth || state.tileSize || CANVAS_CONFIG.TILE_WIDTH || 16;
+    const tileHeight = state.tileHeight || state.tileSize || CANVAS_CONFIG.TILE_HEIGHT || tileWidth;
+    const deltaX = (to.x - from.x) * tileWidth;
+    const deltaY = (to.y - from.y) * tileHeight;
     
     // Start animation
     this.isAnimating = true;

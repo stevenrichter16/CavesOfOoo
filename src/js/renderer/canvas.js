@@ -3,6 +3,7 @@
 
 import { CANVAS_CONFIG, TILE } from '../core/config.js';
 import { getStatusEffectsAsArray } from '../combat/statusSystem.js';
+import { drawTileSprite, drawEntitySprite, drawStatusAura } from '../sprites/qudSprites.js';
 
 export class CanvasRenderer {
   constructor(containerId) {
@@ -16,8 +17,10 @@ export class CanvasRenderer {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     
-    // Set dimensions - use actual chunk dimensions for rendering
-    this.tileSize = CANVAS_CONFIG.TILE_SIZE;
+    // Set dimensions - allow rectangular tiles (e.g., 16x24)
+    this.tileWidth = CANVAS_CONFIG.TILE_WIDTH ?? CANVAS_CONFIG.TILE_SIZE ?? 16;
+    this.tileHeight = CANVAS_CONFIG.TILE_HEIGHT ?? CANVAS_CONFIG.TILE_SIZE ?? this.tileWidth;
+    this.tileSize = this.tileWidth; // Backwards compatibility for older consumers
     // Use full viewport dimensions
     this.chunkWidth = 48;
     this.chunkHeight = 22;
@@ -25,8 +28,8 @@ export class CanvasRenderer {
     this.width = this.chunkWidth;
     this.height = this.chunkHeight;
     
-    this.canvas.width = this.width * this.tileSize;
-    this.canvas.height = this.height * this.tileSize;
+    this.canvas.width = this.width * this.tileWidth;
+    this.canvas.height = this.height * this.tileHeight;
     
     // Set canvas styles
     this.canvas.style.display = 'block';
@@ -61,7 +64,8 @@ export class CanvasRenderer {
     console.log('Canvas renderer initialized:', {
       width: this.canvas.width,
       height: this.canvas.height,
-      tileSize: this.tileSize
+      tileWidth: this.tileWidth,
+      tileHeight: this.tileHeight
     });
   }
   
@@ -105,7 +109,9 @@ export class CanvasRenderer {
       
       const spriteName = spriteMap[char];
       if (spriteName && module.MARKET_SPRITES[spriteName]) {
-        module.MARKET_SPRITES[spriteName].draw(this.ctx, pixelX, pixelY, this.tileSize);
+        const spriteSize = Math.min(this.tileWidth, this.tileHeight);
+        const offsetY = pixelY + (this.tileHeight - spriteSize);
+        module.MARKET_SPRITES[spriteName].draw(this.ctx, pixelX, offsetY, spriteSize);
       }
     }).catch(err => {
       // Fallback to ASCII if sprites fail to load
@@ -114,21 +120,22 @@ export class CanvasRenderer {
       this.ctx.textBaseline = 'middle';
       this.ctx.textAlign = 'center';
       this.ctx.fillStyle = CANVAS_CONFIG.FOREGROUND;
-      this.ctx.fillText(char, pixelX + this.tileSize / 2, pixelY + this.tileSize / 2);
+      this.ctx.fillText(char, pixelX + this.tileWidth / 2, pixelY + this.tileHeight / 2);
     });
   }
   
   /**
    * Draw a single tile (ASCII or sprite)
    */
-  drawTile(x, y, char, color = CANVAS_CONFIG.FOREGROUND, bgColor = null, chunk = null) {
-    const pixelX = x * this.tileSize;
-    const pixelY = y * this.tileSize;
-    
-    // Background
-    if (bgColor && bgColor !== CANVAS_CONFIG.BACKGROUND) {
+  drawTile(x, y, char, color = CANVAS_CONFIG.FOREGROUND, bgColor = null, chunk = null, meta = null) {
+    const pixelX = x * this.tileWidth;
+    const pixelY = y * this.tileHeight;
+    const useSprites = CANVAS_CONFIG.RENDER_MODE === 'SPRITE';
+
+    // Background tint only for ASCII mode (sprite mode handles auras separately)
+    if (!useSprites && bgColor && bgColor !== CANVAS_CONFIG.BACKGROUND) {
       this.ctx.fillStyle = bgColor;
-      this.ctx.fillRect(pixelX, pixelY, this.tileSize, this.tileSize);
+      this.ctx.fillRect(pixelX, pixelY, this.tileWidth, this.tileHeight);
     }
     
     // Don't draw truly empty tiles, but DO draw floor tiles ('.')
@@ -136,14 +143,24 @@ export class CanvasRenderer {
     
     // Check if this is a market sprite tile
     const marketSprites = ['╬', '╤', '≡', '¤', '☐', '♣'];
-    if (chunk?.isMarket && marketSprites.includes(char)) {
+    if (chunk?.isMarket && marketSprites.includes(char) && !useSprites) {
       // Draw market sprite using pixel art
       this.drawMarketSprite(char, pixelX, pixelY);
       return;
     }
-    
-    // Foreground
-    if (CANVAS_CONFIG.RENDER_MODE === 'ASCII') {
+
+    let handled = false;
+    if (useSprites) {
+      handled = drawTileSprite(this.ctx, char, pixelX, pixelY, this.tileWidth, this.tileHeight, {
+        biome: chunk?.biome,
+        color,
+        meta
+      });
+      if (handled) return;
+    }
+
+    // ASCII fallback or primary mode
+    if (!useSprites || !handled) {
       // Set font every time (context state can be lost)
       this.ctx.font = `${CANVAS_CONFIG.FONT_SIZE}px ${CANVAS_CONFIG.FONT_FAMILY}`;
       this.ctx.textBaseline = 'middle';
@@ -152,8 +169,8 @@ export class CanvasRenderer {
       // Center the character in the tile
       this.ctx.fillText(
         char, 
-        pixelX + this.tileSize / 2, 
-        pixelY + this.tileSize / 2
+        pixelX + this.tileWidth / 2, 
+        pixelY + this.tileHeight / 2
       );
     } else {
       // Sprite mode - will be implemented later
@@ -178,6 +195,7 @@ export class CanvasRenderer {
     this.clear();
     
     const { chunk, player } = gameState;
+    const useSprites = CANVAS_CONFIG.RENDER_MODE === 'SPRITE';
     const { map, monsters, items, biome } = chunk;
     
     // Draw map tiles - ensure we don't exceed actual map dimensions
@@ -190,7 +208,7 @@ export class CanvasRenderer {
         
         const tile = map[y][x];
         const color = this.getTileColor(tile, biome, chunk);
-        this.drawTile(x, y, tile, color, null, chunk);
+        this.drawTile(x, y, tile, color, null, chunk, { x, y });
       }
     }
     
@@ -204,7 +222,7 @@ export class CanvasRenderer {
             item.y >= 0 && item.y < mapHeight) {
           const glyph = this.getItemGlyph(item);
           const color = this.getItemColor(item.type);
-          this.drawTile(item.x, item.y, glyph, color);
+          this.drawTile(item.x, item.y, glyph, color, null, chunk, { type: 'item', item, x: item.x, y: item.y });
         }
       });
     }
@@ -218,16 +236,28 @@ export class CanvasRenderer {
         if (monster.alive && 
             monster.x >= 0 && monster.x < mapWidth && 
             monster.y >= 0 && monster.y < mapHeight) {
-          const color = this.getMonsterColor(monster);
-          
-          // Check for status effects
-          let bgColor = null;
           const monsterEffects = getStatusEffectsAsArray(monster);
-          if (monsterEffects.length > 0) {
-            bgColor = this.getStatusEffectBgColor(monsterEffects[0].type);
+          if (useSprites) {
+            const pixelX = monster.x * this.tileWidth;
+            const pixelY = monster.y * this.tileHeight;
+            if (monsterEffects.length > 0) {
+              drawStatusAura(this.ctx, pixelX, pixelY, this.tileWidth, this.tileHeight, monsterEffects);
+            }
+            drawEntitySprite(this.ctx, 'monster', {
+              entity: monster,
+              pixelX,
+              pixelY,
+              width: this.tileWidth,
+              height: this.tileHeight
+            });
+          } else {
+            const color = this.getMonsterColor(monster);
+            let bgColor = null;
+            if (monsterEffects.length > 0) {
+              bgColor = this.getStatusEffectBgColor(monsterEffects[0].type);
+            }
+            this.drawTile(monster.x, monster.y, monster.glyph, color, bgColor);
           }
-          
-          this.drawTile(monster.x, monster.y, monster.glyph, color, bgColor);
         }
       });
     }
@@ -244,32 +274,30 @@ export class CanvasRenderer {
             npc.chunkY === gameState.cy &&
             npc.x >= 0 && npc.x < mapWidth && 
             npc.y >= 0 && npc.y < mapHeight) {
-          
-          // Check if this NPC has a custom sprite (like the gnome fairy)
-          if (npc.sprite === 'gnome_fairy') {
-            // Draw the gnome fairy sprite
-            import('../sprites/gnomeFairy.js').then(module => {
-              const pixelX = npc.x * this.tileSize;
-              const pixelY = npc.y * this.tileSize;
-              // Draw sprite scaled to fit tile (16x24 sprite in 16x16 tile)
-              module.drawGnomeSprite(this.ctx, pixelX, pixelY - 4, 1);
-            }).catch(() => {
-              // Fallback to regular character if sprite fails
-              const color = npc.color || '#2E7D32';
-              const char = npc.char || '🧚';
-              this.drawTile(npc.x, npc.y, char, color, null);
+          const npcEffects = getStatusEffectsAsArray(npc);
+          if (useSprites) {
+            const pixelX = npc.x * this.tileWidth;
+            const pixelY = npc.y * this.tileHeight;
+            if (npcEffects.length > 0) {
+              drawStatusAura(this.ctx, pixelX, pixelY, this.tileWidth, this.tileHeight, npcEffects);
+            }
+            drawEntitySprite(this.ctx, 'npc', {
+              entity: npc,
+              pixelX,
+              pixelY,
+              width: this.tileWidth,
+              height: this.tileHeight
             });
           } else {
             // Choose color based on faction for regular NPCs
             let color = '#8888ff'; // Default blue
-            if (npc.faction === 'merchants') color = '#ffcc00'; // Gold
-            else if (npc.faction === 'guards') color = '#4488ff'; // Blue
-            else if (npc.faction === 'bandits') color = '#ff4444'; // Red
-            else if (npc.faction === 'nobles') color = '#ff44ff'; // Purple
-            else if (npc.faction === 'peasants') color = '#888888'; // Gray
-            else if (npc.faction === 'wildlings') color = '#44ff44'; // Green
-            
-            // NPCs use @ symbol like player but different colors
+            if (npc.faction === 'merchants') color = '#ffcc00';
+            else if (npc.faction === 'guards') color = '#4488ff';
+            else if (npc.faction === 'bandits') color = '#ff4444';
+            else if (npc.faction === 'nobles') color = '#ff44ff';
+            else if (npc.faction === 'peasants') color = '#888888';
+            else if (npc.faction === 'wildlings') color = '#44ff44';
+
             this.drawTile(npc.x, npc.y, '@', color, null);
           }
         }
@@ -278,13 +306,27 @@ export class CanvasRenderer {
     
     // Draw player
     if (player && player.alive) {
-      let bgColor = null;
       const playerEffects = getStatusEffectsAsArray(player);
-      if (playerEffects.length > 0) {
-        bgColor = this.getStatusEffectBgColor(playerEffects[0].type);
+      if (useSprites) {
+        const pixelX = player.x * this.tileWidth;
+        const pixelY = player.y * this.tileHeight;
+        if (playerEffects.length > 0) {
+          drawStatusAura(this.ctx, pixelX, pixelY, this.tileWidth, this.tileHeight, playerEffects);
+        }
+        drawEntitySprite(this.ctx, 'player', {
+          entity: player,
+          pixelX,
+          pixelY,
+          width: this.tileWidth,
+          height: this.tileHeight
+        });
+      } else {
+        let bgColor = null;
+        if (playerEffects.length > 0) {
+          bgColor = this.getStatusEffectBgColor(playerEffects[0].type);
+        }
+        this.drawTile(player.x, player.y, TILE.player, '#ffd27f', bgColor);
       }
-      
-      this.drawTile(player.x, player.y, TILE.player, '#ffd27f', bgColor);
     }
     
     // Draw movement path if active
@@ -633,8 +675,8 @@ export class CanvasRenderer {
     // Draw line connecting path points
     this.ctx.beginPath();
     for (let i = 0; i < path.length; i++) {
-      const x = path[i].x * this.tileSize + this.tileSize / 2;
-      const y = path[i].y * this.tileSize + this.tileSize / 2;
+      const x = path[i].x * this.tileWidth + this.tileWidth / 2;
+      const y = path[i].y * this.tileHeight + this.tileHeight / 2;
       
       if (i === 0) {
         this.ctx.moveTo(x, y);
@@ -645,10 +687,12 @@ export class CanvasRenderer {
       // Draw a small circle at each waypoint
       if (i > 0 && i < path.length - 1) {
         this.ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+        const markerSize = Math.max(3, Math.floor(Math.min(this.tileWidth, this.tileHeight) / 4));
         this.ctx.fillRect(
-          path[i].x * this.tileSize + 6,
-          path[i].y * this.tileSize + 6,
-          4, 4
+          path[i].x * this.tileWidth + (this.tileWidth - markerSize) / 2,
+          path[i].y * this.tileHeight + (this.tileHeight - markerSize) / 2,
+          markerSize,
+          markerSize
         );
       }
     }
@@ -663,10 +707,10 @@ export class CanvasRenderer {
     this.ctx.strokeStyle = targetColor;
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(
-      target.x * this.tileSize + 1,
-      target.y * this.tileSize + 1,
-      this.tileSize - 2,
-      this.tileSize - 2
+      target.x * this.tileWidth + 1,
+      target.y * this.tileHeight + 1,
+      this.tileWidth - 2,
+      this.tileHeight - 2
     );
     
     this.ctx.restore();
@@ -702,9 +746,9 @@ export class CanvasRenderer {
     }
     
     // Draw four corner brackets around the cursor position
-    const pixelX = x * this.tileSize;
-    const pixelY = y * this.tileSize;
-    const cornerSize = 4; // Length of corner lines
+    const pixelX = x * this.tileWidth;
+    const pixelY = y * this.tileHeight;
+    const cornerSize = Math.max(4, Math.floor(Math.min(this.tileWidth, this.tileHeight) / 4));
     const lineWidth = 2;
     
     this.ctx.save();
@@ -720,23 +764,23 @@ export class CanvasRenderer {
     
     // Top-right corner
     this.ctx.beginPath();
-    this.ctx.moveTo(pixelX + this.tileSize - cornerSize, pixelY);
-    this.ctx.lineTo(pixelX + this.tileSize, pixelY);
-    this.ctx.lineTo(pixelX + this.tileSize, pixelY + cornerSize);
+    this.ctx.moveTo(pixelX + this.tileWidth - cornerSize, pixelY);
+    this.ctx.lineTo(pixelX + this.tileWidth, pixelY);
+    this.ctx.lineTo(pixelX + this.tileWidth, pixelY + cornerSize);
     this.ctx.stroke();
     
     // Bottom-left corner
     this.ctx.beginPath();
-    this.ctx.moveTo(pixelX, pixelY + this.tileSize - cornerSize);
-    this.ctx.lineTo(pixelX, pixelY + this.tileSize);
-    this.ctx.lineTo(pixelX + cornerSize, pixelY + this.tileSize);
+    this.ctx.moveTo(pixelX, pixelY + this.tileHeight - cornerSize);
+    this.ctx.lineTo(pixelX, pixelY + this.tileHeight);
+    this.ctx.lineTo(pixelX + cornerSize, pixelY + this.tileHeight);
     this.ctx.stroke();
     
     // Bottom-right corner
     this.ctx.beginPath();
-    this.ctx.moveTo(pixelX + this.tileSize - cornerSize, pixelY + this.tileSize);
-    this.ctx.lineTo(pixelX + this.tileSize, pixelY + this.tileSize);
-    this.ctx.lineTo(pixelX + this.tileSize, pixelY + this.tileSize - cornerSize);
+    this.ctx.moveTo(pixelX + this.tileWidth - cornerSize, pixelY + this.tileHeight);
+    this.ctx.lineTo(pixelX + this.tileWidth, pixelY + this.tileHeight);
+    this.ctx.lineTo(pixelX + this.tileWidth, pixelY + this.tileHeight - cornerSize);
     this.ctx.stroke();
     
     // Add pulsing animation using transparency
@@ -747,10 +791,10 @@ export class CanvasRenderer {
     // Draw inner highlight for visibility
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(
-      pixelX + 2, 
-      pixelY + 2, 
-      this.tileSize - 4, 
-      this.tileSize - 4
+      pixelX + 2,
+      pixelY + 2,
+      this.tileWidth - 4, 
+      this.tileHeight - 4
     );
     
     this.ctx.restore();
@@ -766,16 +810,16 @@ export class CanvasRenderer {
     // Vertical lines
     for (let x = 0; x <= this.width; x++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(x * this.tileSize, 0);
-      this.ctx.lineTo(x * this.tileSize, this.canvas.height);
+      this.ctx.moveTo(x * this.tileWidth, 0);
+      this.ctx.lineTo(x * this.tileWidth, this.canvas.height);
       this.ctx.stroke();
     }
     
     // Horizontal lines
     for (let y = 0; y <= this.height; y++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y * this.tileSize);
-      this.ctx.lineTo(this.canvas.width, y * this.tileSize);
+      this.ctx.moveTo(0, y * this.tileHeight);
+      this.ctx.lineTo(this.canvas.width, y * this.tileHeight);
       this.ctx.stroke();
     }
   }
