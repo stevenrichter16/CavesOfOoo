@@ -3,6 +3,7 @@
 // North Gate chunk - Castle approach and noble district
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { mapToTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;
@@ -183,8 +184,11 @@ export function generateNorthGateChunk(worldSeed, cx, cy) {
     map[CHUNK_HEIGHT-2][x] = '.';
   }
   
+  const tileIds = mapToTileIds(map, 'floor.default');
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [
       { x: 7, y: 10, type: 'coin', amount: 25 },

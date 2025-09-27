@@ -4,6 +4,8 @@ import { CANVAS_CONFIG } from '../core/config.js';
 import { getStatusEffectsAsArray } from '../combat/statusSystem.js';
 import { isNPCHostileToPlayer } from '../../social/hostilityUtils.js';
 import { RelationshipSystem } from '../../social/migrationAdapter.js';
+import { getTileDef } from '../world/TileRegistry.js';
+import { glyphToTileId } from '../world/tileUtils.js';
 
 let tooltipElement = null;
 let currentHoverInfo = null;
@@ -163,37 +165,99 @@ function getTileInfo(state, x, y) {
   }
   
   // Check for tile type
-  const tile = state.chunk?.map?.[y]?.[x];
-  if (tile) {
-    return getTileDescription(tile);
+  const { tileId, glyph } = resolveTileId(state, x, y) || {};
+  if (tileId || glyph) {
+    return describeTile(tileId, glyph);
   }
   
   return null;
 }
 
-/**
- * Get description for a tile character
- */
-function getTileDescription(tile) {
-  const tileDescriptions = {
-    '#': { type: 'tile', name: 'Wall', description: 'Solid stone wall' },
-    '.': { type: 'tile', name: 'Floor', description: 'Empty floor' },
-    '~': { type: 'tile', name: 'Water', description: 'Deep water' },
-    '+': { type: 'tile', name: 'Door', description: 'Closed door' },
-    '/': { type: 'tile', name: 'Weapon', description: 'A weapon lies here' },
-    ']': { type: 'tile', name: 'Armor', description: 'Armor lies here' },
-    '^': { type: 'tile', name: 'Headgear', description: 'Headgear lies here' },
-    '○': { type: 'tile', name: 'Ring', description: 'A ring lies here' },
-    '!': { type: 'tile', name: 'Potion', description: 'A potion sits here' },
-    '$': { type: 'tile', name: 'Chest', description: 'An unopened chest' },
-    '★': { type: 'tile', name: 'Artifact', description: 'A mysterious artifact' },
-    '♪': { type: 'tile', name: 'Special', description: 'Something special' },
-    '▲': { type: 'tile', name: 'Shrine', description: 'An ancient shrine' },
-    'V': { type: 'tile', name: 'Vendor', description: 'A merchant' }
-  };
-  
-  return tileDescriptions[tile] || null;
+function resolveTileId(state, x, y) {
+  const chunk = state?.chunk;
+  if (!chunk) return null;
+
+  if (typeof chunk.getTileId === 'function') {
+    const tileId = chunk.getTileId(x, y);
+    if (tileId) {
+      return { tileId, glyph: chunk.map?.[y]?.[x] ?? null };
+    }
+  }
+
+  const tileIdsRow = chunk.tileIds?.[y];
+  if (tileIdsRow) {
+    const tileId = tileIdsRow[x];
+    if (tileId) {
+      return { tileId, glyph: chunk.map?.[y]?.[x] ?? null };
+    }
+  }
+
+  const glyph = chunk.map?.[y]?.[x];
+  if (typeof glyph === 'string' && glyph.length > 0) {
+    const mapped = glyphToTileId(glyph, null);
+    if (mapped) {
+      return { tileId: mapped, glyph };
+    }
+    return { tileId: `legacy.glyph.${glyph}`, glyph };
+  }
+
+  return null;
 }
+
+function describeTile(tileId, glyph) {
+  if (tileId) {
+    try {
+      const def = getTileDef(tileId);
+      const name = def.terrain?.name || def.name || formatTileId(tileId);
+      const description = def.terrain?.description || def.description || null;
+      return {
+        type: 'tile',
+        name,
+        description,
+        tileId,
+        glyph
+      };
+    } catch (err) {
+      // Fall back to legacy description below
+    }
+  }
+
+  const fallback = legacyTileDescriptions[glyph];
+  if (fallback) {
+    return { type: 'tile', glyph, tileId, ...fallback };
+  }
+
+  if (glyph) {
+    return { type: 'tile', glyph, tileId, name: `Unknown (${glyph})` };
+  }
+
+  return null;
+}
+
+function formatTileId(tileId) {
+  return tileId
+    .split('.')
+    .slice(-1)[0]
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const legacyTileDescriptions = {
+  '#': { name: 'Wall', description: 'Solid stone wall' },
+  '.': { name: 'Floor', description: 'Empty floor' },
+  '~': { name: 'Water', description: 'Deep water' },
+  '+': { name: 'Door', description: 'Closed door' },
+  '/': { name: 'Weapon', description: 'A weapon lies here' },
+  ']': { name: 'Armor', description: 'Armor lies here' },
+  '^': { name: 'Headgear', description: 'Headgear lies here' },
+  '○': { name: 'Ring', description: 'A ring lies here' },
+  '!': { name: 'Potion', description: 'A potion sits here' },
+  '$': { name: 'Chest', description: 'An unopened chest' },
+  '★': { name: 'Artifact', description: 'A mysterious artifact' },
+  '♪': { name: 'Special', description: 'Something special' },
+  '▲': { name: 'Shrine', description: 'An ancient shrine' },
+  'V': { name: 'Vendor', description: 'A merchant' }
+};
 
 /**
  * Show the tooltip with information

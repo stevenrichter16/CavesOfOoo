@@ -1,6 +1,9 @@
 // Minimal sprite renderer in the spirit of Caves of Qud.
 // Uses simple color blocks and highlights for a lo-fi aesthetic.
 
+import { TileRegistry, getTileByGlyph } from '../world/TileRegistry.js';
+import { MARKET_SPRITES } from './marketSprites.js';
+
 const BASE_TILE_PALETTE = {
   floorBase: '#1b1f26',
   floorHighlight: '#242a34',
@@ -183,88 +186,76 @@ function chooseVariant(list, x = 0, y = 0) {
   return list[hash];
 }
 
-const CANDY_TILE_TEXTURES = {
-  '.': {
-    sources: [
-      'tile4.png'
-    ],
-    fit: 'fill'
-  },
-  '┌': {
-    sources: ['Walls/brick-corner-top-left.png'],
-    fit: 'fill'
-  },
-  '┐': {
-    sources: ['Walls/brick-corner-top-right.png'],
-    fit: 'fill'
-  },
-  '└': {
-    sources: ['Walls/brick-corner-bottom-left.png'],
-    fit: 'fill'
-  },
-  '┘': {
-    sources: ['Walls/brick-corner-bottom-right.png'],
-    fit: 'fill'
-  },
-  '─': {
-    sources: ['Walls/brick-middle-horizontal.png'],
-    fit: 'fill'
-  },
-  '│': {
-    sources: ['Walls/brick-middle-vertical.png'],
-    fit: 'fill'
-  },
-  '█': {
-    sources: ['building_wall.png'],
-    fit: 'fill'
-  },
-  '▪': {
-    sources: [
-      'building_wall.png'
-    ],
-    fit: 'fill'
-  },
-  '#': {
-    sources: [
-      'wall.png',
-      //'Textures/Walls/wall_sultan_diamonds-01100111.png'
-    ],
-    fit: 'fill'
-  },
-  // Door columns stay textured for candy flair
-  '+': {
-    sources: ['Textures/Walls/wall_sultan_columns_b-00111011.png'],
-    fit: 'fill'
-  },
+const LEGACY_GLYPH_TEXTURES = {
   '%': {
-    sources: [
-      'Textures/Terrain/sw_flowers_bunched_1.bmp',
-      'Textures/Terrain/sw_flowers_bunched_2.bmp'
-    ],
+    sources: ['Textures/Terrain/sw_flowers_bunched_1.bmp', 'Textures/Terrain/sw_flowers_bunched_2.bmp'],
     fit: 'bottom'
   },
   'T': {
-    sources: [
-      'Textures/Terrain/tile_tombstone2.png',
-      'Textures/Terrain/tile_tombstone3.png'
-    ],
+    sources: ['Textures/Terrain/tile_tombstone2.png', 'Textures/Terrain/tile_tombstone3.png'],
     fit: 'bottom'
   },
   '◯': {
-    sources: [
-      'Textures/Terrain/sw_ground_brick1.bmp',
-      'Textures/Terrain/sw_ground_brick2.bmp'
-    ],
+    sources: ['Textures/Terrain/sw_ground_brick1.bmp', 'Textures/Terrain/sw_ground_brick2.bmp'],
     fit: 'fill'
   },
-  '~': {
-    sources: [
-      'Textures/Terrain/tile_swamp1.bmp',
-      'Textures/Terrain/tile_swamp2.bmp'
-    ],
+  '▪': {
+    sources: ['building_wall.png'],
     fit: 'fill'
   }
 };
+
+const CANDY_TILE_TEXTURES = buildCandyTileTextures();
+
+function buildCandyTileTextures() {
+  const textures = new Map();
+  for (const [tileId, def] of Object.entries(TileRegistry)) {
+    const spriteDef = def?.sprite;
+    if (!spriteDef) continue;
+
+    if (Array.isArray(spriteDef) || typeof spriteDef === 'string') {
+      const sources = Array.isArray(spriteDef) ? spriteDef : [spriteDef];
+      if (!sources.length) continue;
+      textures.set(tileId, {
+        type: 'texture',
+        sources,
+        fit: def.spriteFit ?? 'fill'
+      });
+      continue;
+    }
+
+    if (spriteDef?.type === 'marketSprite' && spriteDef.name) {
+      textures.set(tileId, {
+        type: 'marketSprite',
+        name: spriteDef.name
+      });
+    }
+  }
+  return textures;
+}
+
+export function getCandyTileSpriteConfig(tileId, glyph) {
+  if (tileId) {
+    const config = CANDY_TILE_TEXTURES.get(tileId);
+    if (config) {
+      return config;
+    }
+  }
+
+  const registryId = glyph ? getTileByGlyph(glyph) : null;
+  if (registryId) {
+    const config = CANDY_TILE_TEXTURES.get(registryId);
+    if (config) {
+      return config;
+    }
+  }
+
+  if (glyph && LEGACY_GLYPH_TEXTURES[glyph]) {
+    return LEGACY_GLYPH_TEXTURES[glyph];
+  }
+
+  return null;
+}
 
 const CANDY_ITEM_TEXTURES = {
   potion: ['Textures/Items/sw_orb.bmp', 'Textures/Items/sw_shard.bmp'],
@@ -717,12 +708,22 @@ export function drawTileSprite(ctx, char, pixelX, pixelY, width, height, options
   }
 
   if (biome === 'candy_kingdom') {
-    const tileConfig = CANDY_TILE_TEXTURES[char];
+    const tileConfig = getCandyTileSpriteConfig(meta.tileId, char);
     if (tileConfig) {
-      const src = chooseVariant(tileConfig.sources, meta.x ?? 0, meta.y ?? 0);
-      const entry = ensureTexture(src);
-      if (drawTexture(ctx, entry, pixelX, pixelY, width, height, { fit: tileConfig.fit ?? 'fill' })) {
-        return true;
+      if (tileConfig.type === 'marketSprite') {
+        const sprite = MARKET_SPRITES[tileConfig.name];
+        if (sprite?.draw) {
+          const size = Math.min(width, height);
+          const offsetY = pixelY + (height - size);
+          sprite.draw(ctx, pixelX, offsetY, size);
+          return true;
+        }
+      } else {
+        const src = chooseVariant(tileConfig.sources, meta.x ?? 0, meta.y ?? 0);
+        const entry = ensureTexture(src);
+        if (drawTexture(ctx, entry, pixelX, pixelY, width, height, { fit: tileConfig.fit ?? 'fill' })) {
+          return true;
+        }
       }
     }
   }

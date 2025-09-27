@@ -5,6 +5,8 @@ import { W, H } from '../core/config.js';
 import { populateCandyMarketNPCs } from './candyMarketNPCs.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { createTileGrid, setTile } from './tileUtils.js';
+import { getTileIdAt, getTileDefAt } from '../utils/queries.js';
 
 // Use full viewport dimensions
 const CHUNK_WIDTH = W;  // 48
@@ -18,123 +20,119 @@ export const CANDY_MARKET_COORDS = { x: 0, y: 0 };
  * A bustling marketplace with various candy vendor stalls
  */
 export function generateCandyMarketMap() {
-  const map = [];
-  
-  // Initialize with cobblestone floor (.)
-  for (let y = 0; y < H; y++) {
-    map[y] = [];
-    for (let x = 0; x < W; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
+  const halfWidth = Math.floor(CHUNK_WIDTH / 2);
+  const halfHeight = Math.floor(CHUNK_HEIGHT / 2);
+
   // Add market boundaries (decorative fencing)
-  for (let x = 0; x < W; x++) {
-    if (x !== Math.floor(W/2) && x !== Math.floor(W/2) + 1) { // Leave entrance gaps
-      map[0][x] = '#';
-      map[H-1][x] = '#';
+  for (let x = 0; x < CHUNK_WIDTH; x++) {
+    if (x !== halfWidth && x !== halfWidth + 1) {
+      write(x, 0, 'wall.stone.solid');
+      write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
     }
   }
-  for (let y = 0; y < H; y++) {
-    if (y !== Math.floor(H/2)) { // Leave side entrances
-      map[y][0] = '#';
-      map[y][W-1] = '#';
+  for (let y = 0; y < CHUNK_HEIGHT; y++) {
+    if (y !== halfHeight) {
+      write(0, y, 'wall.stone.solid');
+      write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
     }
   }
   
   // Add market stalls in organized rows
   // Top row of stalls
   // Canopy Stall
-  map[3][3] = '╬';
-  map[3][4] = '═';  // Stall extension
-  map[3][5] = '═';  // Stall extension
+  write(3, 3, 'structure.market.stall.canopy');
+  write(4, 3, 'furniture.bench.horizontal');
+  write(5, 3, 'furniture.bench.horizontal');
   
   // Table Stall
-  map[3][8] = '╤';
-  map[3][9] = '═';
-  map[3][10] = '═';
+  write(8, 3, 'structure.market.stall.table');
+  write(9, 3, 'furniture.bench.horizontal');
+  write(10, 3, 'furniture.bench.horizontal');
   
   // Goods Table
-  map[3][13] = '≡';
-  map[3][14] = '═';
-  map[3][15] = '═';
+  write(13, 3, 'structure.market.stall.goods_table');
+  write(14, 3, 'furniture.bench.horizontal');
+  write(15, 3, 'furniture.bench.horizontal');
   
   // Vendor Cart
-  map[3][18] = '¤';
-  map[3][19] = '═';
-  map[4][18] = '║';  // Cart body
-  map[4][19] = '║';  // Cart body
+  write(18, 3, 'structure.market.cart');
+  write(19, 3, 'furniture.bench.horizontal');
+  write(18, 4, 'structure.market.cart.support');
+  write(19, 4, 'structure.market.cart.support');
   
   // Middle row of stalls
   // Table Stall
-  map[8][4] = '╤';
-  map[8][5] = '═';
-  map[8][6] = '═';
+  write(4, 8, 'structure.market.stall.table');
+  write(5, 8, 'furniture.bench.horizontal');
+  write(6, 8, 'furniture.bench.horizontal');
   
   // Crate of Wares
-  map[8][9] = '☐';
-  map[9][9] = '☐';  // Stacked crates
+  write(9, 8, 'structure.market.crate');
+  write(9, 9, 'structure.market.crate');
   
   // Canopy Stall
-  map[8][14] = '╬';
-  map[8][15] = '═';
-  map[8][16] = '═';
+  write(14, 8, 'structure.market.stall.canopy');
+  write(15, 8, 'furniture.bench.horizontal');
+  write(16, 8, 'furniture.bench.horizontal');
   
   // Vendor Cart
-  map[8][19] = '¤';
-  map[8][20] = '═';
-  map[9][19] = '║';
-  map[9][20] = '║';
+  write(19, 8, 'structure.market.cart');
+  write(20, 8, 'furniture.bench.horizontal');
+  write(19, 9, 'structure.market.cart.support');
+  write(20, 9, 'structure.market.cart.support');
   
   // Bottom row of stalls
   // Goods Table
-  map[14][3] = '≡';
-  map[14][4] = '═';
-  map[14][5] = '═';
+  write(3, 14, 'structure.market.stall.goods_table');
+  write(4, 14, 'furniture.bench.horizontal');
+  write(5, 14, 'furniture.bench.horizontal');
   
   // Crate of Wares
-  map[14][8] = '☐';
-  map[15][8] = '☐';
+  write(8, 14, 'structure.market.crate');
+  write(8, 15, 'structure.market.crate');
   
   // Table Stall
-  map[14][12] = '╤';
-  map[14][13] = '═';
-  map[14][14] = '═';
+  write(12, 14, 'structure.market.stall.table');
+  write(13, 14, 'furniture.bench.horizontal');
+  write(14, 14, 'furniture.bench.horizontal');
   
   // Canopy Stall
-  map[14][17] = '╬';
-  map[14][18] = '═';
-  map[14][19] = '═';
+  write(17, 14, 'structure.market.stall.canopy');
+  write(18, 14, 'furniture.bench.horizontal');
+  write(19, 14, 'furniture.bench.horizontal');
   
   // Add decorative elements
   // Lollipop decorations
-  map[5][2] = '♣';
-  map[5][W-3] = '♣';
-  map[12][2] = '♣';
-  map[12][W-3] = '♣';
+  write(2, 5, 'decoration.candy.tree');
+  write(CHUNK_WIDTH - 3, 5, 'decoration.candy.tree');
+  write(2, 12, 'decoration.candy.tree');
+  write(CHUNK_WIDTH - 3, 12, 'decoration.candy.tree');
   
   // Fountain in center
-  map[10][Math.floor(W/2)] = '○';
-  map[10][Math.floor(W/2) + 1] = '○';
-  map[11][Math.floor(W/2)] = '○';
-  map[11][Math.floor(W/2) + 1] = '○';
+  write(halfWidth, 10, 'decoration.fountain.center');
+  write(halfWidth + 1, 10, 'decoration.fountain.center');
+  write(halfWidth, 11, 'decoration.fountain.center');
+  write(halfWidth + 1, 11, 'decoration.fountain.center');
   
   // Some barrels and crates scattered around
-  map[6][7] = 'b';  // Barrel
-  map[7][12] = 'b';  // Barrel
-  map[13][10] = 'b';  // Barrel
+  write(7, 6, 'container.barrel.candy');
+  write(12, 7, 'container.barrel.candy');
+  write(10, 13, 'container.barrel.candy');
   
   // Add paths (lighter stones)
   // Main paths
-  for (let x = 1; x < W - 1; x++) {
-    if (map[6][x] === '.') map[6][x] = '·';  // Horizontal path
-    if (map[11][x] === '.') map[11][x] = '·';  // Horizontal path
+  for (let x = 1; x < CHUNK_WIDTH - 1; x++) {
+    if (tileIds[6][x] === 'floor.default') write(x, 6, 'floor.candy.polished');
+    if (tileIds[11][x] === 'floor.default') write(x, 11, 'floor.candy.polished');
   }
-  for (let y = 1; y < H - 1; y++) {
-    if (map[y][11] === '.') map[y][11] = '·';  // Vertical path
+  for (let y = 1; y < CHUNK_HEIGHT - 1; y++) {
+    if (tileIds[y][11] === 'floor.default') write(11, y, 'floor.candy.polished');
   }
-  
-  return map;
+
+  return { map, tileIds };
 }
 
 /**
@@ -168,54 +166,60 @@ export function isMarketStall(state, x, y) {
   if (!state.chunk || state.cx !== CANDY_MARKET_COORDS.x || state.cy !== CANDY_MARKET_COORDS.y) {
     return false;
   }
-  
-  const tile = state.chunk.map[y]?.[x];
-  return tile === '╬' || tile === '╤' || tile === '≡' || tile === '¤' || tile === '☐';
+
+  const tileId = getTileIdAt(state, x, y);
+  if (!tileId) return false;
+  return [
+    'structure.market.stall.canopy',
+    'structure.market.stall.table',
+    'structure.market.stall.goods_table',
+    'structure.market.cart',
+    'structure.market.crate'
+  ].includes(tileId);
 }
 
 /**
  * Handle market stall interactions
  */
 export function handleMarketInteraction(state, x, y) {
-  const tile = state.chunk.map[y][x];
-  
-  // Interacting with stalls
-  if (tile === '╬') { // Canopy Stall
-    if (state.log) {
-      state.log("A colorful canopy stall with striped awning. Various candies on display.", "note");
+  const tileId = getTileIdAt(state, x, y);
+  const tileDef = getTileDefAt(state, x, y);
+  const terrainName = tileDef?.terrain?.name;
+  const description = tileDef?.terrain?.description;
+
+  const message = (() => {
+    switch (tileId) {
+      case 'structure.market.stall.canopy':
+        return "A colorful canopy stall with striped awning. Various candies on display.";
+      case 'structure.market.stall.table':
+        return "A pink table covered with gumdrops in green, brown, and blue.";
+      case 'structure.market.stall.goods_table':
+        return "A sturdy table lined with bottles of candy essence.";
+      case 'structure.market.cart':
+        return "A wheeled vendor cart with a cyan and pink striped awning.";
+      case 'structure.market.crate':
+        return "Wooden crates filled with colorful candies and sweets.";
+      case 'decoration.candy.tree':
+        return "A giant decorative lollipop with red and white swirls.";
+      case 'decoration.fountain.center':
+        return "A bubbling fountain of liquid candy. The air smells sweet here.";
+      case 'container.barrel.candy':
+        return "A barrel of candy supplies. Property of the Candy Kingdom.";
+      case 'furniture.bench.horizontal':
+      case 'structure.market.cart.support':
+        return "Part of a vendor's stall.";
+      default:
+        if (description) return description;
+        if (terrainName && terrainName !== 'unknown') {
+          return `You inspect the ${terrainName}.`;
+        }
+        return null;
     }
-  } else if (tile === '╤') { // Table Stall
-    if (state.log) {
-      state.log("A pink table covered with gumdrops in green, brown, and blue.", "note");
-    }
-  } else if (tile === '≡') { // Goods Table
-    if (state.log) {
-      state.log("A sturdy brown table with bottles of candy essence.", "note");
-    }
-  } else if (tile === '¤') { // Vendor Cart
-    if (state.log) {
-      state.log("A wheeled vendor cart with cyan and pink striped awning.", "note");
-    }
-  } else if (tile === '☐') { // Crate of Wares
-    if (state.log) {
-      state.log("Wooden crates filled with colorful candies and sweets.", "note");
-    }
-  } else if (tile === '♣') { // Lollipop decoration
-    if (state.log) {
-      state.log("A giant decorative lollipop with red and white swirls.", "note");
-    }
-  } else if (tile === '○') { // Fountain
-    if (state.log) {
-      state.log("A bubbling fountain of liquid candy. The air smells sweet here.", "magic");
-    }
-  } else if (tile === 'b') { // Barrel
-    if (state.log) {
-      state.log("A barrel of candy supplies. Property of the Candy Kingdom.", "dim");
-    }
-  } else if (tile === '═' || tile === '║') { // Stall extensions
-    if (state.log) {
-      state.log("Part of a vendor's stall.", "dim");
-    }
+  })();
+
+  if (message && state.log) {
+    const tone = tileId && tileId.includes('fountain') ? 'magic' : 'note';
+    state.log(message, tone);
   }
 }
 
@@ -228,8 +232,11 @@ export function generateCandyMarketChunk(worldSeed, cx, cy) {
     return null;
   }
   
+  const { map, tileIds } = generateCandyMarketMap();
+
   const chunk = {
-    map: generateCandyMarketMap(),
+    map,
+    tileIds,
     monsters: [],
     items: [],
     npcs: [],

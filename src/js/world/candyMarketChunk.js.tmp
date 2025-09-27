@@ -1,0 +1,49 @@
+import { W, H } from '../core/config.js';
+import { populateCandyMarketNPCs } from './candyMarketNPCs.js';
+import { emit } from '../utils/events.js';
+import { EventType } from '../utils/eventTypes.js';
+import { createTileGrid, setTile } from './tileUtils.js';
+
+const CHUNK_WIDTH = W;
+const CHUNK_HEIGHT = H;
+export const CANDY_MARKET_COORDS = { x: 0, y: 0 };
+
+export function generateCandyMarketMap() {
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
+  for (let x = 0; x < CHUNK_WIDTH; x++) {
+    if (x !== Math.floor(CHUNK_WIDTH / 2) && x !== Math.floor(CHUNK_WIDTH / 2) + 1) {
+      write(x, 0, 'wall.stone.solid');
+      write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
+    }
+  }
+
+  for (let y = 0; y < CHUNK_HEIGHT; y++) {
+    if (y !== Math.floor(CHUNK_HEIGHT / 2)) {
+      write(0, y, 'wall.stone.solid');
+      write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
+    }
+  }
+
+  return { map, tileIds };
+}
+
+export function generateCandyMarketChunk(worldSeed, cx, cy) {
+  if (cx !== CANDY_MARKET_COORDS.x || cy !== CANDY_MARKET_COORDS.y) {
+    return null;
+  }
+
+  const { map, tileIds } = generateCandyMarketMap();
+
+  const chunk = {
+    map,
+    tileIds,
+    monsters: [],
+    items: [],
+    npcs: [],
+    biome: 'candy_market'
+  };
+
+  return chunk;
+}

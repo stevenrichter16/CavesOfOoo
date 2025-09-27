@@ -3,6 +3,9 @@ import { runOnEquipHooks, runOnUnequipHooks } from '../combat/effects.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { QuestManager } from '../world/quests/QuestManager.js';
+import { getTileDef } from '../world/TileRegistry.js';
+import { glyphToTileId } from '../world/tileUtils.js';
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
 
 export function openInventory(state) {
   console.log("[INVENTORY] openInventory() called");
@@ -82,7 +85,6 @@ export function renderInventory(state) {
   if (state.ui.inventoryTab !== 'all') {
     items = items.filter(item => item.type === state.ui.inventoryTab);
   }
-  
   // Update title with count
   const currentTab = tabs.find(t => t.id === state.ui.inventoryTab);
   titleEl.innerHTML = `${currentTab.icon} ${currentTab.label} (${items.length} items)`;
@@ -463,64 +465,100 @@ export function dropInventoryItem(state) {
     }
   }
   
+  const dropX = state.player.x;
+  const dropY = state.player.y;
+  const terrain = getTerrainSystem();
+  const dropTileId = getTileIdAt(state, dropX, dropY);
+  const dropHereIsFloor = canDropOnTile(dropTileId, terrain);
+
+  const placeGroundTile = (tileId) => {
+    if (!state.chunk) return false;
+
+    if (typeof state.chunk.setTile === 'function') {
+      try {
+        const success = state.chunk.setTile(dropX, dropY, tileId);
+        if (success) return true;
+      } catch (err) {
+        // Fallback to manual mapping update below
+      }
+    }
+
+    const mapRow = state.chunk.map?.[dropY];
+    if (!mapRow || typeof mapRow[dropX] === 'undefined') return false;
+
+    const def = getTileDef(tileId);
+    mapRow[dropX] = def.glyph;
+
+    if (!state.chunk.tileIds) state.chunk.tileIds = [];
+    if (!Array.isArray(state.chunk.tileIds[dropY])) {
+      state.chunk.tileIds[dropY] = [];
+    }
+    state.chunk.tileIds[dropY][dropX] = tileId;
+    return true;
+  };
+
+  const resolveDropTileId = (type) => {
+    switch (type) {
+      case 'weapon':
+        return 'item.drop.weapon';
+      case 'armor':
+        return 'item.drop.armor';
+      case 'headgear':
+        return 'item.drop.headgear';
+      case 'ring':
+        return 'item.drop.ring';
+      case 'throwable':
+        return 'item.drop.throwable';
+      case 'potion':
+        return 'item.drop.potion';
+      default:
+        return 'item.drop.potion';
+    }
+  };
+
   // Handle potion stacks
-  if (item.type === "potion" && item.count > 1) {
-    // Drop just one from the stack
-    const tile = "!";
-    if (state.chunk.map[state.player.y][state.player.x] === ".") {
-      state.chunk.map[state.player.y][state.player.x] = tile;
+  if (item.type === 'potion' && item.count > 1) {
+    if (dropHereIsFloor && placeGroundTile('item.drop.potion')) {
       state.chunk.items.push({
-        type: "potion",
-        x: state.player.x,
-        y: state.player.y,
-        item: { ...item.item }  // Clone the potion
+        type: 'potion',
+        x: dropX,
+        y: dropY,
+        item: { ...item.item }
       });
     }
-    
-    state.log(`Dropped ${item.item.name} (${item.count - 1} remaining).`, "note");
-    
-    // Decrease stack count
+
+    state.log(`Dropped ${item.item.name} (${item.count - 1} remaining).`, 'note');
+
     item.count--;
     state.player.potionCount--;
-  } else if (item.type === "throwable" && item.count > 1) {
-    // Drop just one from the stack
-    const tile = "⚱";
-    if (state.chunk.map[state.player.y][state.player.x] === ".") {
-      state.chunk.map[state.player.y][state.player.x] = tile;
+  } else if (item.type === 'throwable' && item.count > 1) {
+    if (dropHereIsFloor && placeGroundTile('item.drop.throwable')) {
       state.chunk.items.push({
-        type: "throwable",
-        x: state.player.x,
-        y: state.player.y,
-        item: { ...item.item }  // Clone the throwable
+        type: 'throwable',
+        x: dropX,
+        y: dropY,
+        item: { ...item.item }
       });
     }
-    
-    state.log(`Dropped ${item.item.name} (${item.count - 1} remaining).`, "note");
-    
-    // Decrease stack count
+
+    state.log(`Dropped ${item.item.name} (${item.count - 1} remaining).`, 'note');
+
     item.count--;
   } else {
-    // Drop entire item/last potion in stack
-    const tile = item.type === "weapon" ? "/" : 
-                  item.type === "armor" ? "]" : 
-                  item.type === "headgear" ? "^" : 
-                  item.type === "ring" ? "○" : 
-                  item.type === "throwable" ? "⚱" : "!";
-    if (state.chunk.map[state.player.y][state.player.x] === ".") {
-      state.chunk.map[state.player.y][state.player.x] = tile;
+    const tileId = resolveDropTileId(item.type);
+    if (dropHereIsFloor && placeGroundTile(tileId)) {
       state.chunk.items.push({
         type: item.type,
-        x: state.player.x,
-        y: state.player.y,
+        x: dropX,
+        y: dropY,
         item: item.item
       });
     }
-    
-    state.log(`Dropped ${item.item.name}.`, "note");
-    
-    // Remove from inventory
+
+    state.log(`Dropped ${item.item.name}.`, 'note');
+
     state.player.inventory.splice(actualIndex, 1);
-    if (item.type === "potion") state.player.potionCount--;
+    if (item.type === 'potion') state.player.potionCount--;
   }
   
   // Adjust selected index for filtered view
@@ -532,4 +570,60 @@ export function dropInventoryItem(state) {
   }
   
   renderInventory(state);
+}
+
+function canDropOnTile(tileId, terrain) {
+  if (!tileId) return false;
+
+  if (tileId.startsWith('item.drop.')) return false;
+  if (tileId.startsWith('interaction.')) return false;
+  if (tileId.startsWith('container.')) return false;
+
+  if (tileId.startsWith('legacy.glyph.')) {
+    const glyph = tileId.slice('legacy.glyph.'.length);
+    return glyph === '.';
+  }
+
+  try {
+    const def = getTileDef(tileId);
+    if (def?.tags && (
+      def.tags.includes('pickup') ||
+      def.tags.includes('interactive') ||
+      def.tags.includes('container')
+    )) {
+      return false;
+    }
+    if (def?.terrain && def.terrain.passable === false) {
+      return false;
+    }
+  } catch (err) {
+    // Unknown tile id; fall through to terrain check
+  }
+
+  return terrain.isPassable(tileId);
+}
+
+function getTileIdAt(state, x, y) {
+  const chunk = state?.chunk;
+  if (!chunk) return null;
+
+  if (typeof chunk.getTileId === 'function') {
+    const id = chunk.getTileId(x, y);
+    if (id) return id;
+  }
+
+  const row = chunk.tileIds?.[y];
+  if (row) {
+    const id = row[x];
+    if (id) return id;
+  }
+
+  const glyph = chunk.map?.[y]?.[x];
+  if (typeof glyph === 'string' && glyph.length > 0) {
+    const mapped = glyphToTileId(glyph, null);
+    if (mapped) return mapped;
+    return `legacy.glyph.${glyph}`;
+  }
+
+  return null;
 }

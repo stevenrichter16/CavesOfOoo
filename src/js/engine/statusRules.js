@@ -1,5 +1,6 @@
 // src/engine/statusRules.js
 import { rule, P, A } from './rules.js';
+import { getTileIdAt } from '../utils/queries.js';
 
 // Feature flag: switch to true when you disable DOT in endOfTurnStatusPass()
 const USE_ENGINE_DOT = false;
@@ -42,15 +43,15 @@ rule({
     const toY = ctx.event?.to?.y;
     
     // Check what tiles we're moving from and to
-    const fromTile = ctx.state?.chunk?.map?.[fromY]?.[fromX];
-    const toTile = ctx.state?.chunk?.map?.[toY]?.[toX];
+    const fromTileId = getTileIdAt(ctx.state, fromX, fromY);
+    const toTileId = getTileIdAt(ctx.state, toX, toY);
     
     // We want to trigger if moving FROM non-water TO water while shocked
-    const movingFromNonWater = fromTile !== '~';
-    const movingToWater = toTile === '~';
+    const movingFromNonWater = fromTileId !== 'terrain.water.shallow';
+    const movingToWater = toTileId === 'terrain.water.shallow';
     
     if (hasShock && movingFromNonWater && movingToWater) {
-      console.log(`[ENGINE-RULE] Shocked entity stepping from ${fromTile} into water! Instant kill!`);
+      console.log(`[ENGINE-RULE] Shocked entity stepping from ${fromTileId} into water! Instant kill!`);
       return true;
     }
     
@@ -86,8 +87,8 @@ rule({
     if (ctx.event?.status?.id !== 'shock') return false;
     
     // Check if entity is currently on water
-    const currentTile = ctx.state?.chunk?.map?.[ctx.entity.y]?.[ctx.entity.x];
-    const onWater = currentTile === '~';
+    const currentTile = getTileIdAt(ctx.state, ctx.entity.x, ctx.entity.y);
+    const onWater = currentTile === 'terrain.water.shallow';
     
     if (onWater) {
       console.log(`[ENGINE-RULE] Applying shock to entity already on water! Instant kill!`);

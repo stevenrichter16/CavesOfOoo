@@ -3,6 +3,7 @@ import { runPhase, runPhases } from '../sim.js';
 import { getEntityId, getStatusEffectsAsArray, Status, applyStatusEffect } from '../../combat/statusSystem.js';
 import { emit } from '../../utils/events.js';
 import { EventType } from '../../utils/eventTypes.js';
+import { getTileIdAt } from '../../utils/queries.js';
 
 // ===== Snapshot builders =====
 export function toEngineEntity(state, entity) {
@@ -19,8 +20,8 @@ export function toEngineEntity(state, entity) {
   });
 
   const materials = [];
-  const tile = state.chunk?.map?.[entity.y]?.[entity.x];
-  if (tile === '~') {
+  const tileId = getTileIdAt(state, entity.x, entity.y);
+  if (tileId === 'terrain.water.shallow') {
     materials.push({ id: 'water', tags: ['liquid','extinguisher','conductive'], props: {} });
   }
 
@@ -66,30 +67,30 @@ export function tagsForStatus(id) {
 }
 
 function getTileTags(state, x, y) {
-  const t = state.chunk?.map?.[y]?.[x];
-  if (t === '~') return ['water','liquid'];
-  if (t === '^') return ['spikes','hazard'];
-  if (t === '%') return ['powder','explosive'];
+  const tileId = getTileIdAt(state, x, y);
+  if (tileId === 'terrain.water.shallow') return ['water','liquid'];
+  if (tileId === 'terrain.hazard.spikes') return ['spikes','hazard'];
+  if (tileId === 'material.candy.dust') return ['powder','explosive'];
   return [];
 }
 
 // Get tile material information
 export function getTileMaterial(state, x, y) {
-  const tile = state.chunk?.map?.[y]?.[x];
-  switch(tile) {
-    case '~': 
+  const tileId = getTileIdAt(state, x, y);
+  switch(tileId) {
+    case 'terrain.water.shallow': 
       return { 
         id: 'water', 
         tags: ['liquid', 'extinguisher', 'conductive'],
         props: { extinguishingPower: 25, conductivityAmp: 1.5 }
       };
-    case '%': 
+    case 'material.candy.dust': 
       return { 
         id: 'candy_dust', 
         tags: ['powder', 'flammable', 'explosive', 'sweet'],
         props: { explosionDamage: 15, explosionRadius: 3, ignitionThreshold: 1 }
       };
-    case '^': 
+    case 'terrain.hazard.spikes': 
       return { 
         id: 'spikes', 
         tags: ['sharp', 'hazard', 'metal'],
@@ -135,9 +136,14 @@ function applyAreaEffect(state, source, act) {
   // If this explosion is at a candy dust tile, remove it (it's exploding)
   if (damageType === 'explosion' && state.chunk?.map) {
     if (y >= 0 && y < state.chunk.map.length &&
-        x >= 0 && x < state.chunk.map[0].length &&
-        state.chunk.map[y][x] === '%') {
-      state.chunk.map[y][x] = '.';
+        x >= 0 && x < state.chunk.map[0].length) {
+      const tileId = getTileIdAt(state, x, y);
+      if (tileId === 'material.candy.dust') {
+        state.chunk.map[y][x] = '.';
+        if (state.chunk.tileIds?.[y]) {
+          state.chunk.tileIds[y][x] = 'floor.default';
+        }
+      }
     }
   }
   
@@ -158,7 +164,7 @@ function applyAreaEffect(state, source, act) {
       // Check if this position is water
       if (cy >= 0 && cy < state.chunk.map.length &&
           cx >= 0 && cx < state.chunk.map[0].length &&
-          state.chunk.map[cy][cx] === '~') {
+          getTileIdAt(state, cx, cy) === 'terrain.water.shallow') {
         electrifiedTiles.push({ x: cx, y: cy });
         
         // Check adjacent tiles (within radius)
@@ -369,10 +375,13 @@ function applyAreaEffect(state, source, act) {
           // Check if this tile is candy dust
           if (checkY >= 0 && checkY < state.chunk.map.length &&
               checkX >= 0 && checkX < state.chunk.map[0].length &&
-              state.chunk.map[checkY][checkX] === '%') {
+              getTileIdAt(state, checkX, checkY) === 'material.candy.dust') {
             chainReactionTiles.push({ x: checkX, y: checkY });
             // Mark it as already exploding to prevent re-triggering
             state.chunk.map[checkY][checkX] = '.';
+            if (state.chunk.tileIds?.[checkY]) {
+              state.chunk.tileIds[checkY][checkX] = 'floor.default';
+            }
           }
         }
       }
@@ -385,6 +394,9 @@ function applyAreaEffect(state, source, act) {
         // Double-check tile is removed (in case of timing issues)
         if (state.chunk?.map?.[tile.y]?.[tile.x] === '%') {
           state.chunk.map[tile.y][tile.x] = '.';
+          if (state.chunk.tileIds?.[tile.y]) {
+            state.chunk.tileIds[tile.y][tile.x] = 'floor.default';
+          }
         }
         
         // Trigger visual effect

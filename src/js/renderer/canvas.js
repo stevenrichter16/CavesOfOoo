@@ -4,6 +4,7 @@
 import { CANVAS_CONFIG, TILE } from '../core/config.js';
 import { getStatusEffectsAsArray } from '../combat/statusSystem.js';
 import { drawTileSprite, drawEntitySprite, drawStatusAura } from '../sprites/qudSprites.js';
+import { getTileDef, getTileByGlyph } from '../world/TileRegistry.js';
 
 export class CanvasRenderer {
   constructor(containerId) {
@@ -95,19 +96,11 @@ export class CanvasRenderer {
   /**
    * Draw market sprite
    */
-  drawMarketSprite(char, pixelX, pixelY) {
+  drawMarketSprite(tileDef, glyph, pixelX, pixelY) {
     // Import market sprites and draw them
     import('../sprites/marketSprites.js').then(module => {
-      const spriteMap = {
-        '╬': 'canopyStall',
-        '╤': 'tableStall', 
-        '≡': 'goodsTable',
-        '¤': 'vendorCart',
-        '☐': 'crateOfWares',
-        '♣': 'lollipop'
-      };
-      
-      const spriteName = spriteMap[char];
+      const spriteConfig = tileDef?.sprite;
+      const spriteName = spriteConfig?.type === 'marketSprite' ? spriteConfig.name : null;
       if (spriteName && module.MARKET_SPRITES[spriteName]) {
         const spriteSize = Math.min(this.tileWidth, this.tileHeight);
         const offsetY = pixelY + (this.tileHeight - spriteSize);
@@ -120,7 +113,7 @@ export class CanvasRenderer {
       this.ctx.textBaseline = 'middle';
       this.ctx.textAlign = 'center';
       this.ctx.fillStyle = CANVAS_CONFIG.FOREGROUND;
-      this.ctx.fillText(char, pixelX + this.tileWidth / 2, pixelY + this.tileHeight / 2);
+      this.ctx.fillText(glyph, pixelX + this.tileWidth / 2, pixelY + this.tileHeight / 2);
     });
   }
   
@@ -131,6 +124,17 @@ export class CanvasRenderer {
     const pixelX = x * this.tileWidth;
     const pixelY = y * this.tileHeight;
     const useSprites = CANVAS_CONFIG.RENDER_MODE === 'SPRITE';
+    const tileMeta = {
+      ...(meta || {}),
+      tileId: meta?.tileId ?? chunk?.tileIds?.[y]?.[x] ?? null
+    };
+    if (!tileMeta.tileDef && tileMeta.tileId) {
+      try {
+        tileMeta.tileDef = getTileDef(tileMeta.tileId);
+      } catch (err) {
+        // Ignore lookup errors for non-registered tiles
+      }
+    }
 
     // Background tint only for ASCII mode (sprite mode handles auras separately)
     if (!useSprites && bgColor && bgColor !== CANVAS_CONFIG.BACKGROUND) {
@@ -142,10 +146,9 @@ export class CanvasRenderer {
     if (!char || char === ' ') return;
     
     // Check if this is a market sprite tile
-    const marketSprites = ['╬', '╤', '≡', '¤', '☐', '♣'];
-    if (chunk?.isMarket && marketSprites.includes(char) && !useSprites) {
+    if (chunk?.isMarket && tileMeta?.tileDef?.sprite?.type === 'marketSprite' && !useSprites) {
       // Draw market sprite using pixel art
-      this.drawMarketSprite(char, pixelX, pixelY);
+      this.drawMarketSprite(tileMeta.tileDef, char, pixelX, pixelY);
       return;
     }
 
@@ -154,7 +157,7 @@ export class CanvasRenderer {
       handled = drawTileSprite(this.ctx, char, pixelX, pixelY, this.tileWidth, this.tileHeight, {
         biome: chunk?.biome,
         color,
-        meta
+        meta: tileMeta
       });
       if (handled) return;
     }
@@ -196,7 +199,7 @@ export class CanvasRenderer {
     
     const { chunk, player } = gameState;
     const useSprites = CANVAS_CONFIG.RENDER_MODE === 'SPRITE';
-    const { map, monsters, items, biome } = chunk;
+    const { map, tileIds, monsters, items, biome } = chunk;
     
     // Draw map tiles - ensure we don't exceed actual map dimensions
     const mapHeight = map.length;
@@ -206,9 +209,17 @@ export class CanvasRenderer {
       for (let x = 0; x < Math.min(this.width, mapWidth); x++) {
         if (!map[y] || !map[y][x]) continue;
         
-        const tile = map[y][x];
-        const color = this.getTileColor(tile, biome, chunk);
-        this.drawTile(x, y, tile, color, null, chunk, { x, y });
+        const glyph = map[y][x];
+        const tileId = tileIds?.[y]?.[x] ?? (glyph ? getTileByGlyph(glyph) : null) ?? 'floor.default';
+        let tileDef;
+        try {
+          tileDef = getTileDef(tileId);
+        } catch (err) {
+          tileDef = null;
+        }
+        const resolvedGlyph = tileDef?.glyph ?? glyph;
+        const color = this.getTileColor(tileId, tileDef, biome, chunk);
+        this.drawTile(x, y, resolvedGlyph, color, null, chunk, { x, y, tileId, tileDef });
       }
     }
     
@@ -371,11 +382,11 @@ export class CanvasRenderer {
   /**
    * Get color based on biome and tile type
    */
-  getTileColor(tile, biome, chunk) {
+  getTileColor(tileId, tileDef, biome, chunk) {
     // Cache key for performance - include graveyard and market flags
     const isGraveyard = chunk?.isGraveyard || false;
     const isMarket = chunk?.isMarket || false;
-    const cacheKey = `${tile}_${biome}_${isGraveyard}_${isMarket}`;
+    const cacheKey = `${tileId}_${biome}_${isGraveyard}_${isMarket}`;
     if (this.colorCache.has(cacheKey)) {
       return this.colorCache.get(cacheKey);
     }
@@ -436,142 +447,72 @@ export class CanvasRenderer {
     
     const colors = biomeColors[biome] || biomeColors.candy_forest;
     let color;
-    
-    switch(tile) {
-      case TILE.wall:
-      case '#':
-        // Special graveyard wall color
-        if (chunk?.isGraveyard) {
-          color = '#4a4a4a'; // Stone grey for graveyard walls/crypts
-        } else {
-          color = colors.wall;
-        }
-        break;
-      case TILE.floor:
-      case '.':
-        // Special graveyard floor color
-        if (chunk?.isGraveyard) {
-          color = '#3a3a3a'; // Dark grey dirt for graveyard
-        } else {
-          color = colors.floor;
-        }
-        break;
-      case TILE.door:
-      case '+':
-        // Special graveyard door color (iron gates/crypt doors)
-        if (chunk?.isGraveyard) {
-          color = '#5a5a5a'; // Iron grey for cemetery gates
-        } else {
-          color = colors.door;
-        }
-        break;
-      case TILE.vendor:
-      case 'V':
-        color = '#FFD700'; // Gold
-        break;
-      case TILE.shrine:
-      case '▲':
-        color = '#9370DB'; // Purple
-        break;
-      case TILE.chest:
-      case '$':
-        color = '#FFD700'; // Gold
-        break;
-      case TILE.artifact:
-      case '★':
-        color = '#FFD700'; // Gold
-        break;
-      case '~': // Water (or mist in graveyard)
-        // Check if this is graveyard chunk
-        if (biome === 'candy_kingdom' && chunk?.isGraveyard) {
-          color = '#9090A0'; // Ghostly mist color
-        } else {
-          color = '#4682B4'; // Steel blue for water
-        }
-        break;
-      case 'T': // Gravestone
-        color = '#808080'; // Gray
-        break;
-      case 'Y': // Dead tree in graveyard
-        color = '#654321'; // Dark brown
-        break;
-      case '%': // Candy dust pile
-        color = '#FFB6C1'; // Pink candy dust
-        break;
-      case '▓': // Heavy door (shed door)
-        color = '#8B4513'; // Saddle brown
-        break;
-      case '☐': // Window
-        color = '#87CEEB'; // Sky blue (glass)
-        break;
-      case '†': // Shovel
-        color = '#696969'; // Dim gray
-        break;
-      case 'b': // Barrel
-        color = '#8B7355'; // Burlywood brown
-        break;
-      case '█': // Building wall
-        color = chunk?.isMarket ? '#FFB6C1' : '#808080'; // Pink for candy buildings
-        break;
-      case '◯': // Plaza tile
-        color = '#F0E68C'; // Khaki for plaza
-        break;
-      case '○': // Fountain
-        color = '#4682B4'; // Steel blue
-        break;
-      case '═': // Bench/horizontal element
-        color = '#8B4513'; // Saddle brown
-        break;
-      case '║': // Vertical element
-        color = '#8B4513'; // Saddle brown
-        break;
-      case '❀': // Planter/flower
-        color = '#FF69B4'; // Hot pink
-        break;
-      case '♦': // Candy cane decoration
-        color = '#DC143C'; // Crimson
-        break;
-      case '^': // Arch/headgear
-        color = '#FFD700'; // Gold
-        break;
-      case '⚕': // Pharmacy sign
-        color = '#FF0000'; // Red
-        break;
-      case 'R': // Rx symbol
-      case 'x': // Rx symbol
-        color = '#FF0000'; // Red
-        break;
-      case 'P': // Pizza sign
-      case 'S': // Sassy's sign
-        color = '#FF6347'; // Tomato red
-        break;
-      case 'H': // Hotel sign
-      case 'O': // Hotel sign
-      case 'T': // Hotel sign
-      case 'E': // Hotel sign
-      case 'L': // Hotel sign
-        color = '#4169E1'; // Royal blue
-        break;
-      case 'B': // Broom sign
-        color = '#8B4513'; // Brown
-        break;
-      case '☎': // Phone (call center)
-        color = '#000000'; // Black
-        break;
-      case '□': // Desk/window
-        color = '#D2691E'; // Chocolate brown
-        break;
-      case '≈': // Crosswalk
-        color = '#FFFFFF'; // White stripes
-        break;
-      case '╬': // Canopy stall
-      case '╤': // Table stall
-      case '≡': // Goods table
-      case '¤': // Vendor cart
-        color = '#FF69B4'; // Hot pink for market stalls
-        break;
-      default:
-        color = CANVAS_CONFIG.FOREGROUND;
+    const id = tileId || tileDef?.id || '';
+
+    const isWallLike = id.includes('wall') || id === 'structure.building.block';
+    const isDoorLike = id.includes('door');
+    const isFloorLike = id.includes('floor') || id.includes('walkway') || id.includes('road');
+
+    if (isWallLike) {
+      if (chunk?.isGraveyard) {
+        color = '#4a4a4a';
+      } else if (id === 'structure.building.block' && chunk?.isMarket) {
+        color = '#FFB6C1';
+      } else {
+        color = colors.wall;
+      }
+    } else if (isDoorLike) {
+      color = chunk?.isGraveyard ? '#5a5a5a' : colors.door;
+    } else if (isFloorLike) {
+      color = chunk?.isGraveyard ? '#3a3a3a' : colors.floor;
+    } else {
+      switch (id) {
+        case 'terrain.water.shallow':
+          color = (biome === 'candy_kingdom' && chunk?.isGraveyard) ? '#9090A0' : '#4682B4';
+          break;
+        case 'decoration.shrine.marker':
+          color = '#9370DB';
+          break;
+        case 'container.chest.generic':
+          color = '#FFD700';
+          break;
+        case 'material.candy.dust':
+          color = '#FFB6C1';
+          break;
+        case 'container.storage.crate':
+          color = '#D2691E';
+          break;
+        case 'container.barrel.candy':
+          color = '#8B7355';
+          break;
+        case 'decoration.fountain.center':
+          color = '#4682B4';
+          break;
+        case 'furniture.bench.horizontal':
+          color = '#8B4513';
+          break;
+        case 'decoration.streetlamp':
+          color = '#696969';
+          break;
+        case 'structure.market.stall.canopy':
+        case 'structure.market.stall.table':
+        case 'structure.market.stall.goods_table':
+        case 'structure.market.cart':
+        case 'structure.market.crate':
+          color = '#FF69B4';
+          break;
+        default:
+          if (id && id.startsWith('decoration.sign.letter.')) {
+            const letter = id.split('.').pop();
+            if (letter === 'b') color = '#8B4513';
+            else if (letter === 'p') color = '#FF6347';
+            else if (letter === 'm') color = '#FF69B4';
+            else if (letter === 'o' || letter === 'f' || letter === 'i' || letter === 'c' || letter === 'e') color = '#4169E1';
+            else color = CANVAS_CONFIG.FOREGROUND;
+          } else {
+            color = CANVAS_CONFIG.FOREGROUND;
+          }
+      }
     }
     
     // Cache the result

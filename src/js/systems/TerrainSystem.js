@@ -3,6 +3,7 @@
  * Handles movement costs, passability, vision blocking, and terrain effects
  */
 import { getGameEventBus } from './EventBus.js';
+import { getRegistryTerrainEntries, getTileDef } from '../world/TileRegistry.js';
 
 // Configuration constants
 export const TERRAIN_CONFIG = {
@@ -187,6 +188,8 @@ export class TerrainSystem {
     this.registerTerrain('V', { passable: true, moveCost: 1, blocksVision: false, name: 'vendor' });
     this.registerTerrain('★', { passable: true, moveCost: 1, blocksVision: false, name: 'artifact' });
     this.registerTerrain('♪', { passable: true, moveCost: 1, blocksVision: false, name: 'oddity' });
+
+    this.registerRegistryTerrains();
   }
 
   /**
@@ -207,14 +210,25 @@ export class TerrainSystem {
     });
   }
 
+  registerRegistryTerrains() {
+    for (const [, def] of getRegistryTerrainEntries()) {
+      const glyph = def.glyph;
+      if (!glyph || this.terrainTypes.has(glyph)) continue;
+      const terrainConfig = def.terrain;
+      if (!terrainConfig) continue;
+      this.registerTerrain(glyph, terrainConfig);
+    }
+  }
+
   /**
    * Get movement cost for a terrain type
    * @param {string} tile - Terrain character
    * @returns {number} Movement cost (1 = normal, higher = slower, Infinity = impassable)
    */
   getMoveCost(tile) {
-    if (!tile) return 1;
-    return this.terrainTypes.get(tile)?.moveCost ?? 1;
+    const terrain = this.resolveTerrain(tile);
+    if (!terrain) return TERRAIN_CONFIG.defaults.moveCost;
+    return terrain.moveCost ?? TERRAIN_CONFIG.defaults.moveCost;
   }
 
   /**
@@ -223,10 +237,9 @@ export class TerrainSystem {
    * @returns {boolean} True if passable
    */
   isPassable(tile) {
-    if (!tile) return false;
-    // Default to passable for unknown tiles (matching old system behavior)
-    // Only walls (#) and doors (+) should block movement by default
-    return this.terrainTypes.get(tile)?.passable ?? true;
+    const terrain = this.resolveTerrain(tile);
+    if (!terrain) return true;
+    return terrain.passable ?? true;
   }
 
   /**
@@ -235,8 +248,44 @@ export class TerrainSystem {
    * @returns {boolean} True if blocks vision
    */
   blocksVision(tile) {
-    if (!tile) return false;
-    return this.terrainTypes.get(tile)?.blocksVision ?? false;
+    const terrain = this.resolveTerrain(tile);
+    if (!terrain) return false;
+    return terrain.blocksVision ?? false;
+  }
+
+  resolveTerrain(tile) {
+    if (!tile) return null;
+
+    // Direct glyph lookup
+    if (this.terrainTypes.has(tile)) {
+      return this.terrainTypes.get(tile);
+    }
+
+    // Legacy glyph wrappers
+    if (typeof tile === 'string' && tile.startsWith('legacy.glyph.')) {
+      const glyph = tile.slice('legacy.glyph.'.length) || null;
+      if (glyph && this.terrainTypes.has(glyph)) {
+        return this.terrainTypes.get(glyph);
+      }
+    }
+
+    // Tile registry lookup
+    if (typeof tile === 'string' && !tile.startsWith('legacy.')) {
+      try {
+        const def = getTileDef(tile);
+        if (def?.terrain) {
+          return def.terrain;
+        }
+        const glyph = def?.glyph;
+        if (glyph && this.terrainTypes.has(glyph)) {
+          return this.terrainTypes.get(glyph);
+        }
+      } catch (err) {
+        // Unknown tile id
+      }
+    }
+
+    return null;
   }
 
   /**

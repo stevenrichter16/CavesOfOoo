@@ -15,12 +15,117 @@ import { levelUp } from '../entities/entities.js';
 import { choice } from '../utils/utils.js';
 import { applyStatusEffect } from '../combat/statusSystem.js';
 import { WEAPONS, ARMORS, HEADGEAR, RINGS, POTIONS, QUOTES, QUEST_TEMPLATES } from '../core/config.js';
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
 import { checkFetchQuestItem } from '../quests/quests.js';
+import { glyphToTileId } from '../world/tileUtils.js';
+import { getTileDef } from '../world/TileRegistry.js';
 
 // Helper to generate unique IDs
 let nextItemId = 1;
 function generateItemId() {
   return `item_${Date.now()}_${nextItemId++}`;
+}
+
+function getTileInfo(state, x, y) {
+  const chunk = state.chunk;
+  const glyph = chunk?.map?.[y]?.[x] ?? null;
+  let rawTileId = null;
+
+  if (chunk?.getTileId) {
+    rawTileId = chunk.getTileId(x, y);
+  } else if (chunk?.tileIds?.[y]) {
+    rawTileId = chunk.tileIds[y][x] ?? null;
+  }
+
+  if (!rawTileId && glyph) {
+    rawTileId = glyphToTileId(glyph, null);
+  }
+
+  let resolvedTileId = rawTileId;
+  if (!resolvedTileId || resolvedTileId.startsWith('legacy.')) {
+    const legacyGlyph = rawTileId?.startsWith('legacy.glyph.')
+      ? rawTileId.slice('legacy.glyph.'.length)
+      : glyph;
+    if (legacyGlyph) {
+      const mapped = glyphToTileId(legacyGlyph, null);
+      if (mapped) {
+        resolvedTileId = mapped;
+      }
+    }
+  }
+
+  let tileDef = null;
+  if (resolvedTileId && !resolvedTileId.startsWith('legacy.')) {
+    try {
+      tileDef = getTileDef(resolvedTileId);
+    } catch (err) {
+      tileDef = null;
+    }
+  }
+  return { glyph, tileId: rawTileId, resolvedTileId, tileDef };
+}
+
+function setFloorTile(state, x, y) {
+  if (!state.chunk) return;
+  try {
+    state.chunk.setTile(x, y, 'floor.default');
+  } catch (err) {
+    state.chunk.setTile(x, y, '.');
+  }
+}
+
+const ITEM_TILE_PRIORITY = ['vendor', 'chest', 'shrine', 'potion', 'throwable', 'weapon', 'armor', 'headgear', 'ring'];
+
+const ITEM_TYPE_TO_TILE_ID = {
+  vendor: 'interaction.vendor.tile',
+  chest: 'container.chest.generic',
+  shrine: 'decoration.shrine.marker',
+  potion: 'item.drop.potion',
+  throwable: 'item.drop.throwable',
+  weapon: 'item.drop.weapon',
+  armor: 'item.drop.armor',
+  headgear: 'item.drop.headgear',
+  ring: 'item.drop.ring'
+};
+
+function deriveTileIdFromItems(itemsAtPos) {
+  for (const type of ITEM_TILE_PRIORITY) {
+    const match = itemsAtPos.find(item => item.type === type);
+    if (match) {
+      return ITEM_TYPE_TO_TILE_ID[type] ?? null;
+    }
+  }
+  return null;
+}
+
+function normalizeTileId(tileInfo, itemsAtPos) {
+  if (!tileInfo) return null;
+
+  const { resolvedTileId, glyph } = tileInfo;
+
+  if (resolvedTileId && !resolvedTileId.startsWith('legacy.')) {
+    if (resolvedTileId === 'terrain.hazard.spikes') {
+      const headgearItem = itemsAtPos.find(item => item.type === 'headgear');
+      if (headgearItem) {
+        return 'item.drop.headgear';
+      }
+    }
+    return resolvedTileId;
+  }
+
+  const itemDerived = deriveTileIdFromItems(itemsAtPos);
+  if (itemDerived) {
+    return itemDerived;
+  }
+
+  if (glyph) {
+    const fallback = glyphToTileId(glyph, null);
+    if (fallback) {
+      return fallback;
+    }
+  }
+
+  return resolvedTileId;
 }
 
 // Helper to add potion with stacking
@@ -218,17 +323,29 @@ export async function loadOrGenChunk(state, cx, cy) {
  * Find an open spot on the map
  * Used when player spawns in a wall after chunk transition
  */
-export function findOpenSpot(map) {
-  // Try to find a floor tile
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (map[y][x] === ".") {
+export function findOpenSpot(mapOrChunk) {
+  const terrain = getTerrainSystem();
+  const map = Array.isArray(mapOrChunk) ? mapOrChunk : mapOrChunk?.map;
+  if (!Array.isArray(map)) {
+    console.error('Invalid map passed to findOpenSpot');
+    return { x: Math.floor(W / 2), y: Math.floor(H / 2) };
+  }
+
+  const tileIds = !Array.isArray(mapOrChunk) ? mapOrChunk?.tileIds : null;
+
+  for (let y = 0; y < Math.min(H, map.length); y++) {
+    const row = map[y];
+    if (!Array.isArray(row)) continue;
+    for (let x = 0; x < Math.min(W, row.length); x++) {
+      const glyph = row[x];
+      const tileId = tileIds?.[y]?.[x] ?? (glyph ? glyphToTileId(glyph, null) : null);
+      const key = tileId ?? glyph;
+      if (key && terrain.isPassable(key)) {
         return { x, y };
       }
     }
   }
-  
-  // Fallback to center if no floor found
+
   return { x: Math.floor(W / 2), y: Math.floor(H / 2) };
 }
 
@@ -241,13 +358,15 @@ export function interactTile(state, x, y, openVendorShop = null) {
   if (y < 0 || y >= H || x < 0 || x >= W) return;
   if (!state.chunk?.map?.[y]?.[x]) return;
   
-  const tile = state.chunk.map[y][x];
+  const tileInfo = getTileInfo(state, x, y);
   if (!state.chunk.items) state.chunk.items = [];
   const items = state.chunk.items;
-  
+  const itemsAtPos = items.filter(i => i.x === x && i.y === y);
+  const normalizedTileId = normalizeTileId(tileInfo, itemsAtPos);
+
   // Vendor interaction - needs special handling due to UI dependencies
-  if (tile === "V") {
-    const vendor = items.find(i => i.type === "vendor" && i.x === x && i.y === y);
+  if (normalizedTileId === 'interaction.vendor.tile') {
+    const vendor = itemsAtPos.find(i => i.type === 'vendor') || items.find(i => i.type === 'vendor' && i.x === x && i.y === y);
     if (vendor) {
       log(state, "\"Hello, adventurer! Take a look at my wares!\"", "note");
       // If openVendorShop callback provided (from game.js), use it
@@ -264,13 +383,13 @@ export function interactTile(state, x, y, openVendorShop = null) {
   }
   
   // Artifact interaction
-  if (tile === "★") {
+  if (normalizedTileId === 'item.collectible.artifact') {
     log(state, choice([
       "A diary speaks: 'I dreamed I was a butterfly...'",
       "A music box plays a forgotten lullaby.",
       "An old crown whispers of lost kingdoms."
     ]), "rare");
-    state.chunk.map[y][x] = ".";
+    setFloorTile(state, x, y);
     state.player.xp += 5;
     log(state, "+5 XP from artifact!", "xp");
     
@@ -281,16 +400,16 @@ export function interactTile(state, x, y, openVendorShop = null) {
   } 
   
   // Special tile interaction
-  else if (tile === "♪") {
+  else if (normalizedTileId === 'item.collectible.oddity') {
     log(state, choice(getSpecialTileMessages()), "magic");
   }
   
   // Chest opening
-  else if (tile === "$") {
+  else if (normalizedTileId === 'container.chest.generic') {
     // Find or create chest object
-    let chest = items.find(i => i.type === "chest" && i.x === x && i.y === y);
+    let chest = itemsAtPos.find(i => i.type === 'chest');
     if (!chest) {
-      chest = { type: "chest", x: x, y: y, opened: false };
+      chest = { type: 'chest', x: x, y: y, opened: false };
       items.push(chest);
     }
     
@@ -298,7 +417,7 @@ export function interactTile(state, x, y, openVendorShop = null) {
       chest.opened = true;
       
       // IMPORTANT: Update the map tile to remove the chest graphic
-      state.chunk.map[y][x] = ".";
+      setFloorTile(state, x, y);
       
       // Remove the chest from the items array so it won't be drawn
       const chestIndex = items.indexOf(chest);
@@ -382,11 +501,11 @@ export function interactTile(state, x, y, openVendorShop = null) {
   }
   
   // Potion pickup
-  else if (tile === "!") {
-    const potion = items.find(i => i.type === "potion" && i.x === x && i.y === y);
+  else if (normalizedTileId === 'item.drop.potion') {
+    const potion = itemsAtPos.find(i => i.type === 'potion');
     if (potion) {
       addPotionToInventory(state, potion.item);
-      state.chunk.map[y][x] = ".";
+      setFloorTile(state, x, y);
       log(state, `You pickup: ${potion.item.name}`, "good");
       // Remove from items
       const idx = items.indexOf(potion);
@@ -395,15 +514,20 @@ export function interactTile(state, x, y, openVendorShop = null) {
   }
   
   // Equipment pickup (weapon/armor/headgear)
-  else if (tile === "/" || tile === "]" || tile === "^") {
-    const item = items.find(i => (i.type === "weapon" || i.type === "armor" || i.type === "headgear") && i.x === x && i.y === y);
+  else if (
+    normalizedTileId === 'item.drop.weapon' ||
+    normalizedTileId === 'item.drop.armor' ||
+    normalizedTileId === 'item.drop.headgear' ||
+    normalizedTileId === 'item.drop.ring'
+  ) {
+    const item = itemsAtPos.find(i => i.type === 'weapon' || i.type === 'armor' || i.type === 'headgear' || i.type === 'ring');
     if (item) {
       state.player.inventory.push({ 
         type: item.type, 
         item: { ...item.item }, // Clone to avoid shared references
         id: generateItemId() 
       });
-      state.chunk.map[y][x] = ".";
+      setFloorTile(state, x, y);
       log(state, `You pickup: ${item.item.name}`, "good");
       const idx = items.indexOf(item);
       if (idx >= 0) items.splice(idx, 1);
@@ -411,8 +535,8 @@ export function interactTile(state, x, y, openVendorShop = null) {
   }
   
   // Shrine interaction
-  else if (tile === "▲") {
-    const shrine = items.find(i => i.type === "shrine" && i.x === x && i.y === y);
+  else if (normalizedTileId === 'decoration.shrine.marker') {
+    const shrine = itemsAtPos.find(i => i.type === 'shrine');
     if (shrine && !shrine.used) {
       shrine.used = true;
       log(state, choice(QUOTES[state.chunk.biome]?.shrine || ["The shrine pulses with ancient power."]), "magic");
@@ -550,7 +674,7 @@ function getSpecialTileMessages() {
  */
 export function openDoor(state, x, y) {
   if (state.chunk?.map?.[y]?.[x] === "+") {
-    state.chunk.map[y][x] = ".";
+    setFloorTile(state, x, y);
     log(state, "You open the door.");
     emit(EventType.DoorOpened, { x, y });
     return true;

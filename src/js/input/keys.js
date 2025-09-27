@@ -32,6 +32,7 @@ import { PHASE_ORDER } from '../engine/sim.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { W, H } from '../core/config.js';
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
 import { 
   activateCursor, 
   deactivateCursor, 
@@ -42,6 +43,7 @@ import {
 } from '../movement/cursor.js';
 import { handleSocialInput } from '../ui/social.js';
 import { handleDialogueInput } from '../ui/dialogueTree.js';
+import { glyphToTileId } from '../world/tileUtils.js';
 
 // Helper function to show cursor info
 function showCursorInfo(STATE) {
@@ -81,19 +83,11 @@ function showCursorInfo(STATE) {
   } else if (info && info.item) {
     log(STATE, `Item: ${info.item.name}`, "dim");
   } else if (info) {
-    // Just show tile type
-    const tileDesc = 
-      info.tile === '.' ? 'Floor' :
-      info.tile === '#' ? 'Wall' :
-      info.tile === '~' ? 'Water' :
-      info.tile === '>' ? 'Stairs down' :
-      info.tile === '<' ? 'Stairs up' :
-      info.tile === '%' ? 'Plant' :
-      info.tile === 'V' ? 'Vendor' :
-      info.tile === 'A' ? 'Artifact' :
-      info.tile === '!' ? 'Shrine' :
-      'Unknown';
-    log(STATE, `Tile: ${tileDesc}`, "dim");
+    const terrainSystem = getTerrainSystem();
+    const terrainInfo = info.tile ? terrainSystem.getTerrainInfo(info.tile) : { name: 'unknown' };
+    const tileName = info.tileDef?.terrain?.name 
+      || (terrainInfo.name && terrainInfo.name !== 'unknown' ? terrainInfo.name : (info.tileId || info.tile || 'Unknown'));
+    log(STATE, `Tile: ${tileName}`, "dim");
   }
 }
 
@@ -276,7 +270,8 @@ function handleGameControls(STATE, e) {
     
     for (const pos of positions) {
       if (pos.x >= 0 && pos.x < W && pos.y >= 0 && pos.y < H) {
-        if (STATE.chunk.map[pos.y][pos.x] === "V") {
+        const tileId = getTileIdAt(STATE, pos.x, pos.y);
+        if (tileId === 'interaction.vendor.tile' || tileId === 'legacy.glyph.V') {
           interactTile(STATE, pos.x, pos.y);
           break;
         }
@@ -297,7 +292,13 @@ function handleGameControls(STATE, e) {
       let placedWard = false;
       for (const pos of positions) {
         if (pos.x >= 0 && pos.x < W && pos.y >= 0 && pos.y < H) {
-          if (STATE.chunk.map[pos.y][pos.x] === "T") {
+          const tileId = getTileIdAt(STATE, pos.x, pos.y);
+          if (
+            tileId === 'structure.grave.marker' ||
+            tileId === 'decoration.tree.generic' ||
+            tileId === 'legacy.glyph.T' ||
+            tileId === 'legacy.glyph.⚰'
+          ) {
             // Try to place ward on this grave
             import('../world/graveyardChunk.js').then(module => {
               module.placeWardOnGrave(STATE, pos.x, pos.y);
@@ -1111,7 +1112,10 @@ async function handleCursorControls(STATE, e) {
             );
             
             // Only show Move option for walkable tiles
-            if (info.tile !== '#' && info.tile !== ' ') {
+            const terrainSystem = getTerrainSystem();
+            const passableGlyph = info.tile ?? info.tileDef?.glyph ?? null;
+            const isPassableTile = passableGlyph ? terrainSystem.isPassable(passableGlyph) : true;
+            if (isPassableTile) {
               menuOptions.push({
                 label: 'Move',
                 icon: '→',
@@ -1137,21 +1141,13 @@ async function handleCursorControls(STATE, e) {
               icon: '👁',
               action: () => {
                 let desc = `Tile at (${info.x}, ${info.y}): `;
-                if (info.item) {
-                  desc += `${info.item.name || info.item.type}`;
-                } else if (info.tile === '#') {
-                  desc += "Wall";
-                } else if (info.tile === '.') {
-                  desc += "Floor";
-                } else if (info.tile === '+') {
-                  desc += "Door";
-                } else if (info.tile === 'V') {
-                  desc += "Vendor";
-                } else if (info.tile === '$') {
-                  desc += "Chest";
-                } else {
-                  desc += info.tile || "Empty";
-                }
+                const terrainSystem = getTerrainSystem();
+                const terrainInfo = info.tile ? terrainSystem.getTerrainInfo(info.tile) : { name: 'unknown', description: '' };
+                const tileName = info.item
+                  ? (info.item.name || info.item.type)
+                  : info.tileDef?.terrain?.name 
+                    || (terrainInfo.name && terrainInfo.name !== 'unknown' ? terrainInfo.name : (info.tileId || info.tile || 'Empty'));
+                desc += tileName;
                 if (info.distance !== null) {
                   desc += ` [${info.distance} tiles away]`;
                 }
@@ -1180,4 +1176,28 @@ async function handleCursorControls(STATE, e) {
     render(STATE);
     e.preventDefault();
   }
+}
+function getTileIdAt(state, x, y) {
+  const chunk = state?.chunk;
+  if (!chunk) return null;
+
+  if (typeof chunk.getTileId === 'function') {
+    const id = chunk.getTileId(x, y);
+    if (id) return id;
+  }
+
+  const tileIdsRow = chunk.tileIds?.[y];
+  if (tileIdsRow) {
+    const id = tileIdsRow[x];
+    if (id) return id;
+  }
+
+  const glyph = chunk.map?.[y]?.[x];
+  if (typeof glyph === 'string' && glyph.length > 0) {
+    const mapped = glyphToTileId(glyph, null);
+    if (mapped) return mapped;
+    return `legacy.glyph.${glyph}`;
+  }
+
+  return null;
 }

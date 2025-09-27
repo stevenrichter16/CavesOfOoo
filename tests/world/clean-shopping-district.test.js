@@ -19,46 +19,71 @@ describe('Clean Shopping District Layout', () => {
     });
     
     it('should have main streets in the correct positions', () => {
+      const { tileIds } = chunk;
+
       // Main boulevard (rows 10-12)
       for (let x = 0; x < 48; x++) {
-        // Account for fountain at position [11][24]
-        if (x === 24 && chunk.map[11][x] === '○') {
-          expect(chunk.map[11][x]).toBe('○'); // Fountain
+        expect([
+          'road.paved.main',
+          'structure.building.block',
+          'door.closed'
+        ]).toContain(tileIds[10][x]);
+
+        if (x === 24) {
+          expect(tileIds[11][x]).toBe('decoration.fountain.center');
         } else {
-          expect(chunk.map[10][x]).toBe('=');
-          if (x !== 24) expect(chunk.map[11][x]).toBe('=');
-          expect(chunk.map[12][x]).toBe('=');
+          expect(tileIds[11][x]).toBe('road.paved.main');
         }
+
+        expect(tileIds[12][x]).toBe('road.paved.main');
       }
-      
+
       // North shopping lane (rows 5-6)
       for (let x = 0; x < 48; x++) {
-        expect(chunk.map[5][x]).toBe('-');
-        expect(chunk.map[6][x]).toBe('-');
+        expect(tileIds[5][x]).toBe('floor.candy.walkway');
+        expect(tileIds[6][x]).toBe('floor.candy.walkway');
       }
-      
+
       // South shopping lane (rows 16-17)
       for (let x = 0; x < 48; x++) {
-        expect(chunk.map[16][x]).toBe('-');
-        expect(chunk.map[17][x]).toBe('-');
+        const northId = tileIds[16][x];
+        const southId = tileIds[17][x];
+        expect([
+          'floor.candy.walkway',
+          'structure.building.block'
+        ]).toContain(northId);
+
+        const southAllowed = new Set([
+          'floor.candy.walkway',
+          'structure.building.block',
+          'floor.candy.polished'
+        ]);
+        const southOk = southAllowed.has(southId) || southId.startsWith('decoration.sign.letter');
+        expect(southOk).toBe(true);
       }
     });
-    
+
     it('should have a central plaza', () => {
-      // Check plaza area exists (excluding main boulevard)
+      const { tileIds } = chunk;
+      const plazaTiles = new Set([
+        'floor.candy.polished',
+        'furniture.bench.horizontal'
+      ]);
+
       for (let y = 8; y <= 14; y++) {
         for (let x = 20; x <= 28; x++) {
-          // Main boulevard keeps its '=' tiles
           if (y >= 10 && y <= 12) {
-            expect(['=', '○']).toContain(chunk.map[y][x]);
+            expect([
+              'road.paved.main',
+              'decoration.fountain.center'
+            ]).toContain(tileIds[y][x]);
           } else {
-            expect(['·', '═']).toContain(chunk.map[y][x]);
+            expect(plazaTiles.has(tileIds[y][x])).toBe(true);
           }
         }
       }
-      
-      // Fountain should exist
-      expect(chunk.map[11][24]).toBe('○');
+
+      expect(tileIds[11][24]).toBe('decoration.fountain.center');
     });
   });
   

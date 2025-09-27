@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { handlePlayerMove, waitTurn } from '../../src/js/movement/playerMovement.js';
+import { handlePlayerMove, waitTurn, interactTile } from '../../src/js/movement/playerMovement.js';
 import { W, H } from '../../src/js/core/config.js';
 import { createMockState, createMockEntity } from '../helpers/testUtils.js';
 import { setupEntityWithEffects, clearAllStatusEffects } from '../helpers/statusTestHelper.js';
 import * as events from '../../src/js/utils/events.js';
 import * as movePipeline from '../../src/js/movement/movePipeline.js';
+import { getTileDef } from '../../src/js/world/TileRegistry.js';
+import { glyphToTileId } from '../../src/js/world/tileUtils.js';
 
 // Mock dependencies
 vi.mock('../../src/js/movement/movePipeline.js', () => ({
@@ -209,6 +211,74 @@ describe('Player Movement', () => {
       
       expect(result).toBe(true);
       expect(movePipeline.runPlayerMove).toHaveBeenCalled();
+    });
+  });
+
+  describe('interactTile (item pickups)', () => {
+    const makeTestChunk = () => {
+      const map = Array.from({ length: H }, () => Array.from({ length: W }, () => '.'));
+      const tileIds = Array.from({ length: H }, () => Array.from({ length: W }, () => 'floor.default'));
+      return {
+        map,
+        tileIds,
+        items: [],
+        setTile(tx, ty, tile) {
+          if (typeof tile === 'string' && tile.length === 1) {
+            map[ty][tx] = tile;
+            tileIds[ty][tx] = glyphToTileId(tile, 'floor.default');
+            return true;
+          }
+          const def = getTileDef(tile);
+          map[ty][tx] = def.glyph;
+          tileIds[ty][tx] = tile;
+          return true;
+        }
+      };
+    };
+
+    it('picks up potions using registry tile IDs', () => {
+      const chunk = makeTestChunk();
+      const dropX = 5;
+      const dropY = 5;
+      chunk.setTile(dropX, dropY, 'item.drop.potion');
+      const potion = { type: 'potion', x: dropX, y: dropY, item: { name: 'Candy Tonic' } };
+      chunk.items.push(potion);
+
+      state.chunk = chunk;
+      state.player.x = dropX;
+      state.player.y = dropY;
+      state.player.inventory = [];
+      state.player.potionCount = 0;
+
+      interactTile(state, dropX, dropY);
+
+      expect(state.player.inventory.find(i => i.type === 'potion' && i.item.name === 'Candy Tonic')).toBeDefined();
+      expect(state.player.potionCount).toBe(1);
+      expect(chunk.items).not.toContain(potion);
+      expect(chunk.tileIds[dropY][dropX]).toBe('floor.default');
+      expect(chunk.map[dropY][dropX]).toBe('.');
+    });
+
+    it('picks up headgear from legacy glyph via item metadata', () => {
+      const chunk = makeTestChunk();
+      const dropX = 6;
+      const dropY = 4;
+      chunk.map[dropY][dropX] = '^';
+      chunk.tileIds[dropY][dropX] = 'legacy.glyph.^';
+      const helm = { type: 'headgear', x: dropX, y: dropY, item: { name: 'Sugar Helm', def: 2 } };
+      chunk.items.push(helm);
+
+      state.chunk = chunk;
+      state.player.x = dropX;
+      state.player.y = dropY;
+      state.player.inventory = [];
+
+      interactTile(state, dropX, dropY);
+
+      expect(state.player.inventory.find(i => i.type === 'headgear' && i.item.name === 'Sugar Helm')).toBeDefined();
+      expect(chunk.items).not.toContain(helm);
+      expect(chunk.tileIds[dropY][dropX]).toBe('floor.default');
+      expect(chunk.map[dropY][dropX]).toBe('.');
     });
   });
 });

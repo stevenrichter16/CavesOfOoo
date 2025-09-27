@@ -134,10 +134,12 @@ export class AdventureTimeBiomeStep extends PipelineStep {
     for (const tile of features.tiles) {
       if (tile.x >= 0 && tile.x < width &&
           tile.y >= 0 && tile.y < height) {
-        // Only apply to floor tiles, not walls
-        if (chunk.map[tile.y][tile.x] === '.' || 
-            chunk.map[tile.y][tile.x] === '·') {
-          chunk.map[tile.y][tile.x] = tile.char || tile.type[0];
+        const currentGlyph = chunk.map[tile.y][tile.x];
+        if (currentGlyph === '.' || currentGlyph === '·') {
+          const targetValue = tile.tileId || tile.char || tile.type;
+          if (targetValue) {
+            chunk.setTile(tile.x, tile.y, targetValue);
+          }
         }
       }
     }
@@ -152,7 +154,8 @@ export class AdventureTimeBiomeStep extends PipelineStep {
               chunk.map[deco.y][deco.x] === '·') {
             const char = this.getDecorationChar(deco.type);
             if (char) {
-              chunk.map[deco.y][deco.x] = char;
+              const targetValue = deco.tileId || char;
+              chunk.setTile(deco.x, deco.y, targetValue);
             }
           }
         }
@@ -224,10 +227,13 @@ export class AdventureTimeBiomeStep extends PipelineStep {
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < Math.min(EDGE_WIDTH, width); x++) {
-        if (chunk.map[y] && chunk.map[y][x] && 
-            (chunk.map[y][x] === '.' || chunk.map[y][x] === '·')) {
+        const glyph = chunk.map[y]?.[x];
+        if (glyph === '.' || glyph === '·') {
           const tileType = rng.pick(blendedTiles);
-          chunk.map[y][x] = this.getTileChar(tileType);
+          const targetValue = this.getTileChar(tileType);
+          if (targetValue) {
+            chunk.setTile(x, y, targetValue);
+          }
         }
       }
     }

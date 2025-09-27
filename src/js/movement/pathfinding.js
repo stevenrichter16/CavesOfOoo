@@ -1,6 +1,9 @@
 // systems/pathfinding.js - A* pathfinding for cursor-based movement commands
 
 import { W, H } from '../core/config.js';
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
+import { glyphToTileId } from '../world/tileUtils.js';
+import { entityAt } from '../utils/queries.js';
 
 // Node class for A* pathfinding
 class PathNode {
@@ -20,15 +23,17 @@ export function isWalkable(state, x, y) {
   if (x < 0 || x >= W || y < 0 || y >= H) return false;
   
   // Check map tile
-  const tile = state.chunk.map[y][x];
-  if (tile === '#' || tile === ' ') return false; // Walls and empty tiles block
-  // Water is walkable but slower
-  
+  const terrain = getTerrainSystem();
+  const chunk = state.chunk;
+  const tileId = chunk?.getTileId ? chunk.getTileId(x, y) : chunk?.tileIds?.[y]?.[x];
+  const glyph = chunk?.map?.[y]?.[x];
+  const terrainKey = tileId ?? (glyph ? glyphToTileId(glyph, null) : glyph);
+
+  if (!terrain.isPassable(terrainKey)) return false;
+
   // Check for monsters (except target)
-  const monster = state.chunk.monsters?.find(m => 
-    m.x === x && m.y === y && m.alive
-  );
-  if (monster) return false;
+  const monster = entityAt(state, x, y);
+  if (monster && monster !== state.player) return false;
   
   return true;
 }

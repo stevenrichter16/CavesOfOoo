@@ -4,6 +4,7 @@
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { makeMonster } from '../entities/entities.js';
+import { mapToTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;
@@ -98,6 +99,7 @@ export function generateCandyForestNW(worldSeed, cx, cy) {
     isForest: true
   };
   
+  chunk.tileIds = mapToTileIds(map, 'floor.default');
   return chunk;
 }
 
@@ -190,6 +192,7 @@ export function generateCandyForestNE(worldSeed, cx, cy) {
     isForest: true
   };
   
+  chunk.tileIds = mapToTileIds(map, 'floor.default');
   return chunk;
 }
 
@@ -273,6 +276,7 @@ export function generateCandyForestSW(worldSeed, cx, cy) {
     isForest: true
   };
   
+  chunk.tileIds = mapToTileIds(map, 'floor.default');
   return chunk;
 }
 
@@ -368,6 +372,7 @@ export function generateCandyForestSE(worldSeed, cx, cy) {
     isEnchanted: true
   };
   
+  chunk.tileIds = mapToTileIds(map, 'floor.default');
   return chunk;
 }
 

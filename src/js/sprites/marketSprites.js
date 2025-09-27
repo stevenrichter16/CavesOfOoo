@@ -344,6 +344,133 @@ export const MARKET_SPRITES = {
       d(7, 13, colors.white); d(8, 13, colors.white);
       d(7, 14, colors.black); d(8, 14, colors.black);
     }
+  },
+
+  // Horizontal bench constructed from candy wood
+  benchHorizontal: {
+    symbol: '═',
+    width: 16,
+    height: 16,
+    draw: (ctx, x, y, scale = 16) => {
+      const pixelSize = 4;
+      const d = (px, py, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(x + px * pixelSize, y + py * pixelSize, pixelSize, pixelSize);
+      };
+
+      // Shadow base
+      for (let px = 2; px <= 13; px++) {
+        d(px, 11, colors.darkGray);
+      }
+
+      // Bench top slats
+      for (let px = 2; px <= 13; px++) {
+        d(px, 5, colors.brown4);
+        d(px, 6, colors.brown3);
+        d(px, 7, colors.brown2);
+      }
+
+      // Support legs
+      d(3, 8, colors.black); d(3, 9, colors.black); d(3, 10, colors.black);
+      d(12, 8, colors.black); d(12, 9, colors.black); d(12, 10, colors.black);
+
+      // Highlights on slats
+      for (let px = 3; px <= 12; px += 2) {
+        d(px, 6, colors.beige);
+      }
+    }
+  },
+
+  // Candy fountain centerpiece
+  fountainCenter: {
+    symbol: '○',
+    width: 16,
+    height: 16,
+    draw: (ctx, x, y, scale = 16) => {
+      const pixelSize = 4;
+      const d = (px, py, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(x + px * pixelSize, y + py * pixelSize, pixelSize, pixelSize);
+      };
+
+      // Outer basin
+      for (let px = 3; px <= 12; px++) {
+        d(px, 3, colors.black);
+        d(px, 12, colors.black);
+      }
+      for (let py = 4; py <= 11; py++) {
+        d(3, py, colors.black);
+        d(12, py, colors.black);
+      }
+
+      // Basin fill
+      for (let px = 4; px <= 11; px++) {
+        for (let py = 4; py <= 11; py++) {
+          d(px, py, colors.cyan);
+        }
+      }
+
+      // Water highlights
+      d(5, 5, colors.white);
+      d(9, 6, colors.white);
+      d(7, 8, colors.white);
+
+      // Central spout
+      d(7, 4, colors.blue);
+      d(8, 4, colors.blue);
+      d(7, 5, colors.blue);
+      d(8, 5, colors.blue);
+      d(7, 6, colors.blue);
+      d(8, 6, colors.blue);
+      d(7, 7, colors.blue);
+      d(8, 7, colors.blue);
+
+      // Sparkle at top
+      d(7, 3, colors.white);
+      d(8, 3, colors.white);
+    }
+  },
+
+  // Candy supply barrel
+  candyBarrel: {
+    symbol: 'b',
+    width: 16,
+    height: 16,
+    draw: (ctx, x, y, scale = 16) => {
+      const pixelSize = 4;
+      const d = (px, py, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(x + px * pixelSize, y + py * pixelSize, pixelSize, pixelSize);
+      };
+
+      // Barrel outline
+      for (let px = 4; px <= 11; px++) {
+        d(px, 3, colors.black);
+        d(px, 12, colors.black);
+      }
+      for (let py = 4; py <= 11; py++) {
+        d(4, py, colors.black);
+        d(11, py, colors.black);
+      }
+
+      // Barrel staves
+      for (let px = 5; px <= 10; px++) {
+        for (let py = 4; py <= 11; py++) {
+          d(px, py, colors.brown3);
+        }
+      }
+
+      // Metal hoops
+      for (let px = 5; px <= 10; px++) {
+        d(px, 5, colors.darkGray);
+        d(px, 10, colors.darkGray);
+      }
+
+      // Highlight
+      d(6, 6, colors.brown4);
+      d(7, 7, colors.brown4);
+      d(8, 6, colors.brown4);
+    }
   }
 };
 

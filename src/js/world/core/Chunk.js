@@ -3,6 +3,10 @@
  * Core representation of a single chunk in the world
  */
 
+import { getTerrainSystem } from '../../systems/TerrainSystem.js';
+import { glyphToTileId } from '../tileUtils.js';
+import { getTileDef } from '../TileRegistry.js';
+
 // Chunk dimensions - must match existing system
 export const CHUNK_WIDTH = 24;
 export const CHUNK_HEIGHT = 22;
@@ -14,13 +18,6 @@ export const TILE_TYPES = {
   FLOOR_ALT: '·',
   WATER: '~'
 };
-
-// Set of passable tiles for quick lookup
-export const PASSABLE_TILES = new Set([
-  TILE_TYPES.FLOOR,
-  TILE_TYPES.FLOOR_ALT,
-  TILE_TYPES.WATER
-]);
 
 /**
  * Represents a single chunk in the game world
@@ -56,6 +53,10 @@ export class Chunk {
     // Initialize map with wall tiles
     this.map = Array(CHUNK_HEIGHT).fill(null).map(() => 
       Array(CHUNK_WIDTH).fill(TILE_TYPES.WALL)
+    );
+    const defaultWallId = glyphToTileId(TILE_TYPES.WALL, 'wall.stone.solid');
+    this.tileIds = Array(CHUNK_HEIGHT).fill(null).map(() => 
+      Array(CHUNK_WIDTH).fill(defaultWallId)
     );
     
     // Entity arrays with custom push to maintain spatial index
@@ -109,9 +110,8 @@ export class Chunk {
    * @returns {boolean} True if tile was set, false if out of bounds
    */
   setTile(x, y, tile) {
-    // Validate tile
-    if (typeof tile !== 'string' || tile.length !== 1) {
-      throw new TypeError('Tile must be a single character');
+    if (typeof tile !== 'string' || tile.length === 0) {
+      throw new TypeError('Tile must be a non-empty string');
     }
     
     // Validate coordinates are numbers
@@ -124,17 +124,80 @@ export class Chunk {
     }
     
     if (x >= 0 && x < CHUNK_WIDTH && y >= 0 && y < CHUNK_HEIGHT) {
-      // Repair corrupted row if needed
-      if (!this.map[y] || !Array.isArray(this.map[y])) {
-        this.map[y] = Array(CHUNK_WIDTH).fill(TILE_TYPES.WALL);
+      this._ensureRowIntegrity(y);
+
+      let tileId;
+      let glyph;
+
+      if (tile.length === 1) {
+        glyph = tile;
+        tileId = glyphToTileId(glyph, null);
+        if (!tileId) {
+          tileId = `legacy.glyph.${glyph}`;
+        }
+      } else {
+        if (tile.startsWith('legacy.glyph.')) {
+          tileId = tile;
+          glyph = tile.slice('legacy.glyph.'.length) || '.';
+        } else {
+          tileId = tile;
+          try {
+            const def = getTileDef(tileId);
+            glyph = def.glyph;
+          } catch (err) {
+            console.warn(`Chunk.setTile: unknown tile id '${tileId}', defaulting to '.'`);
+            glyph = '.';
+          }
+        }
       }
-      this.map[y][x] = tile;
+
+      if (typeof glyph !== 'string' || glyph.length !== 1) {
+        console.warn(`Chunk.setTile: invalid glyph derived for '${tile}', defaulting to '.'`);
+        glyph = '.';
+      }
+
+      this.map[y][x] = glyph;
+      if (!this.tileIds) {
+        this.tileIds = Array(CHUNK_HEIGHT).fill(null).map(() => Array(CHUNK_WIDTH).fill(glyphToTileId('.', 'floor.default')));
+      }
+      if (!this.tileIds[y]) {
+        this.tileIds[y] = Array(CHUNK_WIDTH).fill(glyphToTileId('.', 'floor.default'));
+      }
+      this.tileIds[y][x] = tileId;
       this._invalidateCache();
       return true;
     }
     
     // Out of bounds
     return false;
+  }
+
+  getTileId(x, y) {
+    x = Number(x);
+    y = Number(y);
+    if (Number.isNaN(x) || Number.isNaN(y)) return null;
+    if (y < 0 || y >= CHUNK_HEIGHT || x < 0 || x >= CHUNK_WIDTH) return null;
+
+    const tileId = this.tileIds?.[y]?.[x];
+    if (tileId) return tileId;
+
+    const glyph = this.getTile(x, y);
+    if (!glyph) return null;
+    return glyphToTileId(glyph, null);
+  }
+
+  _ensureRowIntegrity(y) {
+    if (!this.map[y] || !Array.isArray(this.map[y])) {
+      this.map[y] = Array(CHUNK_WIDTH).fill(TILE_TYPES.WALL);
+    }
+    if (!this.tileIds) {
+      const defaultId = glyphToTileId(TILE_TYPES.WALL, 'wall.stone.solid');
+      this.tileIds = Array(CHUNK_HEIGHT).fill(null).map(() => Array(CHUNK_WIDTH).fill(defaultId));
+    }
+    if (!this.tileIds[y] || !Array.isArray(this.tileIds[y])) {
+      const defaultId = glyphToTileId(TILE_TYPES.WALL, 'wall.stone.solid');
+      this.tileIds[y] = Array(CHUNK_WIDTH).fill(defaultId);
+    }
   }
   
   /**
@@ -145,7 +208,9 @@ export class Chunk {
    */
   isPassable(x, y) {
     const tile = this.getTile(x, y);
-    return tile !== null && PASSABLE_TILES.has(tile);
+    if (!tile) return false;
+    const terrain = getTerrainSystem();
+    return terrain.isPassable(tile);
   }
   
   /**

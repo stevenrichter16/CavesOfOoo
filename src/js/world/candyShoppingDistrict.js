@@ -7,6 +7,7 @@
 import { W, H } from '../core/config.js';
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { generateCleanShoppingDistrict } from './candyShoppingDistrictClean.js';
+import { mapToTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = W;  // 48
 const CHUNK_HEIGHT = H; // 22
@@ -344,8 +345,11 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
     }
   }
   
+  const tileIds = mapToTileIds(map, 'floor.default');
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [],
     npcs: [], // NPCs will be spawned when chunk is loaded

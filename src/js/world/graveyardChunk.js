@@ -6,6 +6,7 @@ import { W, H } from '../core/config.js';
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { createTileGrid, setTile, glyphToTileId } from './tileUtils.js';
 
 // Use full viewport dimensions
 const CHUNK_WIDTH = W;  // 48
@@ -25,154 +26,98 @@ let whisperShardCollected = false;
  * ASCII art style graveyard with graves, crypts, and paths
  */
 export function generateGraveyardMap() {
-  const map = [];
-  
-  // Initialize with dirt floor (.)
-  for (let y = 0; y < H; y++) {
-    map[y] = [];
-    for (let x = 0; x < W; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
-  // Add graveyard walls (outer perimeter with openings)
+  const { map, tileIds } = createTileGrid(W, H, 'floor.default');
+  const place = (x, y, tileId) => {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    setTile(map, tileIds, x, y, tileId);
+  };
+
+  // Outer walls
   for (let x = 0; x < W; x++) {
-    map[0][x] = '#';
-    map[H-1][x] = '#';
+    place(x, 0, 'wall.stone.solid');
+    place(x, H - 1, 'wall.stone.solid');
   }
   for (let y = 0; y < H; y++) {
-    map[y][0] = '#';
-    map[y][W-1] = '#';
+    place(0, y, 'wall.stone.solid');
+    place(W - 1, y, 'wall.stone.solid');
   }
-  
-  // Add openings for chunk transitions
-  // Top opening (to go north)
-  for (let x = Math.floor(W/2) - 2; x <= Math.floor(W/2) + 2; x++) {
-    map[0][x] = '.';
+
+  const openNorthSouth = [Math.floor(W / 2) - 2, Math.floor(W / 2) - 1, Math.floor(W / 2), Math.floor(W / 2) + 1, Math.floor(W / 2) + 2];
+  for (const x of openNorthSouth) {
+    place(x, 0, 'floor.default');
+    place(x, H - 1, 'floor.default');
   }
-  
-  // Bottom opening (to go south) - main entrance
-  for (let x = Math.floor(W/2) - 2; x <= Math.floor(W/2) + 2; x++) {
-    map[H-1][x] = '.';
+
+  const openWestEast = [Math.floor(H / 2) - 1, Math.floor(H / 2), Math.floor(H / 2) + 1];
+  for (const y of openWestEast) {
+    place(0, y, 'floor.default');
+    place(W - 1, y, 'floor.default');
   }
-  
-  // Left opening (to go west)
-  for (let y = Math.floor(H/2) - 1; y <= Math.floor(H/2) + 1; y++) {
-    map[y][0] = '.';
-  }
-  
-  // Right opening (to go east - back to candy market at 0,0)
-  for (let y = Math.floor(H/2) - 1; y <= Math.floor(H/2) + 1; y++) {
-    map[y][W-1] = '.';
-  }
-  
-  // Add gravestones in rows (using 'T' for tombstones)
-  // First row of graves
-  for (let x = 3; x < W - 3; x += 3) {
-    if (x < W - 3) {
-      map[3][x] = 'T';
-      map[4][x] = '#';  // Base of gravestone
+
+  const baseOffsets = [
+    { row: 3, baseRow: 4 },
+    { row: 7, baseRow: 8 },
+    { row: 11, baseRow: 12 },
+    { row: 15, baseRow: 16 }
+  ];
+  let toggle = false;
+  for (const { row, baseRow } of baseOffsets) {
+    const start = toggle ? 4 : 3;
+    for (let x = start; x < W - 3; x += 3) {
+      place(x, row, 'structure.grave.marker');
+      place(x, baseRow, 'wall.stone.solid');
     }
+    toggle = !toggle;
   }
-  
-  // Second row of graves
-  for (let x = 4; x < W - 3; x += 3) {
-    if (x < W - 3) {
-      map[7][x] = 'T';
-      map[8][x] = '#';  // Base of gravestone
-    }
-  }
-  
-  // Third row of graves
-  for (let x = 3; x < W - 3; x += 3) {
-    if (x < W - 3) {
-      map[11][x] = 'T';
-      map[12][x] = '#';  // Base of gravestone
-    }
-  }
-  
-  // Fourth row of graves (older section)
-  for (let x = 4; x < W - 3; x += 3) {
-    if (x < W - 3) {
-      map[15][x] = 'T';
-      map[16][x] = '#';  // Base of gravestone
-    }
-  }
-  
-  // Add crypts (larger structures)
-  // Rootbeer Mausoleum (quest location)
-  const cryptX = W - 8;
-  const cryptY = 4;
-  for (let y = cryptY; y < cryptY + 4; y++) {
-    for (let x = cryptX; x < cryptX + 5; x++) {
-      if (x < W - 1 && y < H - 1) {
-        map[y][x] = '#';
+
+  const placeCrypt = (originX, originY) => {
+    for (let y = originY; y < originY + 4; y++) {
+      for (let x = originX; x < originX + 5; x++) {
+        place(x, y, 'structure.building.block');
       }
     }
-  }
-  map[cryptY + 1][cryptX + 2] = '+';  // Crypt door
-  map[cryptY + 2][cryptX + 2] = '+';  // Crypt door
-  
-  // Second crypt (for other quests)
-  const crypt2X = 2;
-  const crypt2Y = 10;
-  for (let y = crypt2Y; y < crypt2Y + 4; y++) {
-    for (let x = crypt2X; x < crypt2X + 5; x++) {
-      if (x < W - 1 && y < H - 1) {
-        map[y][x] = '#';
-      }
-    }
-  }
-  map[crypt2Y + 1][crypt2X + 2] = '+';  // Crypt door
-  map[crypt2Y + 2][crypt2X + 2] = '+';  // Crypt door
-  
-  // Add some dead trees (using 'Y' for dead trees - like bare branches)
-  map[2][2] = 'Y';
-  map[5][W-3] = 'Y';
-  map[14][5] = 'Y';
-  map[9][W-6] = 'Y';
-  
-  // Add paths between graves (keep as dirt .)
-  // Paths are already dirt, but we ensure clear walking paths
+    place(originX + 2, originY + 1, 'door.closed');
+    place(originX + 2, originY + 2, 'door.closed');
+  };
+
+  placeCrypt(W - 8, 4);
+  placeCrypt(2, 10);
+
+  const deadTrees = [
+    [2, 2],
+    [W - 3, 5],
+    [5, 14],
+    [W - 6, 9]
+  ];
+  deadTrees.forEach(([x, y]) => place(x, y, 'decoration.tree.dead'));
+
   for (let y = 2; y < H - 2; y++) {
-    map[y][Math.floor(W/2)] = '.';  // Central path
+    place(Math.floor(W / 2), y, 'floor.default');
   }
-  
-  // Add special tiles for atmosphere
-  // Spooky mist tiles (using '~' repurposed as mist)
-  map[6][6] = '~';
-  map[10][W-7] = '~';
-  map[13][4] = '~';
-  
-  // Add Starchy's workshop/shed (larger and more detailed)
+
+  const mistTiles = [
+    [6, 6],
+    [W - 7, 10],
+    [4, 13]
+  ];
+  mistTiles.forEach(([x, y]) => place(x, y, 'terrain.water.shallow'));
+
   const shedX = 2;
   const shedY = H - 7;
-  
-  // Shed walls (5x4 building)
   for (let y = shedY; y < shedY + 4; y++) {
     for (let x = shedX; x < shedX + 5; x++) {
-      if (x < W - 1 && y < H - 1) {
-        // Create walls
-        if (y === shedY || y === shedY + 3 || x === shedX || x === shedX + 4) {
-          map[y][x] = '#';
-        } else {
-          // Interior floor
-          map[y][x] = '.';
-        }
-      }
+      const isWall = y === shedY || y === shedY + 3 || x === shedX || x === shedX + 4;
+      place(x, y, isWall ? 'structure.building.block' : 'floor.default');
     }
   }
-  
-  // Add shed details
-  map[shedY + 2][shedX + 4] = '▓';  // Shed door (heavy door)
-  map[shedY + 1][shedX + 1] = '☐';  // Window
-  map[shedY + 1][shedX + 3] = '☐';  // Window
-  
-  // Add some gardening tools outside
-  map[shedY - 1][shedX + 1] = '†';  // Shovel leaning against shed
-  map[shedY + 1][shedX - 1] = 'b';  // Barrel outside
-  
-  return map;
+
+  place(shedX + 4, shedY + 2, 'structure.building.block');
+  place(shedX + 1, shedY + 1, 'structure.market.crate');
+  place(shedX + 3, shedY + 1, 'structure.market.crate');
+  place(shedX + 1, shedY - 1, 'decoration.streetlamp');
+  place(shedX - 1, shedY + 1, 'container.barrel.candy');
+
+  return { map, tileIds };
 }
 
 /**
@@ -316,9 +261,12 @@ export function isWardableGrave(state, x, y) {
     return false;
   }
   
-  // Check if position is a gravestone
-  const tile = state.chunk.map[y]?.[x];
-  return tile === 'T';
+  const tileId = getTileIdAt(state.chunk, x, y);
+  return (
+    tileId === 'structure.grave.marker' ||
+    tileId === 'legacy.glyph.T' ||
+    tileId === 'legacy.glyph.⚰'
+  );
 }
 
 /**
@@ -424,6 +372,30 @@ export function placeWardOnGrave(state, x, y) {
 export function isGraveyardNight(state) {
   // timeIndex 6 = night, 5 = dusk, 4 = evening are considered "after dark"
   return state.timeIndex >= 4;  // evening, dusk, or night
+}
+
+function getTileIdAt(chunk, x, y) {
+  if (!chunk) return null;
+
+  if (typeof chunk.getTileId === 'function') {
+    const id = chunk.getTileId(x, y);
+    if (id) return id;
+  }
+
+  const row = chunk.tileIds?.[y];
+  if (row) {
+    const id = row[x];
+    if (id) return id;
+  }
+
+  const glyph = chunk.map?.[y]?.[x];
+  if (typeof glyph === 'string' && glyph.length > 0) {
+    const mapped = glyphToTileId(glyph, null);
+    if (mapped) return mapped;
+    return `legacy.glyph.${glyph}`;
+  }
+
+  return null;
 }
 
 /**
@@ -628,8 +600,11 @@ export function generateGraveyardChunk(worldSeed, cx, cy) {
     return null;
   }
   
+  const { map, tileIds } = generateGraveyardMap();
+
   const chunk = {
-    map: generateGraveyardMap(),
+    map,
+    tileIds,
     monsters: [],
     items: [],
     npcs: [],

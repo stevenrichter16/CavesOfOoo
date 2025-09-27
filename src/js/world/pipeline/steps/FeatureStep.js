@@ -8,6 +8,9 @@ import { PipelineStep } from '../PipelineStep.js';
 import { BiomeFeatureGenerator } from '../../biome/BiomeFeatureGenerator.js';
 import { SeededRandom } from '../SeededRandom.js';
 import * as constants from '../../biome/biome-constants.js';
+import { getTerrainSystem } from '../../../systems/TerrainSystem.js';
+import { getTileDef } from '../../TileRegistry.js';
+import { glyphToTileId } from '../../tileUtils.js';
 
 // Feature density by biome (including Adventure Time biomes)
 const BIOME_FEATURE_PARAMS = {
@@ -99,6 +102,7 @@ const BIOME_FEATURE_PARAMS = {
 export class FeatureStep extends PipelineStep {
   constructor() {
     super('FeatureStep');
+    this.terrainSystem = getTerrainSystem();
   }
   
   /**
@@ -196,23 +200,29 @@ export class FeatureStep extends PipelineStep {
     // Place doors at some candidates
     for (const candidate of doorCandidates) {
       if (rng.next() < featureParams.doorChance) {
-        chunk.setTile(candidate.x, candidate.y, '+');
+        const doorTileId = 'door.closed';
+        chunk.setTile(candidate.x, candidate.y, doorTileId);
         params.features.doors.push({
           x: candidate.x,
           y: candidate.y,
-          locked: rng.next() < 0.2
+          locked: rng.next() < 0.2,
+          tileId: doorTileId,
+          type: doorTileId
         });
       }
     }
-    
+
     // Ensure at least one door if we have rooms
     if (params.features.doors.length === 0 && doorCandidates.length > 0) {
       const door = doorCandidates[Math.floor(rng.next() * doorCandidates.length)];
-      chunk.setTile(door.x, door.y, '+');
+      const doorTileId = 'door.closed';
+      chunk.setTile(door.x, door.y, doorTileId);
       params.features.doors.push({
         x: door.x,
         y: door.y,
-        locked: false
+        locked: false,
+        tileId: doorTileId,
+        type: doorTileId
       });
     }
   }
@@ -221,24 +231,18 @@ export class FeatureStep extends PipelineStep {
    * Check if a position is a good door candidate
    */
   isDoorCandidate(chunk, x, y) {
-    const tile = chunk.getTile(x, y);
-    if (tile !== '.' && tile !== '·') return false;
-    
-    // Check for wall-floor-wall pattern (horizontal or vertical)
-    const north = y > 0 ? chunk.getTile(x, y - 1) : '#';
-    const south = y < 21 ? chunk.getTile(x, y + 1) : '#';
-    const east = x < 23 ? chunk.getTile(x + 1, y) : '#';
-    const west = x > 0 ? chunk.getTile(x - 1, y) : '#';
-    
-    const isFloor = (t) => t === '.' || t === '·';
-    const isWall = (t) => t === '#';
-    
-    // Count adjacent walls and floors
-    const walls = [north, south, east, west].filter(isWall).length;
-    const floors = [north, south, east, west].filter(isFloor).length;
-    
-    // Good door candidate has 2 walls and 2 floors in cross pattern
-    // OR 1 wall and 3 floors (entrance)
+    const center = this.getTileInfo(chunk, x, y);
+    if (!this.isFloorTile(center)) return false;
+
+    const north = this.getTileInfo(chunk, x, y - 1);
+    const south = this.getTileInfo(chunk, x, y + 1);
+    const east = this.getTileInfo(chunk, x + 1, y);
+    const west = this.getTileInfo(chunk, x - 1, y);
+
+    const neighbors = [north, south, east, west];
+    const walls = neighbors.filter(info => this.isWallTile(info)).length;
+    const floors = neighbors.filter(info => this.isFloorTile(info)).length;
+
     return (walls === 2 && floors === 2) || (walls === 1 && floors === 3);
   }
   
@@ -255,20 +259,24 @@ export class FeatureStep extends PipelineStep {
         
         for (let y = room.y; y < room.y + room.height; y++) {
           for (let x = room.x; x < room.x + room.width; x++) {
-            if (chunk.getTile(x, y) === '.' && this.isAgainstWall(chunk, x, y)) {
-              positions.push({ x, y });
+            const info = this.getTileInfo(chunk, x, y);
+            if (this.isFloorTile(info) && this.isAgainstWall(chunk, x, y)) {
+              positions.push({ x, y, tileInfo: info });
             }
           }
         }
         
         if (positions.length > 0) {
           const pos = positions[Math.floor(rng.next() * positions.length)];
-          chunk.setTile(pos.x, pos.y, 'C');
+          const chestTileId = 'container.chest.generic';
+          chunk.setTile(pos.x, pos.y, chestTileId);
           
           params.features.chests.push({
             x: pos.x,
             y: pos.y,
-            loot: this.generateLoot(rng, chunk.biome)
+            loot: this.generateLoot(rng, chunk.biome),
+            tileId: chestTileId,
+            type: chestTileId
           });
         }
       }
@@ -285,12 +293,11 @@ export class FeatureStep extends PipelineStep {
       { x, y: y - 1 },
       { x, y: y + 1 }
     ];
-    
+
     for (const pos of adjacent) {
-      if (pos.x >= 0 && pos.x < 24 && pos.y >= 0 && pos.y < 22) {
-        if (chunk.getTile(pos.x, pos.y) === '#') {
-          return true;
-        }
+      const info = this.getTileInfo(chunk, pos.x, pos.y);
+      if (this.isWallTile(info)) {
+        return true;
       }
     }
     
@@ -321,19 +328,19 @@ export class FeatureStep extends PipelineStep {
     // Place traps in corridors
     for (const corridor of corridors) {
       if (rng.next() < featureParams.trapDensity && corridor.points) {
-        const validPoints = corridor.points.filter(p => 
-          chunk.getTile(p.x, p.y) === '.' || chunk.getTile(p.x, p.y) === '·'
-        );
-        
+        const validPoints = corridor.points.filter(p => this.isFloorTile(this.getTileInfo(chunk, p.x, p.y)));
+
         if (validPoints.length > 0) {
           const pos = validPoints[Math.floor(rng.next() * validPoints.length)];
-          chunk.setTile(pos.x, pos.y, '^');
-          
+          const trapTileId = 'terrain.hazard.spikes';
+          chunk.setTile(pos.x, pos.y, trapTileId);
+
           params.features.traps.push({
             x: pos.x,
             y: pos.y,
             type: this.getTrapType(rng),
-            triggered: false
+            triggered: false,
+            tileId: trapTileId
           });
         }
       }
@@ -345,14 +352,18 @@ export class FeatureStep extends PipelineStep {
         const x = room.x + 1 + Math.floor(rng.next() * (room.width - 2));
         const y = room.y + 1 + Math.floor(rng.next() * (room.height - 2));
         
-        if (chunk.getTile(x, y) === '.') {
-          chunk.setTile(x, y, '^');
+        const tileInfo = this.getTileInfo(chunk, x, y);
+
+        if (this.isFloorTile(tileInfo)) {
+          const trapTileId = 'terrain.hazard.spikes';
+          chunk.setTile(x, y, trapTileId);
           
           params.features.traps.push({
             x,
             y,
             type: this.getTrapType(rng),
-            triggered: false
+            triggered: false,
+            tileId: trapTileId
           });
         }
       }
@@ -381,16 +392,21 @@ export class FeatureStep extends PipelineStep {
         const x = room.x + Math.floor(rng.next() * room.width);
         const y = room.y + Math.floor(rng.next() * room.height);
         
-        const tile = chunk.getTile(x, y);
-        if (tile === '.' || tile === '·') {
-          const decoration = decorations[Math.floor(rng.next() * decorations.length)];
-          chunk.setTile(x, y, decoration);
-          
+        const tileInfo = this.getTileInfo(chunk, x, y);
+        if (this.isFloorTile(tileInfo)) {
+          const decorationValue = decorations[Math.floor(rng.next() * decorations.length)];
+          const decorationTileId = this.resolveTileId(decorationValue);
+          chunk.setTile(x, y, decorationTileId);
+
+          const decorationDef = this.safeGetTileDef(decorationTileId);
+          const passable = decorationDef?.terrain ? decorationDef.terrain.passable !== false && decorationDef.terrain.moveCost !== Infinity : true;
+
           params.features.decorations.push({
             x,
             y,
-            type: decoration,
-            passable: decoration !== 'T' && decoration !== '#'
+            tileId: decorationTileId,
+            type: decorationTileId,
+            passable
           });
         }
       }
@@ -415,18 +431,19 @@ export class FeatureStep extends PipelineStep {
         const x = room.x + 1 + Math.floor(rng.next() * Math.max(1, room.width - 2));
         const y = room.y + 1 + Math.floor(rng.next() * Math.max(1, room.height - 2));
         
-        const tile = chunk.getTile(x, y);
-        if (tile === '.' || tile === '·') {
+        const tileInfo = this.getTileInfo(chunk, x, y);
+        if (this.isFloorTile(tileInfo)) {
           const stairType = rng.next() < 0.5 ? 'up' : 'down';
-          const stairChar = stairType === 'up' ? '<' : '>';
+          const stairTileId = stairType === 'up' ? 'legacy.glyph.<' : 'legacy.glyph.>';
           
-          chunk.setTile(x, y, stairChar);
+          chunk.setTile(x, y, stairTileId);
           
           params.features.stairs.push({
             x,
             y,
             type: stairType,
-            destination: null // Will be set by world generator
+            destination: null, // Will be set by world generator
+            tileId: stairTileId
           });
           placed = true;
         }
@@ -503,17 +520,17 @@ export class FeatureStep extends PipelineStep {
         const emptyTiles = [];
         for (let y = 0; y < mapHeight; y++) {
           for (let x = 0; x < mapWidth; x++) {
-            if (chunk.map[y]?.[x] === '.' || chunk.map[y]?.[x] === '·') {
+            const info = this.getTileInfo(chunk, x, y);
+            if (this.isFloorTile(info)) {
               emptyTiles.push({ x, y });
             }
           }
         }
-        
+
         if (emptyTiles.length > 0) {
           const pos = emptyTiles[Math.floor(rng.next() * emptyTiles.length)];
-          // Use simple decoration character
           if (chunk.map[pos.y] && chunk.map[pos.y][pos.x] !== undefined) {
-            chunk.map[pos.y][pos.x] = '∘'; // Transition marker
+            chunk.setTile(pos.x, pos.y, 'decoration.transition.marker');
           }
         }
       }
@@ -533,6 +550,104 @@ export class FeatureStep extends PipelineStep {
           behavior: 'wander'
         });
       }
+    }
+  }
+
+  getTileInfo(chunk, x, y) {
+    const mapHeight = chunk.map?.length ?? 0;
+    const mapWidth = mapHeight > 0 ? (chunk.map[0]?.length ?? 0) : 0;
+
+    if (x < 0 || y < 0 || x >= mapWidth || y >= mapHeight) {
+      return { glyph: null, tileId: null, tileDef: null, outOfBounds: true };
+    }
+
+    const glyph = chunk.getTile(x, y);
+    let tileId = typeof chunk.getTileId === 'function'
+      ? chunk.getTileId(x, y)
+      : chunk.tileIds?.[y]?.[x] ?? (glyph ? glyphToTileId(glyph, null) : null);
+
+    let tileDef = null;
+    if (tileId && !tileId.startsWith('legacy.')) {
+      try {
+        tileDef = getTileDef(tileId);
+      } catch (err) {
+        tileDef = null;
+      }
+    }
+
+    return { glyph, tileId, tileDef, outOfBounds: false };
+  }
+
+  isWallTile(tileInfo) {
+    if (!tileInfo) return false;
+    if (tileInfo.outOfBounds) return true;
+
+    const terrain = tileInfo.tileDef?.terrain;
+    if (terrain) {
+      if (!terrain.passable || terrain.moveCost === Infinity) {
+        return true;
+      }
+      const name = (terrain.name || '').toLowerCase();
+      if (name.includes('wall') || name.includes('cliff') || name.includes('rock')) {
+        return true;
+      }
+      return false;
+    }
+
+    const glyph = tileInfo.glyph;
+    return glyph === '#' || glyph === '█' || glyph === '▓';
+  }
+
+  isFloorTile(tile, chunk = null, x = null, y = null) {
+    let info = null;
+
+    if (typeof tile === 'object' && tile && ('tileId' in tile || 'glyph' in tile || 'tileDef' in tile)) {
+      info = tile;
+    } else if (typeof tile === 'string') {
+      const tileId = glyphToTileId(tile, null);
+      let tileDef = null;
+      if (tileId && !tileId.startsWith('legacy.')) {
+        try {
+          tileDef = getTileDef(tileId);
+        } catch (err) {
+          tileDef = null;
+        }
+      }
+      info = { glyph: tile, tileId, tileDef, outOfBounds: false };
+    } else if (chunk && Number.isInteger(x) && Number.isInteger(y)) {
+      info = this.getTileInfo(chunk, x, y);
+    }
+
+    if (!info || info.outOfBounds) return false;
+
+    const terrain = info.tileDef?.terrain;
+    if (terrain) {
+      if (!terrain.passable || terrain.moveCost === Infinity) return false;
+      const name = (terrain.name || '').toLowerCase();
+      if (name.includes('wall') || name.includes('rock')) return false;
+      return true;
+    }
+
+    const glyph = info.glyph;
+    return glyph === '.' || glyph === '·' || glyph === ',' || glyph === '-' || glyph === '=';
+  }
+
+  resolveTileId(value) {
+    if (!value) return null;
+    if (typeof value === 'string' && value.length === 1) {
+      const tileId = glyphToTileId(value, null);
+      if (tileId) return tileId;
+      return `legacy.glyph.${value}`;
+    }
+    return value;
+  }
+
+  safeGetTileDef(tileId) {
+    if (!tileId || tileId.startsWith('legacy.')) return null;
+    try {
+      return getTileDef(tileId);
+    } catch (err) {
+      return null;
     }
   }
 }

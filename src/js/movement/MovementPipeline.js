@@ -518,12 +518,12 @@ export class MovementPipeline {
       context.cancelled = true;
       context.result.reason = 'Terrain not passable';
       
-      // Log message based on terrain type
-      
-      if (tile === '#') {
-        if (state.log) state.log("You bump into a wall.", "note");
-      } else if (tile === '+') {
-        if (state.log) state.log("The door is locked.", "note");
+      const terrainInfo = this.terrainSystem.getTerrainInfo(tile) || {};
+      const blockedName = terrainInfo.name && terrainInfo.name !== 'unknown'
+        ? terrainInfo.name
+        : tile;
+      if (state.log) {
+        state.log(`You can't move onto the ${blockedName}.`, 'note');
       }
       
       // Emit blocked event
@@ -531,6 +531,7 @@ export class MovementPipeline {
         player: context.player,
         position: { x: targetX, y: targetY },
         tile,
+        terrain: terrainInfo,
         context
       });
     }

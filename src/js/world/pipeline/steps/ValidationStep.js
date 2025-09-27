@@ -12,11 +12,14 @@ import {
   DEFAULT_BIOME,
   MAX_ENTITY_PLACEMENT_RADIUS
 } from '../../constants.js';
+import { getTerrainSystem } from '../../../systems/TerrainSystem.js';
+import { getTileByGlyph, getTileDef } from '../../TileRegistry.js';
 
 export class ValidationStep extends PipelineStep {
   constructor() {
     super('ValidationStep');
     this.critical = true; // Mark as critical step
+    this.terrainSystem = getTerrainSystem();
   }
   
   async process(context) {
@@ -51,12 +54,32 @@ export class ValidationStep extends PipelineStep {
     for (let y = 0; y < CHUNK_HEIGHT; y++) {
       for (let x = 0; x < CHUNK_WIDTH; x++) {
         // Access tile data directly to avoid errors with null
-        const tile = chunk.map[y][x];
-        
-        // Check for invalid tiles
-        if (!tile || tile === null || typeof tile !== 'string' || tile.length !== 1 || !VALID_TILES.has(tile)) {
+        const glyph = chunk.map[y][x];
+        const tileId = typeof chunk.getTileId === 'function'
+          ? chunk.getTileId(x, y)
+          : chunk.tileIds?.[y]?.[x] ?? null;
+
+        let valid = true;
+
+        if (!glyph || typeof glyph !== 'string' || glyph.length !== 1) {
+          valid = false;
+        }
+
+        if (valid) {
+          if (tileId && !tileId.startsWith('legacy.')) {
+            try {
+              getTileDef(tileId);
+            } catch (err) {
+              valid = false;
+            }
+          } else if (!tileId) {
+            valid = VALID_TILES.has(glyph) || Boolean(getTileByGlyph(glyph));
+          }
+        }
+
+        if (!valid) {
           // Default to wall for invalid tiles
-          chunk.map[y][x] = '#';
+          chunk.setTile(x, y, 'wall.stone.solid');
           fixedTiles++;
           params.validationResults.issuesFound++;
           params.validationResults.issuesFixed++;
@@ -196,7 +219,8 @@ export class ValidationStep extends PipelineStep {
    * Check if tile is walkable
    */
   isWalkable(tile) {
-    return tile === '.' || tile === '·' || tile === '+' || tile === '<' || tile === '>';
+    if (!tile) return false;
+    return this.terrainSystem.isPassable(tile);
   }
   
   /**

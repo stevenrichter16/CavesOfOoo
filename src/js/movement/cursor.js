@@ -3,6 +3,8 @@ import { W, H } from '../core/config.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { Status, getEntityId } from '../combat/statusSystem.js';
+import { glyphToTileId } from '../world/tileUtils.js';
+import { getTileDef } from '../world/TileRegistry.js';
 
 // Cursor state
 const cursorState = {
@@ -278,7 +280,16 @@ export function getInfoAtCursor() {
   const { x, y } = cursorState;
   if (y < 0 || y >= H || x < 0 || x >= W) return null;
   
-  const tile = state.chunk.map[y]?.[x];
+  const glyph = state.chunk.map[y]?.[x] ?? null;
+  const tileId = state.chunk.tileIds?.[y]?.[x] ?? (glyph ? glyphToTileId(glyph, null) : null);
+  let tileDef = null;
+  if (tileId) {
+    try {
+      tileDef = getTileDef(tileId);
+    } catch (err) {
+      tileDef = null;
+    }
+  }
   const monster = state.chunk.monsters?.find(m => 
     m.x === x && m.y === y && m.alive
   );
@@ -343,7 +354,9 @@ export function getInfoAtCursor() {
   return {
     x,
     y,
-    tile,
+    tile: glyph,
+    tileId,
+    tileDef,
     monster: monster ? {
       name: monster.name,
       hp: monster.hp,

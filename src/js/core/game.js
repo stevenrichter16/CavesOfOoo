@@ -12,7 +12,7 @@ import { mountLog } from '../utils/log.js';
 import { on, emit } from '../utils/events.js'
 import { EventType } from '../utils/eventTypes.js';
 import * as PlayerMovement from '../movement/playerMovement.js';
-import { isBlocked } from '../utils/queries.js';
+import { isBlocked, getTileIdAt } from '../utils/queries.js';
 import * as ShopSystem from '../items/shop.js';
 import * as ShopUI from '../ui/shop.js';
 import * as VendorQuests from '../quests/vendorQuests.js';
@@ -243,8 +243,8 @@ export function handlePlayerMove(state, dx, dy) {
     }
     
     // Handle water tile effects (keep this for now as it's not in rules yet)
-    const tile = state.chunk?.map?.[state.player.y]?.[state.player.x];
-    if (tile === '~') {
+    const tileId = getTileIdAt(state, state.player.x, state.player.y);
+    if (tileId === 'terrain.water.shallow') {
       console.log(`[GAME] Player entered water tile`);
       const playerId = getEntityId(state.player);
       let effects = Status.get(playerId);
@@ -886,7 +886,9 @@ export async function newWorld() {
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
         const tile = state.chunk.map[y][x];
-        if (tile === '.' && Math.abs(x - player.x) > 2 && Math.abs(y - player.y) > 2) {
+        const tileId = getTileIdAt(state, x, y);
+        const isFloor = tileId ? tileId.startsWith('floor.') : tile === '.';
+        if (isFloor && Math.abs(x - player.x) > 2 && Math.abs(y - player.y) > 2) {
           npcSpots.push({ x, y });
         }
       }

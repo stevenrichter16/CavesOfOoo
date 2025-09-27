@@ -4,11 +4,12 @@
 import { W, H } from '../core/config.js';
 import { choice } from '../utils/utils.js';
 import { attack } from '../combat/combat.js';
-import { isBlocked } from '../utils/queries.js';
+import { isBlocked, getTileIdAt } from '../utils/queries.js';
 import { isFrozen, processStatusEffects, applyStatusEffect, Status, getEntityId } from '../combat/statusSystem.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 import { runMovementForEntity } from '../engine/adapters/cavesOfOoo.js';
+import { log } from '../core/game.js';
 
 /**
  * Process all monster turns
@@ -76,11 +77,11 @@ export function processMonsterTurns(state) {
  * Check and apply water effects to a monster
  */
 function checkMonsterWaterEffect(state, monster, oldX, oldY) {
-  const prevTile = state.chunk?.map?.[oldY]?.[oldX];
-  const newTile = state.chunk?.map?.[monster.y]?.[monster.x];
+  const prevTileId = getTileIdAt(state, oldX, oldY);
+  const newTileId = getTileIdAt(state, monster.x, monster.y);
   
   // Handle water effects
-  if (newTile === '~') {
+  if (newTileId === 'terrain.water.shallow') {
     // Get monster's entity ID for the Status Map
     const monsterId = getEntityId(monster);
     let effects = Status.get(monsterId);
@@ -111,7 +112,7 @@ function checkMonsterWaterEffect(state, monster, oldX, oldY) {
         speedReduction: 2 // Reduce speed by 2 while in water
       });
     }
-  } else if (prevTile === '~' && newTile !== '~') {
+  } else if (prevTileId === 'terrain.water.shallow' && newTileId !== 'terrain.water.shallow') {
     // Leaving water - set water_slow duration to 3 turns
     const waterSlow = monster.statusEffects?.find(e => e.type === 'water_slow');
     if (waterSlow) {
@@ -409,9 +410,4 @@ function handleSpecialAbilityEffects(state, monster, ability) {
     });
     log(state, "The hellfire burns you!", "bad");
   }
-}
-
-// Helper function for logging (will be imported from game.js)
-function log(state, text, cls = null) {
-  emit(EventType.Log, { text, cls });
 }

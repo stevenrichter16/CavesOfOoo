@@ -11,6 +11,7 @@ import {
   MAX_NPCS_PER_CHUNK,
   DEFAULT_BIOME
 } from '../../constants.js';
+import { getTerrainSystem } from '../../../systems/TerrainSystem.js';
 
 // Population parameters by biome
 const BIOME_POPULATION_PARAMS = {
@@ -93,6 +94,7 @@ const MONSTER_STATS = {
 export class PopulationStep extends PipelineStep {
   constructor() {
     super('PopulationStep');
+    this.terrainSystem = getTerrainSystem();
   }
   
   async process(context) {
@@ -143,7 +145,7 @@ export class PopulationStep extends PipelineStep {
         const tile = chunk.getTile(x, y);
         const key = `${x},${y}`;
         
-        if ((tile === '.' || tile === '·') && !occupied.has(key)) {
+        if (tile && this.terrainSystem.isPassable(tile) && !occupied.has(key)) {
           positions.push({ x, y });
         }
       }

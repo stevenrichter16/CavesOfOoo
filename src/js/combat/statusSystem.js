@@ -1,6 +1,7 @@
 // systems/statusSystem.js - Status effect management system
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { getTileIdAt } from '../utils/queries.js';
 
 // Map to store status effects: entityId -> { effectKey: { value, turns, sourceId }, ... }
 export const Status = new Map();
@@ -306,8 +307,8 @@ export function processStatusEffects(state, entity, label = "") {
   if (effects['water_slow']) {
     const waterSlowData = effects['water_slow'];
     // Check if still in water
-    const tile = state.chunk?.map?.[entity.y]?.[entity.x];
-    if (tile === '~') {
+    const tileId = getTileIdAt(state, entity.x, entity.y);
+    if (tileId === 'terrain.water.shallow') {
       // Still in water, keep duration at 0
       waterSlowData.duration = 0;
     } else if (waterSlowData.duration > 0) {

@@ -3,6 +3,7 @@
 // Adjacent chunks for the Candy Kingdom that connect to the main town
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { createTileGrid, setTile } from './tileUtils.js';
 
 // Full viewport dimensions
 const CHUNK_WIDTH = 48;
@@ -15,75 +16,69 @@ const CHUNK_HEIGHT = 22;
 export function generateNorthGateChunk(worldSeed, cx, cy) {
   if (cx !== 0 || cy !== -1) return null;
   
-  const map = [];
-  
-  // Initialize with cobblestone
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
   // Side walls continuing from main town
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y][0] = '#';
-    map[y][1] = '#';
-    map[y][CHUNK_WIDTH-1] = '#';
-    map[y][CHUNK_WIDTH-2] = '#';
+    write(0, y, 'wall.stone.solid');
+    write(1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 2, y, 'wall.stone.solid');
   }
-  
+
   // Castle approach road
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
     for (let x = 10; x <= 13; x++) {
-      map[y][x] = '.'; // Clear road path
+      write(x, y, 'floor.default');
     }
   }
-  
+
   // Castle walls at the north end
   for (let x = 4; x < 20; x++) {
-    map[2][x] = '#';
-    map[3][x] = '#';
+    write(x, 2, 'wall.stone.solid');
+    write(x, 3, 'wall.stone.solid');
   }
-  
-  // Castle gate
+
+  // Castle gate opening
   for (let x = 10; x <= 13; x++) {
-    map[2][x] = '.';
-    map[3][x] = '.';
+    write(x, 2, 'floor.default');
+    write(x, 3, 'floor.default');
   }
-  
+
   // Guard towers
-  map[2][8] = '▲';
-  map[2][15] = '▲';
-  
+  write(8, 2, 'decoration.shrine.marker');
+  write(15, 2, 'decoration.shrine.marker');
+
   // Royal gardens on sides
   for (let y = 5; y < 15; y++) {
     for (let x = 3; x < 8; x++) {
       if ((x + y) % 3 === 0) {
-        map[y][x] = '♣'; // Garden trees
+        write(x, y, 'decoration.candy.tree');
       }
     }
     for (let x = 16; x < 21; x++) {
       if ((x + y) % 3 === 0) {
-        map[y][x] = '♣';
+        write(x, y, 'decoration.candy.tree');
       }
     }
   }
-  
-  // Some decorative statues
-  map[8][6] = '◊';
-  map[8][17] = '◊';
-  map[14][6] = '◊';
-  map[14][17] = '◊';
-  
+
+  // Decorative statues
+  write(6, 8, 'structure.training.statue');
+  write(17, 8, 'structure.training.statue');
+  write(6, 14, 'structure.training.statue');
+  write(17, 14, 'structure.training.statue');
+
   // South connection (open to main town)
   for (let x = 10; x <= 13; x++) {
-    map[CHUNK_HEIGHT-1][x] = '.';
-    map[CHUNK_HEIGHT-2][x] = '.';
+    write(x, CHUNK_HEIGHT - 1, 'floor.default');
+    write(x, CHUNK_HEIGHT - 2, 'floor.default');
   }
-  
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [
       { x: 5, y: 10, type: 'coin', amount: 10 },
@@ -105,92 +100,51 @@ export function generateNorthGateChunk(worldSeed, cx, cy) {
 export function generateEastGateChunk(worldSeed, cx, cy) {
   if (cx !== 1 || cy !== 0) return null;
   
-  const map = [];
-  
-  // Initialize with cobblestone
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
   // Continue walls from main town
   for (let x = 0; x < CHUNK_WIDTH; x++) {
-    map[0][x] = '#';
-    map[1][x] = '#';
-    map[CHUNK_HEIGHT-1][x] = '#';
-    map[CHUNK_HEIGHT-2][x] = '#';
+    write(x, 0, 'wall.stone.solid');
+    write(x, 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 2, 'wall.stone.solid');
   }
-  
+
   // East wall with outer gate
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y][CHUNK_WIDTH-1] = '#';
-    map[y][CHUNK_WIDTH-2] = '#';
-    // Outer gate
+    write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 2, y, 'wall.stone.solid');
     if (y >= 9 && y <= 12) {
-      map[y][CHUNK_WIDTH-1] = '.';
-      map[y][CHUNK_WIDTH-2] = '.';
+      write(CHUNK_WIDTH - 1, y, 'floor.default');
+      write(CHUNK_WIDTH - 2, y, 'floor.default');
     }
   }
-  
+
   // West connection (open to main town)
   for (let y = 9; y <= 12; y++) {
-    map[y][0] = '.';
-    map[y][1] = '.';
+    write(0, y, 'floor.default');
+    write(1, y, 'floor.default');
   }
-  
-  // Market stalls and shops
-  // Row 1
-  map[4][3] = '╬';
-  map[4][4] = '═';
-  map[4][8] = '╬';
-  map[4][9] = '═';
-  map[4][13] = '╬';
-  map[4][14] = '═';
-  map[4][18] = '╬';
-  map[4][19] = '═';
-  
-  // Row 2
-  map[8][3] = '╬';
-  map[8][4] = '═';
-  map[8][8] = '╬';
-  map[8][9] = '═';
-  map[8][13] = '╬';
-  map[8][14] = '═';
-  map[8][18] = '╬';
-  map[8][19] = '═';
-  
-  // Row 3
-  map[12][3] = '╬';
-  map[12][4] = '═';
-  map[12][8] = '╬';
-  map[12][9] = '═';
-  map[12][13] = '╬';
-  map[12][14] = '═';
-  map[12][18] = '╬';
-  map[12][19] = '═';
-  
-  // Row 4
-  map[16][3] = '╬';
-  map[16][4] = '═';
-  map[16][8] = '╬';
-  map[16][9] = '═';
-  map[16][13] = '╬';
-  map[16][14] = '═';
-  map[16][18] = '╬';
-  map[16][19] = '═';
-  
-  // Storage crates
-  map[5][6] = '□';
-  map[5][11] = '□';
-  map[5][16] = '□';
-  map[9][6] = '□';
-  map[9][11] = '□';
-  map[9][16] = '□';
-  
+
+  const stallRows = [4, 8, 12, 16];
+  const stallColumns = [3, 8, 13, 18];
+  for (const row of stallRows) {
+    stallColumns.forEach(col => {
+      write(col, row, 'structure.market.stall.canopy');
+      write(col + 1, row, 'furniture.bench.horizontal');
+    });
+  }
+
+  const cratePositions = [
+    [6, 5], [11, 5], [16, 5],
+    [6, 9], [11, 9], [16, 9]
+  ];
+  cratePositions.forEach(([x, y]) => write(x, y, 'container.storage.crate'));
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [
       { x: 5, y: 5, type: 'potion', item: { name: 'Merchant\'s Brew', type: 'potion', heal: 15 }},
@@ -213,108 +167,70 @@ export function generateEastGateChunk(worldSeed, cx, cy) {
 export function generateSouthGateChunk(worldSeed, cx, cy) {
   if (cx !== 0 || cy !== 1) return null;
   
-  const map = [];
-  
-  // Initialize with cobblestone
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
   // Continue walls
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y][0] = '#';
-    map[y][1] = '#';
-    map[y][CHUNK_WIDTH-1] = '#';
-    map[y][CHUNK_WIDTH-2] = '#';
+    write(0, y, 'wall.stone.solid');
+    write(1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 2, y, 'wall.stone.solid');
   }
-  
+
   // South wall with outer gate
   for (let x = 0; x < CHUNK_WIDTH; x++) {
-    map[CHUNK_HEIGHT-1][x] = '#';
-    map[CHUNK_HEIGHT-2][x] = '#';
-    // Outer gate
+    write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 2, 'wall.stone.solid');
     if (x >= 10 && x <= 13) {
-      map[CHUNK_HEIGHT-1][x] = '.';
-      map[CHUNK_HEIGHT-2][x] = '.';
+      write(x, CHUNK_HEIGHT - 1, 'floor.default');
+      write(x, CHUNK_HEIGHT - 2, 'floor.default');
     }
   }
-  
+
   // North connection (open to main town)
   for (let x = 10; x <= 13; x++) {
-    map[0][x] = '.';
-    map[1][x] = '.';
+    write(x, 0, 'floor.default');
+    write(x, 1, 'floor.default');
   }
-  
-  // Candy houses (simplified)
-  // House 1
-  for (let y = 3; y <= 7; y++) {
-    for (let x = 3; x <= 7; x++) {
-      if (y === 3 || y === 7 || x === 3 || x === 7) {
-        map[y][x] = '▪';
+
+  const houseBounds = [
+    { x1: 3, y1: 3, x2: 7, y2: 7, doorX: 3, doorY: 5 },
+    { x1: 10, y1: 3, x2: 14, y2: 7, doorX: 10, doorY: 5 },
+    { x1: 17, y1: 3, x2: 21, y2: 7, doorX: 17, doorY: 5 },
+    { x1: 3, y1: 10, x2: 7, y2: 14, doorX: 3, doorY: 12 },
+    { x1: 17, y1: 10, x2: 21, y2: 14, doorX: 17, doorY: 12 }
+  ];
+
+  houseBounds.forEach(({ x1, y1, x2, y2, doorX, doorY }) => {
+    for (let y = y1; y <= y2; y++) {
+      for (let x = x1; x <= x2; x++) {
+        const isBorder = y === y1 || y === y2 || x === x1 || x === x2;
+        if (isBorder) {
+          write(x, y, 'wall.brick.fill');
+        }
       }
     }
-  }
-  map[5][3] = '+'; // Door
-  
-  // House 2
-  for (let y = 3; y <= 7; y++) {
-    for (let x = 10; x <= 14; x++) {
-      if (y === 3 || y === 7 || x === 10 || x === 14) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[5][10] = '+'; // Door
-  
-  // House 3
-  for (let y = 3; y <= 7; y++) {
-    for (let x = 17; x <= 21; x++) {
-      if (y === 3 || y === 7 || x === 17 || x === 21) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[5][17] = '+'; // Door
-  
-  // House 4
-  for (let y = 10; y <= 14; y++) {
-    for (let x = 3; x <= 7; x++) {
-      if (y === 10 || y === 14 || x === 3 || x === 7) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[12][3] = '+'; // Door
-  
-  // House 5
-  for (let y = 10; y <= 14; y++) {
-    for (let x = 17; x <= 21; x++) {
-      if (y === 10 || y === 14 || x === 17 || x === 21) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[12][17] = '+'; // Door
-  
+    write(doorX, doorY, 'door.closed');
+  });
+
   // Central park area
-  map[10][11] = '♣';
-  map[10][12] = '♣';
-  map[11][11] = '~'; // Small pond
-  map[11][12] = '~';
-  map[12][11] = '♣';
-  map[12][12] = '♣';
-  
+  write(11, 10, 'decoration.candy.tree');
+  write(12, 10, 'decoration.candy.tree');
+  write(11, 11, 'terrain.water.shallow');
+  write(12, 11, 'terrain.water.shallow');
+  write(11, 12, 'decoration.candy.tree');
+  write(12, 12, 'decoration.candy.tree');
+
   // Benches
-  map[9][10] = '═';
-  map[9][13] = '═';
-  map[13][10] = '═';
-  map[13][13] = '═';
-  
+  write(10, 9, 'furniture.bench.horizontal');
+  write(13, 9, 'furniture.bench.horizontal');
+  write(10, 13, 'furniture.bench.horizontal');
+  write(13, 13, 'furniture.bench.horizontal');
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [
       { x: 11, y: 17, type: 'coin', amount: 8 },
@@ -336,100 +252,82 @@ export function generateSouthGateChunk(worldSeed, cx, cy) {
 export function generateWestGateChunk(worldSeed, cx, cy) {
   if (cx !== -1 || cy !== 0) return null;
   
-  const map = [];
-  
-  // Initialize with dirt/training ground
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
   // Continue walls
   for (let x = 0; x < CHUNK_WIDTH; x++) {
-    map[0][x] = '#';
-    map[1][x] = '#';
-    map[CHUNK_HEIGHT-1][x] = '#';
-    map[CHUNK_HEIGHT-2][x] = '#';
+    write(x, 0, 'wall.stone.solid');
+    write(x, 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 2, 'wall.stone.solid');
   }
-  
+
   // West wall with outer gate
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y][0] = '#';
-    map[y][1] = '#';
-    // Outer gate
+    write(0, y, 'wall.stone.solid');
+    write(1, y, 'wall.stone.solid');
     if (y >= 9 && y <= 12) {
-      map[y][0] = '.';
-      map[y][1] = '.';
+      write(0, y, 'floor.default');
+      write(1, y, 'floor.default');
     }
   }
-  
+
   // East connection (open to main town)
   for (let y = 9; y <= 12; y++) {
-    map[y][CHUNK_WIDTH-1] = '.';
-    map[y][CHUNK_WIDTH-2] = '.';
+    write(CHUNK_WIDTH - 1, y, 'floor.default');
+    write(CHUNK_WIDTH - 2, y, 'floor.default');
   }
-  
+
   // Training dummies
-  map[5][5] = '†';
-  map[5][10] = '†';
-  map[5][15] = '†';
-  map[5][18] = '†';
-  
-  map[16][5] = '†';
-  map[16][10] = '†';
-  map[16][15] = '†';
-  map[16][18] = '†';
-  
+  [
+    [5, 5], [10, 5], [15, 5], [18, 5],
+    [5, 16], [10, 16], [15, 16], [18, 16]
+  ].forEach(([x, y]) => write(x, y, 'decoration.streetlamp'));
+
   // Sparring ring (center)
   for (let y = 8; y <= 13; y++) {
     for (let x = 8; x <= 15; x++) {
       if (y === 8 || y === 13 || x === 8 || x === 15) {
-        map[y][x] = '-';
+        write(x, y, 'floor.candy.walkway');
       }
     }
   }
-  
+
   // Weapon racks
-  map[3][3] = '|';
-  map[3][4] = '|';
-  map[3][5] = '|';
-  
-  map[3][18] = '|';
-  map[3][19] = '|';
-  map[3][20] = '|';
-  
-  map[18][3] = '|';
-  map[18][4] = '|';
-  map[18][5] = '|';
-  
-  map[18][18] = '|';
-  map[18][19] = '|';
-  map[18][20] = '|';
-  
+  const racks = [
+    [3, 3], [4, 3], [5, 3],
+    [18, 3], [19, 3], [20, 3],
+    [3, 18], [4, 18], [5, 18],
+    [18, 18], [19, 18], [20, 18]
+  ];
+  racks.forEach(([x, y]) => write(x, y, 'structure.training.rack'));
+
   // Barracks building
   for (let y = 6; y <= 8; y++) {
     for (let x = 3; x <= 6; x++) {
-      if (y === 6 || y === 8 || x === 3 || x === 6) {
-        map[y][x] = '▪';
+      const isBorder = y === 6 || y === 8 || x === 3 || x === 6;
+      if (isBorder) {
+        write(x, y, 'wall.brick.fill');
       }
     }
   }
-  map[7][3] = '+'; // Door
-  
+  write(3, 7, 'door.closed');
+
   // Armory building
   for (let y = 13; y <= 15; y++) {
     for (let x = 17; x <= 20; x++) {
-      if (y === 13 || y === 15 || x === 17 || x === 20) {
-        map[y][x] = '▪';
+      const isBorder = y === 13 || y === 15 || x === 17 || x === 20;
+      if (isBorder) {
+        write(x, y, 'wall.brick.fill');
       }
     }
   }
-  map[14][20] = '+'; // Door
-  
+  write(20, 14, 'door.closed');
+
   const chunk = {
     map,
+    tileIds,
     monsters: [],
     items: [
       { x: 4, y: 4, type: 'weapon', item: { name: 'Training Sword', type: 'weapon', dmg: 3 }},

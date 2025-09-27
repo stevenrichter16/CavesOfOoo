@@ -5,6 +5,7 @@
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
+import { createTileGrid, setTile } from './tileUtils.js';
 
 // Full viewport dimensions
 const CHUNK_WIDTH = 48;
@@ -18,204 +19,144 @@ export const CANDY_KINGDOM_COORDS = { x: 0, y: 0 };
  * A bustling town square within the candy kingdom walls
  */
 export function generateCandyKingdomMap() {
-  const map = [];
-  
-  // Initialize with candy cobblestone floor (.)
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
-  
-  // Add thick kingdom walls with gate
-  // Top wall with battlements
+  const { map, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const write = (x, y, tileId) => setTile(map, tileIds, x, y, tileId);
+
   for (let x = 0; x < CHUNK_WIDTH; x++) {
-    map[0][x] = '#'; // Thick wall
-    map[1][x] = '#'; // Double thick
-    // Gate entrance at center
+    write(x, 0, 'wall.stone.solid');
+    write(x, 1, 'wall.stone.solid');
     if (x >= 22 && x <= 25) {
-      map[0][x] = '.';
-      map[1][x] = '.';
+      write(x, 0, 'floor.default');
+      write(x, 1, 'floor.default');
     }
   }
-  
-  // Bottom wall
+
   for (let x = 0; x < CHUNK_WIDTH; x++) {
-    map[CHUNK_HEIGHT-1][x] = '#';
-    map[CHUNK_HEIGHT-2][x] = '#';
-    // South gate
+    write(x, CHUNK_HEIGHT - 1, 'wall.stone.solid');
+    write(x, CHUNK_HEIGHT - 2, 'wall.stone.solid');
     if (x >= 22 && x <= 25) {
-      map[CHUNK_HEIGHT-1][x] = '.';
-      map[CHUNK_HEIGHT-2][x] = '.';
+      write(x, CHUNK_HEIGHT - 1, 'floor.default');
+      write(x, CHUNK_HEIGHT - 2, 'floor.default');
     }
   }
-  
-  // Side walls
+
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y][0] = '#';
-    map[y][1] = '#';
-    map[y][CHUNK_WIDTH-1] = '#';
-    map[y][CHUNK_WIDTH-2] = '#';
-    // Side gates
+    write(0, y, 'wall.stone.solid');
+    write(1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 1, y, 'wall.stone.solid');
+    write(CHUNK_WIDTH - 2, y, 'wall.stone.solid');
     if (y >= 9 && y <= 12) {
-      map[y][0] = '.';
-      map[y][1] = '.';
-      map[y][CHUNK_WIDTH-1] = '.';
-      map[y][CHUNK_WIDTH-2] = '.';
+      write(0, y, 'floor.default');
+      write(1, y, 'floor.default');
+      write(CHUNK_WIDTH - 1, y, 'floor.default');
+      write(CHUNK_WIDTH - 2, y, 'floor.default');
     }
   }
-  
-  // Central fountain (now truly centered)
-  map[10][23] = '○'; // Fountain center
-  map[9][23] = '~';  // Water
-  map[11][23] = '~';
-  map[10][22] = '~';
-  map[10][24] = '~';
-  map[9][22] = '~';
-  map[9][24] = '~';
-  map[11][22] = '~';
-  map[11][24] = '~';
-  
+
+  // Central fountain (water tiles only; center remains floor)
+  write(23, 10, 'decoration.fountain.center');
+  write(23, 9, 'terrain.water.shallow');
+  write(23, 11, 'terrain.water.shallow');
+  write(22, 10, 'terrain.water.shallow');
+  write(24, 10, 'terrain.water.shallow');
+  write(22, 9, 'terrain.water.shallow');
+  write(24, 9, 'terrain.water.shallow');
+  write(22, 11, 'terrain.water.shallow');
+  write(24, 11, 'terrain.water.shallow');
+
+  // Additional buildings (perimeter walls only)
+  const fillRectPerimeter = (x1, y1, x2, y2) => {
+    for (let x = x1; x <= x2; x++) {
+      write(x, y1, 'wall.brick.fill');
+      write(x, y2, 'wall.brick.fill');
+    }
+    for (let y = y1; y <= y2; y++) {
+      write(x1, y, 'wall.brick.fill');
+      write(x2, y, 'wall.brick.fill');
+    }
+  };
+
+  fillRectPerimeter(6, 15, 11, 18);  // Library
+  fillRectPerimeter(16, 6, 20, 9);   // Inn
+  fillRectPerimeter(36, 15, 41, 18); // Bank
+  fillRectPerimeter(27, 6, 31, 9);   // Temple
+
+  write(6, 16, 'door.closed');
+  write(16, 7, 'door.closed');
+  write(41, 16, 'door.closed');
+  write(31, 7, 'door.closed');
+
   // Market stalls - West side row
-  map[5][4] = '╬';
-  map[5][5] = '═';
-  map[5][8] = '╬';
-  map[5][9] = '═';
-  map[5][12] = '╬';
-  map[5][13] = '═';
-  
-  map[8][4] = '╬';
-  map[8][5] = '═';
-  map[8][8] = '╬';
-  map[8][9] = '═';
-  map[8][12] = '╬';
-  map[8][13] = '═';
-  
-  map[11][4] = '╬';
-  map[11][5] = '═';
-  map[11][8] = '╬';
-  map[11][9] = '═';
-  map[11][12] = '╬';
-  map[11][13] = '═';
-  
-  map[14][4] = '╬';
-  map[14][5] = '═';
-  map[14][8] = '╬';
-  map[14][9] = '═';
-  map[14][12] = '╬';
-  map[14][13] = '═';
-  
-  // Market stalls - East side row
-  map[5][34] = '╬';
-  map[5][35] = '═';
-  map[5][38] = '╬';
-  map[5][39] = '═';
-  map[5][42] = '╬';
-  map[5][43] = '═';
-  
-  map[8][34] = '╬';
-  map[8][35] = '═';
-  map[8][38] = '╬';
-  map[8][39] = '═';
-  map[8][42] = '╬';
-  map[8][43] = '═';
-  
-  map[11][34] = '╬';
-  map[11][35] = '═';
-  map[11][38] = '╬';
-  map[11][39] = '═';
-  map[11][42] = '╬';
-  map[11][43] = '═';
-  
-  map[14][34] = '╬';
-  map[14][35] = '═';
-  map[14][38] = '╬';
-  map[14][39] = '═';
-  map[14][42] = '╬';
-  map[14][43] = '═';
-  
-  // Guard posts at gates
-  map[2][21] = '▲';  // North gate guard post left
-  map[2][26] = '▲';  // North gate guard post right
-  map[19][21] = '▲'; // South gate guard post left
-  map[19][26] = '▲'; // South gate guard post right
-  map[9][2] = '▲';   // West gate guard post
-  map[12][2] = '▲';
-  map[9][45] = '▲';  // East gate guard post
-  map[12][45] = '▲';
-  
+  [
+    [5,4,'structure.market.stall.canopy'], [5,5,'furniture.bench.horizontal'],
+    [5,8,'structure.market.stall.canopy'], [5,9,'furniture.bench.horizontal'],
+    [5,12,'structure.market.stall.canopy'], [5,13,'furniture.bench.horizontal'],
+    [8,4,'structure.market.stall.canopy'], [8,5,'furniture.bench.horizontal'],
+    [8,8,'structure.market.stall.canopy'], [8,9,'furniture.bench.horizontal'],
+    [8,12,'structure.market.stall.canopy'], [8,13,'furniture.bench.horizontal'],
+    [11,4,'structure.market.stall.canopy'], [11,5,'furniture.bench.horizontal'],
+    [11,8,'structure.market.stall.canopy'], [11,9,'furniture.bench.horizontal'],
+    [11,12,'structure.market.stall.canopy'], [11,13,'furniture.bench.horizontal'],
+    [14,4,'structure.market.stall.canopy'], [14,5,'furniture.bench.horizontal'],
+    [14,8,'structure.market.stall.canopy'], [14,9,'furniture.bench.horizontal'],
+    [14,12,'structure.market.stall.canopy'], [14,13,'furniture.bench.horizontal']
+  ].forEach(([x,y,tileId]) => write(x,y,tileId));
+
+  // Market stalls - East side row (mirrored horizontally)
+  [
+    [35,4,'structure.market.stall.canopy'], [35,5,'furniture.bench.horizontal'],
+    [35,8,'structure.market.stall.canopy'], [35,9,'furniture.bench.horizontal'],
+    [35,12,'structure.market.stall.canopy'], [35,13,'furniture.bench.horizontal'],
+    [38,4,'structure.market.stall.canopy'], [38,5,'furniture.bench.horizontal'],
+    [38,8,'structure.market.stall.canopy'], [38,9,'furniture.bench.horizontal'],
+    [38,12,'structure.market.stall.canopy'], [38,13,'furniture.bench.horizontal'],
+    [41,4,'structure.market.stall.canopy'], [41,5,'furniture.bench.horizontal'],
+    [41,8,'structure.market.stall.canopy'], [41,9,'furniture.bench.horizontal'],
+    [41,12,'structure.market.stall.canopy'], [41,13,'furniture.bench.horizontal'],
+    [44,4,'structure.market.stall.canopy'], [44,5,'furniture.bench.horizontal'],
+    [44,8,'structure.market.stall.canopy'], [44,9,'furniture.bench.horizontal'],
+    [44,12,'structure.market.stall.canopy'], [44,13,'furniture.bench.horizontal']
+  ].forEach(([x,y,tileId]) => write(x,y,tileId));
+
+  // Guard posts
+  [
+    [21,2], [26,2], [21,19], [26,19], [2,9], [2,12], [45,9], [45,12]
+  ].forEach(([x,y]) => write(x,y,'decoration.shrine.marker'));
+
   // Benches around fountain
-  map[8][20] = '═';
-  map[8][26] = '═';
-  map[12][20] = '═';
-  map[12][26] = '═';
-  map[10][19] = '═';
-  map[10][27] = '═';
-  
-  // Decorative candy trees throughout
-  map[4][16] = '♣';
-  map[4][31] = '♣';
-  map[16][16] = '♣';
-  map[16][31] = '♣';
-  map[7][7] = '♣';
-  map[7][40] = '♣';
-  map[13][7] = '♣';
-  map[13][40] = '♣';
-  
-  // Additional buildings - West side
-  // Library
-  for (let y = 15; y <= 18; y++) {
-    for (let x = 6; x <= 11; x++) {
-      if (y === 15 || y === 18 || x === 6 || x === 11) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[16][6] = '+'; // Door
-  
-  // Inn
-  for (let y = 6; y <= 9; y++) {
-    for (let x = 16; x <= 20; x++) {
-      if (y === 6 || y === 9 || x === 16 || x === 20) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[7][16] = '+'; // Door
-  
-  // Additional buildings - East side
-  // Bank
-  for (let y = 15; y <= 18; y++) {
-    for (let x = 36; x <= 41; x++) {
-      if (y === 15 || y === 18 || x === 36 || x === 41) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[16][41] = '+'; // Door
-  
-  // Temple
-  for (let y = 6; y <= 9; y++) {
-    for (let x = 27; x <= 31; x++) {
-      if (y === 6 || y === 9 || x === 27 || x === 31) {
-        map[y][x] = '▪';
-      }
-    }
-  }
-  map[7][31] = '+'; // Door
+  [
+    [20,8], [26,8], [20,12], [26,12], [19,10], [27,10]
+  ].forEach(([x,y]) => write(x,y,'furniture.bench.horizontal'));
 
-  applyBuildingWallAutotiles(map);
+  // Decorative candy trees
+  [
+    [16,4], [31,4], [16,16], [31,16], [7,7], [40,7], [7,13], [40,13]
+  ].forEach(([x,y]) => write(x,y,'decoration.candy.tree'));
 
-  return map;
+  applyBuildingWallAutotiles(map, tileIds);
+
+  return { map, tileIds };
 }
 
-function applyBuildingWallAutotiles(map) {
+function applyBuildingWallAutotiles(map, tileIds) {
   const height = map.length;
   const width = map[0] ? map[0].length : 0;
   const buildingMask = Array.from({ length: height }, (_, y) =>
-    Array.from({ length: width }, (_, x) => map[y][x] === '▪')
+    Array.from({ length: width }, (_, x) => {
+      const tileId = tileIds?.[y]?.[x];
+      return Boolean(tileId && tileId.startsWith('wall.brick'));
+    })
   );
+
+  const brickTilesByGlyph = {
+    '┌': 'wall.brick.corner.top_left',
+    '┐': 'wall.brick.corner.top_right',
+    '└': 'wall.brick.corner.bottom_left',
+    '┘': 'wall.brick.corner.bottom_right',
+    '─': 'wall.brick.edge.horizontal',
+    '│': 'wall.brick.edge.vertical',
+    '█': 'wall.brick.fill'
+  };
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -226,10 +167,10 @@ function applyBuildingWallAutotiles(map) {
       const left = x > 0 && buildingMask[y][x - 1];
       const right = x < width - 1 && buildingMask[y][x + 1];
 
-      const connectedUp = up || (y > 0 && map[y - 1][x] === '+');
-      const connectedDown = down || (y < height - 1 && map[y + 1][x] === '+');
-      const connectedLeft = left || (x > 0 && map[y][x - 1] === '+');
-      const connectedRight = right || (x < width - 1 && map[y][x + 1] === '+');
+      const connectedUp = up || (y > 0 && tileIds?.[y - 1]?.[x] === 'door.closed');
+      const connectedDown = down || (y < height - 1 && tileIds?.[y + 1]?.[x] === 'door.closed');
+      const connectedLeft = left || (x > 0 && tileIds?.[y]?.[x - 1] === 'door.closed');
+      const connectedRight = right || (x < width - 1 && tileIds?.[y]?.[x + 1] === 'door.closed');
 
       let glyph;
       if (!connectedUp && !connectedLeft && connectedRight && connectedDown) glyph = '┌';
@@ -242,7 +183,8 @@ function applyBuildingWallAutotiles(map) {
       else if ((connectedLeft || connectedRight) && !connectedUp && !connectedDown) glyph = '─';
       else glyph = '█';
 
-      map[y][x] = glyph;
+      const tileId = brickTilesByGlyph[glyph] || 'wall.brick.fill';
+      setTile(map, tileIds, x, y, tileId);
     }
   }
 }
@@ -655,8 +597,11 @@ export function generateCandyKingdomTownChunk(worldSeed, cx, cy) {
     return null;
   }
   
+  const { map, tileIds } = generateCandyKingdomMap();
+
   const chunk = {
-    map: generateCandyKingdomMap(),
+    map,
+    tileIds,
     monsters: [],
     items: [
       // Starting potion near fountain

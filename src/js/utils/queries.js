@@ -4,6 +4,9 @@ import { emit } from './events.js';
 import { EventType } from './eventTypes.js';
 import { loadChunk, saveChunk } from './persistence.js';
 import { genChunk as generateChunk } from '../world/worldGen.js';
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
+import { glyphToTileId } from '../world/tileUtils.js';
+import { getTileDef } from '../world/TileRegistry.js';
 
 // Use full viewport dimensions for chunks
 const CHUNK_WIDTH = 48;
@@ -43,7 +46,12 @@ export function isPassable(state, x, y) {
   
   // Check map tile
   const tile = state.chunk?.map?.[y]?.[x];
-  if (tile === '#' || tile === '+') return false; // walls and doors block
+  if (!tile) return false;
+
+  const terrain = getTerrainSystem();
+  if (!terrain.isPassable(tile)) {
+    return false;
+  }
   // Water is passable but will apply slow effect
   
   // Check for entities
@@ -69,10 +77,37 @@ export function isBlockedByTerrain(state, x, y) {
   
   // Check map tile
   const tile = state.chunk?.map?.[y]?.[x];
-  if (tile === '#' || tile === '+') return true; // walls and doors block
+  if (!tile) return true;
+
+  const terrain = getTerrainSystem();
+  if (!terrain.isPassable(tile)) {
+    return true;
+  }
   
   // Water and other tiles don't block projectiles
   return false;
+}
+
+export function getTileGlyphAt(state, x, y) {
+  return state.chunk?.map?.[y]?.[x] ?? null;
+}
+
+export function getTileIdAt(state, x, y) {
+  const fromIds = state.chunk?.tileIds?.[y]?.[x];
+  if (fromIds) return fromIds;
+  const glyph = getTileGlyphAt(state, x, y);
+  if (!glyph) return null;
+  return glyphToTileId(glyph, null);
+}
+
+export function getTileDefAt(state, x, y) {
+  const tileId = getTileIdAt(state, x, y);
+  if (!tileId) return null;
+  try {
+    return getTileDef(tileId);
+  } catch (err) {
+    return null;
+  }
 }
 
 // Helper to find a safe opening in the wall when entering a chunk
@@ -81,7 +116,8 @@ function findWallOpening(state, player, side) {
   if (!map) return;
   
   // Check if current position is already safe
-  if (map[player.y][player.x] !== '#') return;
+  const terrain = getTerrainSystem();
+  if (terrain.isPassable(map[player.y][player.x])) return;
   
   // Search for an opening along the appropriate wall
   if (side === 'top') {
@@ -91,7 +127,7 @@ function findWallOpening(state, player, side) {
     for (let offset = 0; offset <= Math.floor(CHUNK_WIDTH/2); offset++) {
       for (const dx of [offset, -offset]) {
         const x = player.x + dx;
-        if (x >= 0 && x < CHUNK_WIDTH && map[y][x] !== '#') {
+        if (x >= 0 && x < CHUNK_WIDTH && terrain.isPassable(map[y][x])) {
           player.x = x;
           player.y = y;
           return;
@@ -104,7 +140,7 @@ function findWallOpening(state, player, side) {
     for (let offset = 0; offset <= Math.floor(CHUNK_WIDTH/2); offset++) {
       for (const dx of [offset, -offset]) {
         const x = player.x + dx;
-        if (x >= 0 && x < CHUNK_WIDTH && map[y][x] !== '#') {
+        if (x >= 0 && x < CHUNK_WIDTH && terrain.isPassable(map[y][x])) {
           player.x = x;
           player.y = y;
           return;
@@ -117,7 +153,7 @@ function findWallOpening(state, player, side) {
     for (let offset = 0; offset <= Math.floor(CHUNK_HEIGHT/2); offset++) {
       for (const dy of [offset, -offset]) {
         const y = player.y + dy;
-        if (y >= 0 && y < CHUNK_HEIGHT && map[y][x] !== '#') {
+        if (y >= 0 && y < CHUNK_HEIGHT && terrain.isPassable(map[y][x])) {
           player.x = x;
           player.y = y;
           return;
@@ -130,7 +166,7 @@ function findWallOpening(state, player, side) {
     for (let offset = 0; offset <= Math.floor(CHUNK_HEIGHT/2); offset++) {
       for (const dy of [offset, -offset]) {
         const y = player.y + dy;
-        if (y >= 0 && y < CHUNK_HEIGHT && map[y][x] !== '#') {
+        if (y >= 0 && y < CHUNK_HEIGHT && terrain.isPassable(map[y][x])) {
           player.x = x;
           player.y = y;
           return;
@@ -146,7 +182,7 @@ function findWallOpening(state, player, side) {
         const checkY = player.y + dy;
         const checkX = player.x + dx;
         if (checkY >= 0 && checkY < CHUNK_HEIGHT && checkX >= 0 && checkX < CHUNK_WIDTH) {
-          if (map[checkY][checkX] !== '#') {
+          if (terrain.isPassable(map[checkY][checkX])) {
             player.x = checkX;
             player.y = checkY;
             return;

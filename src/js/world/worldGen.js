@@ -22,6 +22,8 @@ import {
   generateCandyForestSW,
   generateCandyForestSE
 } from './candyForest.js';
+import { mapToTileIds } from './tileUtils.js';
+import { getTileDef } from './TileRegistry.js';
 
 export function generateRooms(sr, count = 5) {
   const rooms = [];
@@ -257,39 +259,46 @@ function findFloorTile(map, sr) {
 
 export function placeItems(map, sr, biome) {
   const items = [];
-  
+  const tilePlacements = [];
+
+  const placeTile = (pos, tileId) => {
+    const def = getTileDef(tileId);
+    map[pos.y][pos.x] = def.glyph;
+    tilePlacements.push({ x: pos.x, y: pos.y, tileId });
+  };
+
   // Place chests
   for (let i = 0; i < sr.between(1, 3); i++) {
     const pos = findFloorTile(map, sr);
     if (pos) {
-      map[pos.y][pos.x] = "$";
-      items.push({ type: "chest", x: pos.x, y: pos.y, opened: false });
+      placeTile(pos, 'container.chest.generic');
+      items.push({ type: 'chest', x: pos.x, y: pos.y, opened: false });
     }
   }
-  
+
   // Place shrines (rare)
   if (sr.next() < 0.3) {
     const pos = findFloorTile(map, sr);
     if (pos) {
-      map[pos.y][pos.x] = "▲";
-      items.push({ type: "shrine", x: pos.x, y: pos.y, used: false });
+      placeTile(pos, 'decoration.shrine.marker');
+      items.push({ type: 'shrine', x: pos.x, y: pos.y, used: false });
     }
   }
-  
+
   // Place vendor (70% chance per chunk)
   if (sr.next() < 0.7) {
     const pos = findFloorTile(map, sr);
     if (pos) {
-      map[pos.y][pos.x] = "V";
-      
+      placeTile(pos, 'interaction.vendor.tile');
+
       // Generate a unique vendor ID based on chunk coordinates
       const vendorId = `vendor_${sr.seed}_${pos.x}_${pos.y}`;
-      
+
       // Pick a random fetch quest item for this vendor
       const fetchItem = sr.pick(FETCH_ITEMS);
-      
+
       items.push({
-        type: "vendor",
+        type: 'vendor',
         x: pos.x,
         y: pos.y,
         id: vendorId,
@@ -305,64 +314,73 @@ export function placeItems(map, sr, biome) {
           rewards: {
             gold: 40 + sr.int(60),
             xp: 20 + sr.int(30),
-            item: sr.next() < 0.5 ? { type: "potion", item: sr.pick(POTIONS) } : null
+            item: sr.next() < 0.5 ? { type: 'potion', item: sr.pick(POTIONS) } : null
           },
-          completionText: "Perfect! This is exactly what I needed. Thank you!",
+          completionText: 'Perfect! This is exactly what I needed. Thank you!',
           isRepeatable: false
         }
       });
     }
   }
-  
+
   // Place artifacts and oddities
   for (let i = 0; i < sr.between(2, 5); i++) {
     const pos = findFloorTile(map, sr);
-    if (pos) map[pos.y][pos.x] = sr.pick(["★", "♪"]);
+    if (pos) {
+      const tileId = sr.pick(['item.collectible.artifact', 'item.collectible.oddity']);
+      placeTile(pos, tileId);
+    }
   }
-  
+
   // Place potions
   for (let i = 0; i < sr.between(1, 3); i++) {
     const pos = findFloorTile(map, sr);
     if (pos) {
-      map[pos.y][pos.x] = "!";
+      placeTile(pos, 'item.drop.potion');
       items.push({
-        type: "potion", x: pos.x, y: pos.y,
+        type: 'potion',
+        x: pos.x,
+        y: pos.y,
         item: sr.pick(POTIONS)
       });
     }
   }
-  
+
   // Chance for weapon/armor/headgear
   if (sr.next() < 0.4) {
     const pos = findFloorTile(map, sr);
     if (pos) {
-      const itemType = sr.next();
-      let type, tile, itemArray;
-      
-      if (itemType < 0.33) {
-        type = "weapon";
-        tile = "/";
+      const itemTypeRoll = sr.next();
+      let itemType;
+      let itemArray;
+
+      if (itemTypeRoll < 0.33) {
+        itemType = 'weapon';
         itemArray = WEAPONS;
-      } else if (itemType < 0.66) {
-        type = "armor";
-        tile = "]";
+      } else if (itemTypeRoll < 0.66) {
+        itemType = 'armor';
         itemArray = ARMORS;
       } else {
-        type = "headgear";
-        tile = "^";
+        itemType = 'headgear';
         itemArray = HEADGEAR;
       }
-      
-      map[pos.y][pos.x] = tile;
+
+      const tileId =
+        itemType === 'weapon' ? 'item.drop.weapon' :
+        itemType === 'armor' ? 'item.drop.armor' :
+        'item.drop.headgear';
+
+      placeTile(pos, tileId);
       items.push({
-        type: type,
-        x: pos.x, y: pos.y,
+        type: itemType,
+        x: pos.x,
+        y: pos.y,
         item: sr.pick(itemArray)
       });
     }
   }
-  
-  return items;
+
+  return { items, tilePlacements };
 }
 
 export function genChunk(seed, cx, cy) {
@@ -602,7 +620,7 @@ export function genChunk(seed, cx, cy) {
     ? sr.pick(availableBiomes) 
     : BIOME_TIERS.candy_forest;
   
-  const items = placeItems(map, sr, biome);
+  const { items, tilePlacements } = placeItems(map, sr, biome);
   
   // SPAWN MONSTERS WITH SCALED DIFFICULTY
   const monsters = [];
@@ -657,10 +675,18 @@ export function genChunk(seed, cx, cy) {
     }
   }
   
-  return { 
-    map, 
-    monsters, 
-    biome: biome.id, 
+  const tileIds = mapToTileIds(map, 'floor.default');
+  for (const { x, y, tileId } of tilePlacements) {
+    if (tileIds[y] && typeof tileIds[y][x] !== 'undefined') {
+      tileIds[y][x] = tileId;
+    }
+  }
+
+  return {
+    map,
+    tileIds,
+    monsters,
+    biome: biome.id,
     items,
     npcs: [], // NPCs are added later by the game
     cx: cx, // Add chunk coordinates
