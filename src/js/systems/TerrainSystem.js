@@ -60,7 +60,29 @@ export class TerrainSystem {
       name: 'water',
       description: 'Shallow water that slows movement',
       onEnter: (state, x, y) => {
-        if (!state.player) return;
+        if (!state?.player) return;
+        if (!Array.isArray(state.player.statusEffects)) {
+          state.player.statusEffects = [];
+        }
+
+        // Apply slow effect immediately for deterministic gameplay/tests
+        const slowEffect = {
+          type: 'water_slow',
+          duration: 0, // Permanent while in water
+          speedReduction: TERRAIN_CONFIG.effects.waterSlowReduction
+        };
+
+        const existingIndex = state.player.statusEffects.findIndex((effect) => effect?.type === 'water_slow');
+        let appliedNewEffect = false;
+        if (existingIndex >= 0) {
+          state.player.statusEffects[existingIndex] = {
+            ...state.player.statusEffects[existingIndex],
+            ...slowEffect
+          };
+        } else {
+          state.player.statusEffects.push(slowEffect);
+          appliedNewEffect = true;
+        }
         
         // Emit cleanup event to remove expired effects
         this.eventBus.emit('CleanupStatusEffects', {
@@ -78,12 +100,19 @@ export class TerrainSystem {
           }
         });
         
-        if (state.log) {
+        if (appliedNewEffect && state.log) {
           state.log('You wade into the water. Your movement slows.', 'note');
         }
       },
       onExit: (state, x, y) => {
-        if (!state.player) return;
+        if (!state?.player) return;
+
+        if (Array.isArray(state.player.statusEffects)) {
+          const existing = state.player.statusEffects.find((effect) => effect?.type === 'water_slow');
+          if (existing) {
+            existing.duration = TERRAIN_CONFIG.effects.waterSlowDuration;
+          }
+        }
         
         // Emit event to update water_slow duration
         this.eventBus.emit('StatusEffectUpdated', {
@@ -115,7 +144,11 @@ export class TerrainSystem {
       name: 'spikes',
       description: 'Sharp spikes jutting from the floor',
       onEnter: (state, x, y) => {
-        if (!state.player) return;
+        if (!state?.player) return;
+
+        if (typeof state.player.hp === 'number') {
+          state.player.hp = Math.max(0, state.player.hp - TERRAIN_CONFIG.damage.spikes);
+        }
         
         // Emit damage event instead of direct mutation
         this.eventBus.emit('DamageDealt', {
@@ -238,8 +271,8 @@ export class TerrainSystem {
    */
   isPassable(tile) {
     const terrain = this.resolveTerrain(tile);
-    if (!terrain) return true;
-    return terrain.passable ?? true;
+    if (!terrain) return false;
+    return terrain.passable ?? TERRAIN_CONFIG.defaults.passable;
   }
 
   /**
@@ -338,15 +371,14 @@ export class TerrainSystem {
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
    */
-  onEnterTile(state, x, y) {
+  async onEnterTile(state, x, y) {
     const tile = this.getTerrainAt(state, x, y);
     if (!tile) return;
-    
-    const terrain = this.terrainTypes.get(tile);
-    if (terrain?.onEnter) {
-      // onEnter is now synchronous
-      terrain.onEnter(state, x, y);
-    }
+
+    const terrain = this.resolveTerrain(tile);
+    if (!terrain?.onEnter) return;
+
+    await terrain.onEnter(state, x, y);
   }
 
   /**
@@ -355,15 +387,14 @@ export class TerrainSystem {
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
    */
-  onExitTile(state, x, y) {
+  async onExitTile(state, x, y) {
     const tile = this.getTerrainAt(state, x, y);
     if (!tile) return;
-    
-    const terrain = this.terrainTypes.get(tile);
-    if (terrain?.onExit) {
-      // onExit is now synchronous
-      terrain.onExit(state, x, y);
-    }
+
+    const terrain = this.resolveTerrain(tile);
+    if (!terrain?.onExit) return;
+
+    await terrain.onExit(state, x, y);
   }
 }
 

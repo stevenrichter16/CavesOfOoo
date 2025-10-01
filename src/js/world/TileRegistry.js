@@ -245,6 +245,18 @@ export const TileRegistry = {
       description: 'A neatly paved candy walkway'
     }
   },
+  'floor.crosswalk.striped': {
+    glyph: '≈',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'crosswalk',
+      description: 'Striped candy paint guiding pedestrians across the boulevard'
+    },
+    tags: ['floor', 'crosswalk']
+  },
   'road.paved.main': {
     glyph: '=',
     sprite: null,
@@ -289,6 +301,29 @@ export const TileRegistry = {
       description: 'A tall candy street lamp or training post'
     }
   },
+  'decoration.snowman': {
+    glyph: '☃',
+    sprite: null,
+    terrain: {
+      passable: false,
+      moveCost: Infinity,
+      blocksVision: true,
+      name: 'snowman',
+      description: 'A jolly snowman topped with a candy cane scarf'
+    },
+    tags: ['decoration', 'winter']
+  },
+  'structure.arch.candy': {
+    glyph: '♦',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'candy arch',
+      description: 'A peppermint archway welcoming shoppers'
+    }
+  },
   'structure.training.statue': {
     glyph: '◊',
     sprite: null,
@@ -309,6 +344,40 @@ export const TileRegistry = {
       blocksVision: false,
       name: 'shrine marker',
       description: 'A decorative marker watching over the square'
+    }
+  },
+  'decoration.shop.broom': {
+    glyph: '🧹',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'display broom',
+      description: 'A neatly propped broom awaiting its next owner'
+    }
+  },
+  'decoration.sign.pharmacy': {
+    glyph: '⚕',
+    sprite: null,
+    terrain: {
+      passable: false,
+      moveCost: Infinity,
+      blocksVision: false,
+      name: 'pharmacy emblem',
+      description: 'A gleaming medical emblem advertising sweet remedies'
+    },
+    tags: ['sign']
+  },
+  'decoration.office.phone': {
+    glyph: '☎',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'desk phone',
+      description: 'A candy-coated desk phone buzzing with customer calls'
     }
   },
   'container.barrel.candy': {
@@ -531,6 +600,17 @@ export const TileRegistry = {
       description: 'A sturdy tree with sugary leaves'
     }
   },
+  'decoration.tree.cotton_candy': {
+    glyph: '♠',
+    sprite: null,
+    terrain: {
+      passable: false,
+      moveCost: Infinity,
+      blocksVision: true,
+      name: 'cotton candy tree',
+      description: 'A fluffy cotton candy tree twirling in the breeze'
+    }
+  },
   'decoration.tree.dead': {
     glyph: 'Y',
     sprite: null,
@@ -563,6 +643,17 @@ export const TileRegistry = {
       blocksVision: false,
       name: 'flower patch',
       description: 'Bright candy blossoms rustle softly'
+    }
+  },
+  'decoration.flower.planter': {
+    glyph: '❀',
+    sprite: null,
+    terrain: {
+      passable: false,
+      moveCost: Infinity,
+      blocksVision: false,
+      name: 'flower planter',
+      description: 'A raised planter overflowing with sugary blooms'
     }
   },
   'decoration.mushroom.cluster': {
@@ -719,6 +810,17 @@ export const TileRegistry = {
       description: 'A painted sign bearing the letter “O”'
     }
   },
+  'decoration.sign.letter.x': {
+    glyph: 'Ⓧ',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'sign',
+      description: 'A painted sign bearing the letter “X”'
+    }
+  },
   'decoration.sign.letter.p': {
     glyph: 'Ⓟ',
     sprite: null,
@@ -762,6 +864,17 @@ export const TileRegistry = {
       name: 'sign',
       description: 'A painted sign bearing the letter “Y”'
     }
+  },
+  'decoration.sign.letter.z': {
+    glyph: 'Ⓩ',
+    sprite: null,
+    terrain: {
+      passable: true,
+      moveCost: 1,
+      blocksVision: false,
+      name: 'sign',
+      description: 'A painted sign bearing the letter “Z”'
+    }
   }
 };
 
@@ -788,3 +901,22 @@ export function getTileByGlyph(glyph) {
 export function getRegistryTerrainEntries() {
   return Object.entries(TileRegistry).filter(([, def]) => def?.terrain);
 }
+
+// Registry Naming Guidelines:
+// - Use a dotted hierarchy: <category>.<subCategory>.<variant>. Keep drift minimal to avoid large vocabularies.
+// - category examples: floor, wall, terrain, structure, decoration, container, interaction, item, material.
+// - subCategory should denote the family (e.g. 'candy', 'brick', 'market').
+// - variant describes the specific asset (e.g. 'polished', 'arch', 'cotton_candy').
+// Properties accepted:
+// - glyph: a single-character fallback used by ASCII rendering / map persistence (required).
+// - sprite: string path, array of paths, or object descriptor (optional). Sprite loading is handled by renderer.
+// - terrain: object defining gameplay behavior (passable, moveCost, blocksVision, name, description, hooks like onEnter/onExit).
+// - tags: optional array for quick lookup (e.g. ['floor', 'crosswalk']).
+// - Additional metadata can be attached ad-hoc (vfx, ambientSound, etc.) but document their usage.
+//
+// When adding a new tile:
+// 1. Choose consistent naming per the hierarchy above.
+// 2. Provide terrain data whenever the tile affects movement/vision.
+// 3. Supply a sprite or leave null if pending art (track follow-up in tasks).
+// 4. Ensure glyph is unique to avoid collision; register the glyph in TileRegistry only once.
+// 5. Update generators to use tile IDs instead of glyph literals.

@@ -3,6 +3,8 @@
  * Provides accurate cost estimation for pathfinding and movement validation
  */
 
+import { getTerrainSystem } from '../systems/TerrainSystem.js';
+
 // Configuration constants
 export const MOVEMENT_COST_CONFIG = {
   defaultTerrainCosts: {
@@ -82,8 +84,8 @@ export class MovementCostCalculator {
     }
 
     // Get base terrain cost
-    const terrain = state.chunk.getTile(to.x, to.y);
-    let cost = this.getTerrainCost(terrain);
+    const { tile, terrainType } = this.getTileContext(state, to.x, to.y);
+    let cost = this.getTerrainCost(terrainType, tile);
 
     // Apply diagonal movement multiplier
     const isDiagonal = from.x !== to.x && from.y !== to.y;
@@ -95,7 +97,7 @@ export class MovementCostCalculator {
     cost = this.applyStatusModifiers(cost, state);
 
     // Apply equipment modifiers
-    cost = this.applyEquipmentModifiers(cost, terrain, state);
+    cost = this.applyEquipmentModifiers(cost, terrainType, state);
 
     // Check for entity blocking
     const entityKey = `${to.x},${to.y}`;
@@ -112,14 +114,24 @@ export class MovementCostCalculator {
 
   /**
    * Get terrain cost for a specific terrain type
-   * @param {string} terrain - Terrain type
+   * @param {string} terrain - Terrain type or tile identifier
+   * @param {string|null} tile - Optional raw tile id/glyph
    * @returns {number} Terrain cost multiplier
    */
-  getTerrainCost(terrain) {
-    if (!terrain || !this.terrainCosts[terrain]) {
-      return this.terrainCosts.ground || 1;
+  getTerrainCost(terrain, tile = null) {
+    const terrainKey = this.resolveTerrainType(terrain);
+
+    if (terrainKey && this.terrainCosts[terrainKey] !== undefined) {
+      return this.terrainCosts[terrainKey];
     }
-    return this.terrainCosts[terrain];
+
+    const terrainSystem = getTerrainSystem();
+    const moveCost = terrainSystem.getMoveCost(tile ?? terrain);
+    if (typeof moveCost === 'number' && !Number.isNaN(moveCost)) {
+      return moveCost;
+    }
+
+    return this.terrainCosts.ground || 1;
   }
 
   /**
@@ -216,6 +228,117 @@ export class MovementCostCalculator {
   canMove(from, to, state) {
     const cost = this.calculateMoveCost(from, to, state);
     return cost !== Infinity;
+  }
+
+  getTileContext(state, x, y) {
+    const chunk = state?.chunk;
+    if (!chunk) {
+      return { tile: null, terrainType: this.resolveTerrainType('ground') };
+    }
+
+    let tileId = null;
+    if (typeof chunk.getTileId === 'function') {
+      tileId = chunk.getTileId(x, y);
+    }
+    if (!tileId && chunk.tileIds && chunk.tileIds[y] && chunk.tileIds[y][x]) {
+      tileId = chunk.tileIds[y][x];
+    }
+
+    let rawTile = tileId;
+    if (!rawTile && typeof chunk.getTile === 'function') {
+      rawTile = chunk.getTile(x, y);
+    }
+
+    if (!rawTile && tileId && tileId.startsWith('legacy.glyph.')) {
+      rawTile = tileId.slice('legacy.glyph.'.length) || null;
+    }
+
+    const terrainType = this.resolveTerrainType(rawTile || tileId);
+
+    return {
+      tile: rawTile || tileId,
+      terrainType
+    };
+  }
+
+  resolveTerrainType(value) {
+    if (!value) {
+      return 'ground';
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase();
+
+      if (this.terrainCosts[normalized] !== undefined) {
+        return normalized;
+      }
+
+      const alias = this.matchTerrainAlias(normalized);
+      if (alias) {
+        return alias;
+      }
+
+      if (normalized.startsWith('legacy.glyph.')) {
+        const glyph = normalized.slice('legacy.glyph.'.length) || null;
+        if (glyph) {
+          return this.resolveTerrainType(glyph);
+        }
+      }
+    }
+
+    const terrainSystem = getTerrainSystem();
+    const resolved = terrainSystem.resolveTerrain(value);
+    const name = resolved?.name ? resolved.name.toLowerCase() : null;
+    if (name) {
+      if (name === 'floor') {
+        return 'ground';
+      }
+      return this.matchTerrainAlias(name) || name;
+    }
+
+    if (typeof value === 'string' && value.length === 1) {
+      const charAlias = this.matchTerrainAliasFromGlyph(value);
+      if (charAlias) {
+        return charAlias;
+      }
+    }
+
+    return 'ground';
+  }
+
+  matchTerrainAlias(normalized) {
+    if (!normalized) return null;
+    if (normalized === 'floor' || normalized === 'road') return 'ground';
+    if (normalized.includes('water')) return 'water';
+    if (normalized.includes('mud')) return 'mud';
+    if (normalized.includes('lava')) return 'lava';
+    if (normalized.includes('swamp')) return 'swamp';
+    if (normalized.includes('snow')) return 'snow';
+    if (normalized.includes('ice')) return 'ice';
+    if (normalized.includes('sand')) return 'sand';
+    if (normalized.includes('ground')) return 'ground';
+    return null;
+  }
+
+  matchTerrainAliasFromGlyph(glyph) {
+    switch (glyph) {
+      case '.':
+      case '·':
+      case '=':
+        return 'ground';
+      case '~':
+        return 'water';
+      case 'm':
+        return 'mud';
+      case 'i':
+        return 'ice';
+      case 's':
+        return 'sand';
+      case 'l':
+        return 'lava';
+      default:
+        return null;
+    }
   }
 }
 

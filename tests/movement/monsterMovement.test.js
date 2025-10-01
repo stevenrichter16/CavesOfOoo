@@ -23,9 +23,13 @@ vi.mock('../../src/js/combat/combat.js', () => ({
   attack: vi.fn()
 }));
 
-vi.mock('../../src/js/utils/queries.js', () => ({
-  isBlocked: vi.fn()
-}));
+vi.mock('../../src/js/utils/queries.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    isBlocked: vi.fn()
+  };
+});
 
 vi.mock('../../src/js/combat/statusSystem.js', async (importOriginal) => {
   const actual = await importOriginal();

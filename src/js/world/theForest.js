@@ -5,6 +5,7 @@
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { makeMonster } from '../entities/entities.js';
+import { createTileGrid, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 // Forest chunk configuration
 export const FOREST_CONFIG = {
@@ -23,18 +24,9 @@ export const FOREST_CONFIG = {
 
 // Generate forest terrain
 export function generateForestTerrain(width = 48, height = 22) {
-  const map = [];
-  
-  // Initialize with grass/forest floor
-  for (let y = 0; y < height; y++) {
-    const row = [];
-    for (let x = 0; x < width; x++) {
-      // Default to grass
-      row.push('.');
-    }
-    map.push(row);
-  }
-  
+  const { map: baseMap, tileIds } = createTileGrid(width, height, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
+
   // Add trees (# symbols)
   // Dense tree clusters
   const treeCluster1 = { x: 5, y: 3, w: 8, h: 6 };
@@ -114,7 +106,7 @@ export function generateForestTerrain(width = 48, height = 22) {
     }
   }
   
-  return map;
+  return { map: baseMap, tileIds };
 }
 
 // Forest NPCs based on Adventure Time inhabitants
@@ -330,11 +322,13 @@ export function spawnForestNPCs(state) {
 // Generate the complete forest chunk  
 export function generateForestChunk(worldSeed, cx, cy) {
   // Return the chunk structure that matches the chunk system
+  const { map, tileIds } = generateForestTerrain();
   const chunk = {
     x: cx,
     y: cy,
     biome: FOREST_CONFIG.biome,
-    map: generateForestTerrain(),
+    map,
+    tileIds,
     npcs: [], // NPCs will be spawned separately
     monsters: [],
     items: [],
@@ -408,7 +402,9 @@ export function generateForestChunk(worldSeed, cx, cy) {
       y: 4
     }
   ];
-  
+
+  assertNoLegacyTileIds(tileIds, 'generateForestChunk');
+
   return chunk;
 }
 

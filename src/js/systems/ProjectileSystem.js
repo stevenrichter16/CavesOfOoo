@@ -4,397 +4,327 @@
 import { emit } from '../utils/events.js';
 import { EventType } from '../utils/eventTypes.js';
 
+const PROJECTILE_SYMBOL_MAP = {
+  fire: ['*', '✦', '◉'],
+  ice: ['*', '❄', '◆'],
+  electric: ['⚡', 'z', 'Z'],
+  explosive: ['o', 'O', '@'],
+  poison: ['o', '@', 'o', '@'],
+  arrow: ['-', '>', '=', '>'],
+  magic: ['*', '+', 'x', '+'],
+  default: ['o', 'O', '0', 'O']
+};
+
+function normalizeArcHeight(arcHeight) {
+  return Number.isFinite(arcHeight) ? arcHeight : 0;
+}
+
+function sanitizeCoordinate(value) {
+  return Object.is(value, -0) ? 0 : value;
+}
+
+export function calculateProjectilePath(fromX, fromY, toX, toY, arcHeight = 0) {
+  if (![fromX, fromY, toX, toY].every(Number.isFinite)) {
+    return [];
+  }
+
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance === 0) {
+    return [{ x: fromX, y: fromY }];
+  }
+
+  const steps = Math.max(1, Math.ceil(distance * 2));
+  const path = [];
+  const safeArc = normalizeArcHeight(arcHeight);
+
+  for (let i = 0; i <= steps; i++) {
+    const progress = i / steps;
+    const x = fromX + dx * progress;
+    const baseY = fromY + dy * progress;
+    const arcOffset = safeArc !== 0 ? Math.sin(progress * Math.PI) * safeArc : 0;
+    path.push({ x, y: baseY - arcOffset });
+  }
+
+  return path;
+}
+
+export function getProjectileSymbol(type, frame = 0, customSymbols = null) {
+  const symbolPool = Array.isArray(customSymbols) && customSymbols.length > 0
+    ? customSymbols
+    : PROJECTILE_SYMBOL_MAP[type] || PROJECTILE_SYMBOL_MAP.default;
+
+  if (!symbolPool.length) {
+    return 'o';
+  }
+
+  const index = Math.abs(frame) % symbolPool.length;
+  return symbolPool[index];
+}
+
 /**
- * ProjectileSystem - Handles all projectile animations for ranged attacks
+ * ProjectileSystem - Handles projectile animations and completion events
  */
 class ProjectileSystem {
   constructor() {
     this.activeProjectiles = new Map();
-    this.animationFrameId = null;
-    this.lastFrameTime = 0;
   }
 
   /**
-   * Launch a projectile with animation
-   * @param {Object} config - Projectile configuration
-   * @returns {Promise} Resolves when projectile reaches target
+   * Launch a projectile along a computed path.
+   * Schedules floating-text animations and resolves when the impact occurs.
    */
   async launch(config) {
-    console.log('[PROJECTILE] Launch called with config:', {
-      from: `(${config.fromX}, ${config.fromY})`,
-      to: `(${config.toX}, ${config.toY})`,
-      type: config.type,
-      speed: config.speed
-    });
-    
     const {
       fromX,
       fromY,
       toX,
       toY,
       type = 'default',
-      speed = 500, // tiles per second
-      arcHeight = 0.3, // Arc height multiplier (relative to distance)
+      speed = 500,
+      arcHeight = 0.3,
       trail = false,
-      animationSymbols = null, // Custom animation symbols
-      impactSymbols = null, // Custom impact symbols
-      displayKind = null, // Custom display kind
-      checkCollision = null, // Function to check if position is blocked
+      animationSymbols = null,
+      impactSymbols = null,
+      displayKind = null,
+      checkCollision = null,
       onImpact = null
     } = config;
 
-    // Validate inputs
-    if (!Number.isFinite(fromX) || !Number.isFinite(fromY) || 
-        !Number.isFinite(toX) || !Number.isFinite(toY)) {
+    if (![fromX, fromY, toX, toY].every(Number.isFinite)) {
       console.error('Invalid projectile coordinates:', { fromX, fromY, toX, toY });
       return Promise.reject(new Error('Invalid projectile coordinates'));
     }
-    
-    if (fromX === toX && fromY === toY) {
-      // Instant impact if launching at same position
-      if (onImpact) {
-        onImpact(toX, toY);
+
+    const normalizedSpeed = speed > 0 ? speed : 100;
+    const safeArcHeight = normalizeArcHeight(arcHeight);
+    const rawPath = calculateProjectilePath(fromX, fromY, toX, toY, safeArcHeight);
+    const discretePath = this.buildDiscretePath(rawPath, fromX, fromY);
+
+    const distance = Math.hypot(toX - fromX, toY - fromY);
+    let duration = 0;
+    if (distance !== 0) {
+      const computed = (distance / normalizedSpeed) * 1000;
+      duration = Math.max(100, computed);
+      if (speed <= 0) {
+        duration = 100;
       }
-      return Promise.resolve({ x: toX, y: toY });
     }
 
-    // Calculate trajectory
-    const trajectory = this.calculateTrajectory(fromX, fromY, toX, toY);
-    const distance = trajectory.distance;
-    const duration = Math.max(100, (distance / speed) * 1000); // Min 100ms duration
-    console.log(`[PROJECTILE] Calculated trajectory - Distance: ${distance.toFixed(2)}, Duration: ${duration.toFixed(0)}ms`);
-    
-    // Create projectile object
-    const projectile = {
-      id: `proj_${Date.now()}_${Math.random()}`,
-      startTime: performance.now(),
-      duration,
-      trajectory,
-      type,
-      trail,
-      arcHeight,
+    const impactIndex = this.findImpactIndex(discretePath, checkCollision);
+    const impactPoint = discretePath[impactIndex] ?? discretePath[discretePath.length - 1];
+    const collided = typeof checkCollision === 'function' ? impactIndex < discretePath.length - 1 : false;
+
+    const stepCount = Math.max(impactIndex, 1);
+    const stepDuration = stepCount === 0 ? 0 : duration / stepCount;
+    const impactDelay = duration === 0 ? 0 : Math.round(stepDuration * impactIndex);
+
+    const launchPayload = {
       fromX,
       fromY,
       toX,
       toY,
-      currentFrame: 0,
-      trailPositions: [],
-      animationSymbols,
-      impactSymbols,
-      displayKind,
-      checkCollision,
-      collided: false
+      type,
+      speed: normalizedSpeed,
+      arcHeight: safeArcHeight,
+      trail: !!trail,
+      path: rawPath,
+      animationSymbols: animationSymbols || undefined,
+      impactSymbols: impactSymbols || undefined,
+      displayKind: displayKind || undefined
     };
 
-    // Store active projectile
-    this.activeProjectiles.set(projectile.id, projectile);
+    emit('ProjectileLaunched', launchPayload);
 
-    // Start animation loop if not running
-    if (!this.animationFrameId) {
-      this.startAnimationLoop();
+    if (duration === 0) {
+      if (onImpact) {
+        onImpact(impactPoint.x, impactPoint.y);
+      }
+      emit('ProjectileComplete', {
+        x: impactPoint.x,
+        y: impactPoint.y,
+        type,
+        collided,
+        path: rawPath
+      });
+      return { x: impactPoint.x, y: impactPoint.y };
     }
 
-    // Return promise that resolves when projectile reaches target
     return new Promise((resolve) => {
-      projectile.onComplete = () => {
-        console.log(`[PROJECTILE] Projectile ${projectile.id} completed`);
-        this.activeProjectiles.delete(projectile.id);
-        // Use actual impact position (may have changed due to collision)
-        const impactX = projectile.toX;
-        const impactY = projectile.toY;
-        console.log(`[PROJECTILE] Impact position: (${impactX}, ${impactY})`);
-        if (onImpact) {
-          console.log(`[PROJECTILE] Calling onImpact callback`);
-          onImpact(impactX, impactY);
-        }
-        resolve({ x: impactX, y: impactY });
+      const projectile = {
+        id: `proj_${Date.now()}_${Math.random()}`,
+        type,
+        trail,
+        animationSymbols,
+        impactSymbols,
+        displayKind,
+        path: rawPath,
+        pathPoints: discretePath,
+        timers: [],
+        onImpact,
+        collided,
+        finalPoint: impactPoint,
+        resolvePromise: resolve,
+        stepDuration,
+        impactDelay
       };
+
+      this.activeProjectiles.set(projectile.id, projectile);
+
+      this.schedulePathAnimation(projectile, impactIndex);
+      this.scheduleImpact(projectile);
     });
   }
 
-  /**
-   * Calculate trajectory between two points
-   */
-  calculateTrajectory(x1, y1, x2, y2) {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const steps = Math.max(3, Math.min(15, Math.floor(distance * 2))); // Optimize step count
-    
-    return {
-      dx,
-      dy,
-      distance,
-      steps,
-      stepX: dx / steps,
-      stepY: dy / steps
-    };
+  buildDiscretePath(rawPath, fallbackX, fallbackY) {
+    if (!Array.isArray(rawPath) || rawPath.length === 0) {
+      return [{ x: Math.round(fallbackX), y: Math.round(fallbackY) }];
+    }
+
+    const discrete = [];
+    for (const point of rawPath) {
+      const x = sanitizeCoordinate(Math.round(point.x));
+      const y = sanitizeCoordinate(Math.round(point.y));
+      const last = discrete[discrete.length - 1];
+      if (!last || last.x !== x || last.y !== y) {
+        discrete.push({ x, y });
+      }
+    }
+
+    if (discrete.length === 0) {
+      return [{ x: sanitizeCoordinate(Math.round(fallbackX)), y: sanitizeCoordinate(Math.round(fallbackY)) }];
+    }
+
+    return discrete;
   }
 
-  /**
-   * Start the animation loop using requestAnimationFrame
-   */
-  startAnimationLoop() {
-    // Prevent multiple animation loops
-    if (this.animationFrameId) {
+  findImpactIndex(path, checkCollision) {
+    if (typeof checkCollision !== 'function') {
+      return path.length - 1;
+    }
+
+    for (let i = 0; i < path.length; i++) {
+      const point = path[i];
+      if (checkCollision(point.x, point.y)) {
+        let fallback = i - 1;
+        while (fallback >= 0 && checkCollision(path[fallback].x, path[fallback].y)) {
+          fallback--;
+        }
+        return Math.max(0, fallback);
+      }
+    }
+
+    return path.length - 1;
+  }
+
+  schedulePathAnimation(projectile, impactIndex) {
+    const { pathPoints, stepDuration, type, animationSymbols, trail, displayKind } = projectile;
+    if (!Array.isArray(pathPoints) || pathPoints.length === 0) {
       return;
     }
-    
-    const animate = (currentTime) => {
-      // Initialize lastFrameTime on first frame
-      if (this.lastFrameTime === 0) {
-        this.lastFrameTime = currentTime;
-      }
-      
-      // Calculate delta time for smooth animation
-      const deltaTime = currentTime - this.lastFrameTime;
-      this.lastFrameTime = currentTime;
 
-      // Update all active projectiles
-      const completedProjectiles = [];
-      
-      for (const [id, projectile] of this.activeProjectiles) {
-        const elapsed = currentTime - projectile.startTime;
-        const progress = Math.min(1, elapsed / projectile.duration);
-        
-        // Update projectile position
-        this.updateProjectile(projectile, progress);
-        
-        // Check if complete
-        if (progress >= 1) {
-          completedProjectiles.push(projectile);
+    for (let i = 0; i <= impactIndex; i++) {
+      const point = pathPoints[i];
+      const delay = Math.round(stepDuration * i);
+      const timerId = setTimeout(() => {
+        const symbol = getProjectileSymbol(type, i, animationSymbols);
+        emit(EventType.FloatingText, {
+          x: point.x,
+          y: point.y,
+          text: symbol,
+          kind: displayKind || this.getProjectileKind(type),
+          duration: Math.max(75, Math.round(stepDuration) || 75)
+        });
+
+        if (trail && i > 0) {
+          emit(EventType.FloatingText, {
+            x: point.x,
+            y: point.y,
+            text: '.',
+            kind: 'magic',
+            duration: Math.max(50, Math.round(stepDuration / 2) || 50),
+            opacity: 0.6
+          });
         }
-      }
+      }, delay);
 
-      // Handle completed projectiles
-      for (const projectile of completedProjectiles) {
-        this.handleImpact(projectile);
-        if (projectile.onComplete) {
-          projectile.onComplete();
-        }
-      }
-
-      // Continue animation if projectiles remain
-      if (this.activeProjectiles.size > 0) {
-        this.animationFrameId = requestAnimationFrame(animate);
-      } else {
-        this.animationFrameId = null;
-        this.lastFrameTime = 0; // Reset for next animation cycle
-      }
-    };
-
-    this.animationFrameId = requestAnimationFrame(animate);
-  }
-
-  /**
-   * Update projectile position and render
-   */
-  updateProjectile(projectile, progress) {
-    const { fromX, fromY, trajectory, arcHeight, type, checkCollision } = projectile;
-    
-    // Calculate current position with arc
-    const linearX = fromX + (trajectory.dx * progress);
-    const linearY = fromY + (trajectory.dy * progress);
-    
-    // Add parabolic arc for height (scaled by distance for consistency)
-    const arcScale = Math.min(1, trajectory.distance / 10); // Scale down arc for short throws
-    const arcOffset = Math.sin(progress * Math.PI) * arcHeight * arcScale * trajectory.distance;
-    
-    const currentX = Math.round(linearX);
-    const currentY = Math.round(linearY - arcOffset);
-    
-    // Check for collision if we have a collision checker and position changed
-    if (checkCollision && (currentX !== projectile.lastX || currentY !== projectile.lastY)) {
-      // Don't check collision at starting position
-      if (!(currentX === fromX && currentY === fromY)) {
-        if (checkCollision(currentX, currentY)) {
-          // Collision detected! Impact at last valid position
-          projectile.collided = true;
-          // Use last valid position (before the wall)
-          projectile.toX = projectile.lastX !== undefined ? projectile.lastX : fromX;
-          projectile.toY = projectile.lastY !== undefined ? projectile.lastY : fromY;
-          // Force completion on next frame
-          projectile.startTime = performance.now() - projectile.duration;
-          return; // Don't render at blocked position
-        }
-      }
-    }
-
-    // Only render if position changed (performance optimization)
-    if (currentX !== projectile.lastX || currentY !== projectile.lastY) {
-      // Clear previous position if needed
-      if (projectile.lastRendered) {
-        this.clearProjectile(projectile.lastX, projectile.lastY);
-      }
-
-      // Render projectile at new position
-      this.renderProjectile(currentX, currentY, type, projectile);
-      
-      // Handle trail
-      if (projectile.trail) {
-        this.renderTrail(projectile, currentX, currentY);
-      }
-
-      projectile.lastX = currentX;
-      projectile.lastY = currentY;
-      projectile.lastRendered = true;
+      this.queueTimer(projectile, timerId);
     }
   }
 
-  /**
-   * Render projectile at position
-   */
-  renderProjectile(x, y, type, projectile) {
-    // Bounds checking - don't render outside map
-    if (x < 0 || y < 0 || !Number.isFinite(x) || !Number.isFinite(y)) {
-      return;
-    }
-    
-    // Use custom symbols if provided, otherwise use defaults
-    const symbols = projectile.animationSymbols || this.getProjectileSymbols(type);
-    if (!symbols || symbols.length === 0) {
-      return;
-    }
-    
-    const frameIndex = Math.abs(projectile.currentFrame) % symbols.length;
-    const symbol = symbols[frameIndex];
-    
-    // Increment frame for animation
-    projectile.currentFrame++;
+  scheduleImpact(projectile) {
+    const timerId = setTimeout(() => {
+      this.emitImpactSymbols(projectile);
 
-    // Emit floating text event for rendering
-    emit(EventType.FloatingText, {
-      x,
-      y,
-      text: symbol,
-      kind: projectile.displayKind || this.getProjectileKind(type),
-      duration: 100 // Short duration for smooth animation
+      emit('ProjectileComplete', {
+        x: projectile.finalPoint.x,
+        y: projectile.finalPoint.y,
+        type: projectile.type,
+        collided: projectile.collided,
+        path: projectile.path
+      });
+
+      if (projectile.onImpact) {
+        projectile.onImpact(projectile.finalPoint.x, projectile.finalPoint.y);
+      }
+
+      this.activeProjectiles.delete(projectile.id);
+      projectile.resolvePromise({ x: projectile.finalPoint.x, y: projectile.finalPoint.y });
+    }, Math.max(0, projectile.impactDelay));
+
+    this.queueTimer(projectile, timerId);
+  }
+
+  emitImpactSymbols(projectile) {
+    const symbols = projectile.impactSymbols || this.getImpactSymbols(projectile.type);
+
+    symbols.forEach((symbol, index) => {
+      const timerId = setTimeout(() => {
+        const offset = this.getImpactOffset(index);
+        emit(EventType.FloatingText, {
+          x: projectile.finalPoint.x + offset.x,
+          y: projectile.finalPoint.y + offset.y,
+          text: symbol,
+          kind: projectile.displayKind || this.getProjectileKind(projectile.type),
+          duration: Math.max(80, 150 - index * 30)
+        });
+      }, index * 20);
+
+      this.queueTimer(projectile, timerId);
     });
   }
 
-  /**
-   * Get projectile symbols based on type
-   */
-  getProjectileSymbols(type) {
-    const symbolMap = {
-      'fire': ['*', 'x', '+', 'X', '*'],
-      'ice': ['*', 'o', 'O', '*'],
-      'poison': ['o', '@', 'o', '@'],
-      'electric': ['z', 'Z', 'x', 'Z', 'z'],
-      'default': ['o', 'O', '0', 'O', 'o'],
-      'arrow': ['-', '>', '=', '>'],
-      'magic': ['*', '+', 'x', '+']
-    };
-    
-    return symbolMap[type] || symbolMap.default;
-  }
-
-  /**
-   * Get projectile display kind for styling
-   */
   getProjectileKind(type) {
     const kindMap = {
-      'fire': 'crit',
-      'ice': 'freeze',
-      'poison': 'poison',
-      'electric': 'magic',
-      'magic': 'magic',
-      'default': 'damage'
+      fire: 'crit',
+      ice: 'freeze',
+      poison: 'poison',
+      electric: 'magic',
+      explosive: 'damage',
+      magic: 'magic',
+      default: 'damage',
+      arrow: 'damage'
     };
-    
+
     return kindMap[type] || 'damage';
   }
 
-  /**
-   * Render trail effect
-   */
-  renderTrail(projectile, x, y) {
-    // Store trail position
-    projectile.trailPositions.push({ x, y, time: performance.now() });
-    
-    // Clean up old trail positions (prevent memory leak)
-    const currentTime = performance.now();
-    projectile.trailPositions = projectile.trailPositions.filter(pos => 
-      (currentTime - pos.time) < 300 // Keep only last 300ms of trail
-    );
-    
-    // Limit trail length
-    const maxTrailLength = 5;
-    if (projectile.trailPositions.length > maxTrailLength) {
-      projectile.trailPositions = projectile.trailPositions.slice(-maxTrailLength);
-    }
-
-    // Render fading trail
-    projectile.trailPositions.forEach((pos, index) => {
-      const age = (currentTime - pos.time) / 1000; // Age in seconds
-      if (age < 0.3) { // Trail lasts 0.3 seconds
-        const trailSymbol = '.';
-        const opacity = 1 - (age / 0.3);
-        
-        emit(EventType.FloatingText, {
-          x: pos.x,
-          y: pos.y,
-          text: trailSymbol,
-          kind: 'magic',
-          duration: 50,
-          opacity
-        });
-      }
-    });
-  }
-
-  /**
-   * Clear projectile at position (if needed)
-   */
-  clearProjectile(x, y) {
-    // In this implementation, floating text auto-clears
-    // This method is here for future canvas direct rendering
-  }
-
-  /**
-   * Handle projectile impact
-   */
-  handleImpact(projectile) {
-    const { toX, toY, type } = projectile;
-    
-    // Use custom impact symbols if provided, otherwise use defaults
-    const impactSymbols = projectile.impactSymbols || this.getImpactSymbols(type);
-    
-    // Animate impact burst
-    impactSymbols.forEach((symbol, index) => {
-      setTimeout(() => {
-        const offset = this.getImpactOffset(index);
-        
-        emit(EventType.FloatingText, {
-          x: toX + offset.x,
-          y: toY + offset.y,
-          text: symbol,
-          kind: projectile.displayKind || this.getProjectileKind(type),
-          duration: 150 - (index * 30)
-        });
-      }, index * 20);
-    });
-  }
-
-  /**
-   * Get impact symbols based on type
-   */
   getImpactSymbols(type) {
     const symbolMap = {
-      'fire': ['*', 'x', 'X', '+'],
-      'ice': ['*', '+', '*'],
-      'poison': ['@', 'o', '@'],
-      'electric': ['z', 'Z', 'x', 'Z'],
-      'default': ['x', '+', '*'],
-      'magic': ['*', '+', 'x', '*']
+      fire: ['*', 'x', 'X', '+'],
+      ice: ['*', '+', '*'],
+      poison: ['@', 'o', '@'],
+      electric: ['z', 'Z', 'x', 'Z'],
+      explosive: ['@', 'O', '*'],
+      default: ['x', '+', '*'],
+      magic: ['*', '+', 'x', '*']
     };
-    
+
     return symbolMap[type] || symbolMap.default;
   }
 
-  /**
-   * Calculate impact particle offset
-   */
   getImpactOffset(index) {
     const offsets = [
       { x: 0, y: 0 },
@@ -403,46 +333,37 @@ class ProjectileSystem {
       { x: 0, y: -1 },
       { x: 0, y: 1 }
     ];
-    
+
     return offsets[index] || { x: 0, y: 0 };
   }
 
-  /**
-   * Cancel all active projectiles
-   * @returns {number} Number of projectiles canceled
-   */
+  queueTimer(projectile, timerId) {
+    if (!projectile.timers) {
+      projectile.timers = [];
+    }
+    projectile.timers.push(timerId);
+  }
+
   cancelAll() {
-    const canceledCount = this.activeProjectiles.size;
-    
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-    
-    // Call onComplete callbacks for cleanup
-    for (const [id, projectile] of this.activeProjectiles) {
-      if (projectile.onComplete && typeof projectile.onComplete === 'function') {
-        try {
-          projectile.onComplete();
-        } catch (err) {
-          console.error('Error in projectile onComplete:', err);
-        }
+    let count = 0;
+
+    for (const projectile of this.activeProjectiles.values()) {
+      if (Array.isArray(projectile.timers)) {
+        projectile.timers.forEach((timerId) => clearTimeout(timerId));
       }
+      if (projectile.resolvePromise) {
+        projectile.resolvePromise({ x: projectile.finalPoint?.x ?? 0, y: projectile.finalPoint?.y ?? 0 });
+      }
+      count++;
     }
-    
+
     this.activeProjectiles.clear();
-    this.lastFrameTime = 0; // Reset frame timing
-    
-    return canceledCount;
+    return count;
   }
 }
 
-// Export singleton instance
 export const projectileSystem = new ProjectileSystem();
 
-/**
- * Helper function to launch a projectile
- */
 export async function launchProjectile(config) {
   return projectileSystem.launch(config);
 }

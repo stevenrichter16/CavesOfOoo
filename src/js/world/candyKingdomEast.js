@@ -3,6 +3,7 @@
 // East Gate chunk - Massive merchant quarter and bazaar
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { createTileGrid, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;
@@ -14,15 +15,8 @@ const CHUNK_HEIGHT = 22;
 export function generateEastGateChunk(worldSeed, cx, cy) {
   if (cx !== 1 || cy !== 0) return null;
   
-  const map = [];
-  
-  // Initialize with market floor pattern
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.';
-    }
-  }
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Continue walls from main town
   for (let x = 0; x < CHUNK_WIDTH; x++) {
@@ -179,7 +173,8 @@ export function generateEastGateChunk(worldSeed, cx, cy) {
   map[11][39] = '═';
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [],
     items: [
       { x: 23, y: 11, type: 'coin', amount: 50 },
@@ -202,6 +197,8 @@ export function generateEastGateChunk(worldSeed, cx, cy) {
     isKingdomChunk: true
   };
   
+  assertNoLegacyTileIds(tileIds, 'generateCandyKingdomEast');
+
   return chunk;
 }
 

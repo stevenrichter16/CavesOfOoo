@@ -21,7 +21,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.3,
     doorChance: 0.8,
     stairChance: 0.1,
-    decorations: ['♣', '◊', '║', 'o']
+    decorations: [
+      'decoration.candy.tree',
+      'structure.training.statue',
+      'structure.market.cart.support',
+      'terrain.grass.scatter'
+    ]
   },
   ice_kingdom: {
     chestDensity: 0.1,
@@ -29,7 +34,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.25,
     doorChance: 0.7,
     stairChance: 0.08,
-    decorations: ['☃', '▲', '∘', '·']
+    decorations: [
+      'decoration.snowman',
+      'decoration.shrine.marker',
+      'decoration.transition.marker',
+      'floor.candy.polished'
+    ]
   },
   fire_kingdom: {
     chestDensity: 0.12,
@@ -37,7 +47,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.2,
     doorChance: 0.6,
     stairChance: 0.12,
-    decorations: ['~', '≈', '▲', '█']
+    decorations: [
+      'terrain.water.shallow',
+      'floor.crosswalk.striped',
+      'decoration.shrine.marker',
+      'structure.building.block'
+    ]
   },
   // Original biomes
   grassland: {
@@ -46,7 +61,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.2,
     doorChance: 0.7,
     stairChance: 0.1,
-    decorations: ['%', '&', '.', '·']
+    decorations: [
+      'material.candy.dust',
+      'decoration.bush.generic',
+      'floor.default',
+      'floor.candy.polished'
+    ]
   },
   // Alias for consistency with Adventure Time biomes
   grasslands: {
@@ -55,7 +75,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.2,
     doorChance: 0.7,
     stairChance: 0.1,
-    decorations: ['%', '&', '.', '·']
+    decorations: [
+      'material.candy.dust',
+      'decoration.bush.generic',
+      'floor.default',
+      'floor.candy.polished'
+    ]
   },
   forest: {
     chestDensity: 0.15,
@@ -63,7 +88,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.3,
     doorChance: 0.6,
     stairChance: 0.1,
-    decorations: ['T', '%', '&', 'v']
+    decorations: [
+      'decoration.tree.generic',
+      'material.candy.dust',
+      'decoration.bush.generic',
+      'decoration.mushroom.cluster'
+    ]
   },
   desert: {
     chestDensity: 0.05,
@@ -71,7 +101,11 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.1,
     doorChance: 0.5,
     stairChance: 0.05,
-    decorations: ['o', '·', '^']
+    decorations: [
+      'terrain.grass.scatter',
+      'floor.candy.polished',
+      'terrain.hazard.spikes'
+    ]
   },
   tundra: {
     chestDensity: 0.08,
@@ -79,7 +113,11 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.15,
     doorChance: 0.6,
     stairChance: 0.08,
-    decorations: ['*', '·', 'i']
+    decorations: [
+      'decoration.flower.patch',
+      'floor.candy.polished',
+      'decoration.crystal.cluster'
+    ]
   },
   swamp: {
     chestDensity: 0.12,
@@ -87,7 +125,12 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.25,
     doorChance: 0.5,
     stairChance: 0.05,
-    decorations: ['~', '%', 'v', '&']
+    decorations: [
+      'terrain.water.shallow',
+      'material.candy.dust',
+      'decoration.mushroom.cluster',
+      'decoration.bush.generic'
+    ]
   },
   mountains: {
     chestDensity: 0.2,
@@ -95,7 +138,11 @@ const BIOME_FEATURE_PARAMS = {
     decorationDensity: 0.1,
     doorChance: 0.8,
     stairChance: 0.9,
-    decorations: ['^', 'o', '*']
+    decorations: [
+      'terrain.hazard.spikes',
+      'terrain.grass.scatter',
+      'decoration.flower.patch'
+    ]
   }
 };
 
@@ -594,7 +641,14 @@ export class FeatureStep extends PipelineStep {
       return false;
     }
 
-    const glyph = tileInfo.glyph;
+    const tileId = tileInfo.tileId;
+    if (tileId && !tileId.startsWith('legacy.')) {
+      return tileId.includes('.wall') || tileId.includes('.cliff');
+    }
+
+    const glyph = tileId?.startsWith('legacy.glyph.')
+      ? tileId.slice('legacy.glyph.'.length)
+      : tileInfo.glyph;
     return glyph === '#' || glyph === '█' || glyph === '▓';
   }
 
@@ -626,6 +680,15 @@ export class FeatureStep extends PipelineStep {
       const name = (terrain.name || '').toLowerCase();
       if (name.includes('wall') || name.includes('rock')) return false;
       return true;
+    }
+
+    const tileId = info.tileId ?? (info.glyph ? glyphToTileId(info.glyph, null) : null);
+    if (tileId) {
+      if (!tileId.startsWith('legacy.')) {
+        return !tileId.includes('.wall') && !tileId.includes('.cliff');
+      }
+      const glyph = tileId.slice('legacy.glyph.'.length);
+      return glyph === '.' || glyph === '·' || glyph === ',' || glyph === '-' || glyph === '=';
     }
 
     const glyph = info.glyph;

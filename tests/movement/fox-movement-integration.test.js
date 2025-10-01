@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { runPlayerMove } from '../../src/js/movement/movePipeline.js';
 import { attack } from '../../src/js/combat/combat.js';
 import { generateForestChunk } from '../../src/js/world/theForest.js';
+import { createTestChunk } from '../helpers/testUtils.js';
 
 describe('Fox Movement Pipeline Integration', () => {
   let state;
@@ -30,16 +31,14 @@ describe('Fox Movement Pipeline Integration', () => {
       }
     };
 
+    const chunk = createTestChunk(48, 22);
+    chunk.biome = 'forest';
+
     state = {
       player,
       cx: 0,
       cy: -2, // Forest location
-      chunk: {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: [],
-        biome: 'forest'
-      },
+      chunk,
       npcs: [],
       turn: 0,
       log: vi.fn((state, text, cls) => {})
@@ -148,7 +147,7 @@ describe('Fox Movement Pipeline Integration', () => {
       await runPlayerMove(state, moveAction);
 
       expect(player.x).toBe(10); // Didn't move
-      expect(player.inventory.filter(i => i.item?.id === 'fox_sweet_tooth')[0].quantity).toBe(2);
+      expect(player.inventory.filter(i => i.item?.id === 'fox_sweet_tooth')[0].count).toBe(2);
     });
 
     it('should handle sequential tooth collection', async () => {
@@ -181,7 +180,7 @@ describe('Fox Movement Pipeline Integration', () => {
 
       const teeth = player.inventory.find(i => i.item?.id === 'fox_sweet_tooth');
       expect(teeth).toBeTruthy();
-      expect(teeth.quantity).toBe(3);
+      expect(teeth.count).toBe(3);
       expect(player.quests.progress.sweet_tooth_foxes.teeth).toBe(3);
     });
   });
@@ -377,7 +376,7 @@ describe('Fox Movement Pipeline Integration', () => {
       
       const teeth = player.inventory.find(i => i.item?.id === 'fox_sweet_tooth');
       expect(teeth).toBeTruthy();
-      expect(teeth.quantity).toBe(5);
+      expect(teeth.count).toBe(5);
     });
 
     it('should handle quest without active quest', async () => {

@@ -62,7 +62,14 @@ export function adaptRunPlayerMove(originalFunc) {
       
       // Convert result to match expected return value
       // Original returns true if action was consumed
-      return result.success || result.attacked || result.interacted || result.cancelled;
+      return Boolean(
+        result.success ||
+        result.attacked ||
+        result.interacted ||
+        result.moved ||
+        result.changedChunk ||
+        result.consumed
+      );
       
     } catch (error) {
       console.error('Error in new movement pipeline, falling back to original:', error);

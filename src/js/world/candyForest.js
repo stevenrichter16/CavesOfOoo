@@ -4,7 +4,7 @@
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { makeMonster } from '../entities/entities.js';
-import { mapToTileIds } from './tileUtils.js';
+import { createTileGrid, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;
@@ -16,11 +16,11 @@ const CHUNK_HEIGHT = 22;
 export function generateCandyForestNW(worldSeed, cx, cy) {
   if (cx !== -1 || cy !== -1) return null;
   
-  const map = [];
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Initialize with forest floor (mix of grass and candy moss)
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
       const r = Math.random();
       if (r < 0.7) map[y][x] = '·'; // Candy moss
@@ -79,7 +79,8 @@ export function generateCandyForestNW(worldSeed, cx, cy) {
   map[6][35] = '❀';
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [],
     items: [
       { x: 40, y: 3, type: 'chest', contents: [
@@ -98,8 +99,9 @@ export function generateCandyForestNW(worldSeed, cx, cy) {
     description: 'Dense cotton candy forest with towering sugar trees',
     isForest: true
   };
-  
-  chunk.tileIds = mapToTileIds(map, 'floor.default');
+
+  assertNoLegacyTileIds(tileIds, 'generateCandyForestNW');
+
   return chunk;
 }
 
@@ -110,11 +112,11 @@ export function generateCandyForestNW(worldSeed, cx, cy) {
 export function generateCandyForestNE(worldSeed, cx, cy) {
   if (cx !== 1 || cy !== -1) return null;
   
-  const map = [];
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Initialize with forest floor
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
       const r = Math.random();
       if (r < 0.6) map[y][x] = '·';
@@ -170,7 +172,8 @@ export function generateCandyForestNE(worldSeed, cx, cy) {
   map[2][8] = '▲';
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [],
     items: [
       { x: 24, y: 11, type: 'artifact', item: { 
@@ -191,8 +194,9 @@ export function generateCandyForestNE(worldSeed, cx, cy) {
     description: 'Deep cotton candy forest with a candy cane grove',
     isForest: true
   };
-  
-  chunk.tileIds = mapToTileIds(map, 'floor.default');
+
+  assertNoLegacyTileIds(tileIds, 'generateCandyForestNE');
+
   return chunk;
 }
 
@@ -203,11 +207,11 @@ export function generateCandyForestNE(worldSeed, cx, cy) {
 export function generateCandyForestSW(worldSeed, cx, cy) {
   if (cx !== -1 || cy !== 1) return null;
   
-  const map = [];
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Initialize with sparser forest (edge of forest)
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
       const r = Math.random();
       if (r < 0.5) map[y][x] = '·';
@@ -259,7 +263,8 @@ export function generateCandyForestSW(worldSeed, cx, cy) {
   map[18][15] = '←';
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [],
     items: [
       { x: 23, y: 12, type: 'weapon', item: { 
@@ -275,8 +280,9 @@ export function generateCandyForestSW(worldSeed, cx, cy) {
     description: 'Edge of the cotton candy forest with a woodcutter\'s cabin',
     isForest: true
   };
-  
-  chunk.tileIds = mapToTileIds(map, 'floor.default');
+
+  assertNoLegacyTileIds(tileIds, 'generateCandyForestSW');
+
   return chunk;
 }
 
@@ -287,11 +293,11 @@ export function generateCandyForestSW(worldSeed, cx, cy) {
 export function generateCandyForestSE(worldSeed, cx, cy) {
   if (cx !== 1 || cy !== 1) return null;
   
-  const map = [];
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Initialize with mystical forest floor
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
       const r = Math.random();
       if (r < 0.6) map[y][x] = '·';
@@ -343,7 +349,8 @@ export function generateCandyForestSE(worldSeed, cx, cy) {
   map[18][8] = '✧';
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [],
     items: [
       { x: 24, y: 11, type: 'artifact', item: { 
@@ -371,8 +378,9 @@ export function generateCandyForestSE(worldSeed, cx, cy) {
     isForest: true,
     isEnchanted: true
   };
-  
-  chunk.tileIds = mapToTileIds(map, 'floor.default');
+
+  assertNoLegacyTileIds(tileIds, 'generateCandyForestSE');
+
   return chunk;
 }
 

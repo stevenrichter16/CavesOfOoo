@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { 
-  adaptRunPlayerMove, 
+import * as adapter from '../../src/js/movement/pipelineAdapter.js';
+import { movementPipeline } from '../../src/js/movement/MovementPipeline.js';
+import { gameEventBus } from '../../src/js/systems/EventBus.js';
+
+const {
+  adaptRunPlayerMove,
   initializePipelineAdapter,
   MovementMetrics,
-  movementMetrics 
-} from '../../src/js/movement/pipelineAdapter.js';
-import { gameEventBus } from '../../src/js/systems/EventBus.js';
+  movementMetrics
+} = adapter;
 
 describe('Pipeline Adapter', () => {
   let originalEnv;
@@ -43,19 +46,32 @@ describe('Pipeline Adapter', () => {
       expect(adapted).not.toBe(originalFunc);
     });
 
-    it('should use original function when feature flag is disabled', async () => {
-      process.env.USE_NEW_MOVEMENT = 'false';
-      
+    it('should delegate to the new pipeline implementation', () => {
       const originalFunc = vi.fn(() => true);
+      const executeSpy = vi.spyOn(movementPipeline, 'executeSync').mockReturnValue({
+        success: true,
+        moved: true,
+        interacted: false,
+        attacked: false,
+        changedChunk: false,
+        pickedUpItems: [],
+        metrics: {},
+        consumed: false,
+        cancelled: false
+      });
+
       const adapted = adaptRunPlayerMove(originalFunc);
-      
+
       const mockState = { player: { x: 5, y: 5 } };
       const mockAction = { type: 'move', dx: 1, dy: 0 };
-      
-      const result = await adapted(mockState, mockAction);
-      
-      expect(originalFunc).toHaveBeenCalledWith(mockState, mockAction);
+
+      const result = adapted(mockState, mockAction);
+
+      expect(executeSpy).toHaveBeenCalledWith(mockState, mockAction);
+      expect(originalFunc).not.toHaveBeenCalled();
       expect(result).toBe(true);
+
+      executeSpy.mockRestore();
     });
 
     it('should fallback to original on pipeline error', async () => {

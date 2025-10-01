@@ -5,6 +5,7 @@
 
 import { W, H } from '../core/config.js';
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
+import { createTileGrid, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = W;  // 48
 const CHUNK_HEIGHT = H; // 22
@@ -17,15 +18,8 @@ export function generateCandyKingdomComplete(worldSeed, cx, cy) {
   // Main Candy Kingdom is at (0, 0)
   if (cx !== 0 || cy !== 0) return null;
   
-  const map = [];
-  
-  // Initialize with peanut brittle streets (.)
-  for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
-    for (let x = 0; x < CHUNK_WIDTH; x++) {
-      map[y][x] = '.'; // Peanut brittle street by default
-    }
-  }
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // ========================================
   // WALLS AND GUMBALL GUARDIANS
@@ -307,7 +301,8 @@ export function generateCandyKingdomComplete(worldSeed, cx, cy) {
   map[13][7] = '△'; // Tent marker
   
   const chunk = {
-    map,
+    map: baseMap,
+    tileIds,
     monsters: [], // No monsters inside the kingdom walls
     items: [],
     npcs: [],
@@ -319,6 +314,8 @@ export function generateCandyKingdomComplete(worldSeed, cx, cy) {
     description: 'The Candy Kingdom - a walled settlement built entirely of sweets'
   };
   
+  assertNoLegacyTileIds(tileIds, 'generateCandyKingdomComplete');
+
   // Generate NPCs for this chunk
   chunk.npcs = spawnCandyKingdomNPCs(worldSeed, cx, cy);
   

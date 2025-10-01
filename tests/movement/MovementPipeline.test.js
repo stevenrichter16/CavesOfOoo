@@ -13,7 +13,7 @@ vi.mock('../../src/js/combat/combat.js', () => ({
   attack: vi.fn()
 }));
 
-vi.mock('../../src/js/social/disguise.js', () => ({
+vi.mock('../../src/social/movement/MovementAdapter.js', () => ({
   isNPCHostileToPlayer: vi.fn()
 }));
 
@@ -187,7 +187,7 @@ describe('MovementPipeline', () => {
 
   describe('NPC interaction step', () => {
     it('should handle friendly NPC interaction', async () => {
-      const { isNPCHostileToPlayer } = await import('../../src/js/social/disguise.js');
+      const { isNPCHostileToPlayer } = await import('../../src/social/movement/MovementAdapter.js');
       isNPCHostileToPlayer.mockReturnValue(false);
       
       const npc = {
@@ -209,7 +209,7 @@ describe('MovementPipeline', () => {
     });
 
     it('should attack hostile NPCs', async () => {
-      const { isNPCHostileToPlayer } = await import('../../src/js/social/disguise.js');
+      const { isNPCHostileToPlayer } = await import('../../src/social/movement/MovementAdapter.js');
       const { attack } = await import('../../src/js/combat/combat.js');
       isNPCHostileToPlayer.mockReturnValue(true);
       
@@ -300,7 +300,7 @@ describe('MovementPipeline', () => {
       
       expect(context.cancelled).toBe(true);
       expect(context.result.reason).toBe('Terrain not passable');
-      expect(mockState.log).toHaveBeenCalledWith("You bump into a wall.", "note");
+      expect(mockState.log).toHaveBeenCalledWith("You can't move onto the wall.", "note");
     });
 
     it('should handle locked doors', async () => {
@@ -312,7 +312,7 @@ describe('MovementPipeline', () => {
       await pipeline.checkTerrainPassability(context);
       
       expect(context.cancelled).toBe(true);
-      expect(mockState.log).toHaveBeenCalledWith("The door is locked.", "note");
+      expect(mockState.log).toHaveBeenCalledWith("You can't move onto the door.", "note");
     });
   });
 

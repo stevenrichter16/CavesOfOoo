@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { isPassable, entityAt } from '../../src/js/utils/queries.js';
 import { runPlayerMove } from '../../src/js/movement/movePipeline.js';
 import { generateShoppingDistrictChunk } from '../../src/js/world/candyShoppingDistrict.js';
+import { createTestChunk } from '../helpers/testUtils.js';
 
 describe('Candy Street Movement', () => {
   let state;
@@ -34,11 +35,7 @@ describe('Candy Street Movement', () => {
 
   describe('Tile Passability', () => {
     it('should allow movement on = (paved street) tiles', () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Place paved street tiles (map[y][x] format)
       state.chunk.map[10][10] = '=';
@@ -65,11 +62,7 @@ describe('Candy Street Movement', () => {
     });
 
     it('should allow movement in all directions from = tiles', () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Create a cross of paved streets
       state.chunk.map[10][10] = '='; // Center
@@ -90,11 +83,7 @@ describe('Candy Street Movement', () => {
     });
 
     it('should not confuse = with walls or other blocking tiles', () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Mix of different tiles
       state.chunk.map[10][10] = '='; // Paved street - passable
@@ -155,11 +144,7 @@ describe('Candy Street Movement', () => {
 
   describe('Movement Pipeline', () => {
     it('should allow player to move onto = tiles', async () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Create street
       for (let x = 8; x < 13; x++) {
@@ -182,11 +167,7 @@ describe('Candy Street Movement', () => {
     });
 
     it('should allow vertical movement from = tiles', async () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Create vertical path
       for (let y = 8; y < 13; y++) {
@@ -217,11 +198,7 @@ describe('Candy Street Movement', () => {
     });
 
     it('should handle NPCs on street tiles', async () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('=')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22, '=');
       
       // Add NPC on street
       const npc = {
@@ -255,11 +232,7 @@ describe('Candy Street Movement', () => {
 
   describe('Edge Cases', () => {
     it('should handle = tiles at chunk boundaries', () => {
-      state.chunk = {
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        monsters: [],
-        items: []
-      };
+      state.chunk = createTestChunk(48, 22);
       
       // Place street tiles at edges
       state.chunk.map[0][10] = '=';  // Top edge

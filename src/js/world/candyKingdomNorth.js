@@ -3,7 +3,7 @@
 // North Gate chunk - Castle approach and noble district
 
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
-import { mapToTileIds } from './tileUtils.js';
+import { createTileGrid, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = 48;
 const CHUNK_HEIGHT = 22;
@@ -15,11 +15,11 @@ const CHUNK_HEIGHT = 22;
 export function generateNorthGateChunk(worldSeed, cx, cy) {
   if (cx !== 0 || cy !== -1) return null;
   
-  const map = [];
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
   
   // Initialize with fancy tilework
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
       // Checkered pattern for noble district
       map[y][x] = ((x + y) % 2 === 0) ? '.' : '·';
@@ -184,10 +184,8 @@ export function generateNorthGateChunk(worldSeed, cx, cy) {
     map[CHUNK_HEIGHT-2][x] = '.';
   }
   
-  const tileIds = mapToTileIds(map, 'floor.default');
-
   const chunk = {
-    map,
+    map: baseMap,
     tileIds,
     monsters: [],
     items: [
@@ -206,6 +204,8 @@ export function generateNorthGateChunk(worldSeed, cx, cy) {
     isKingdomChunk: true
   };
   
+  assertNoLegacyTileIds(tileIds, 'generateCandyKingdomNorth');
+
   return chunk;
 }
 

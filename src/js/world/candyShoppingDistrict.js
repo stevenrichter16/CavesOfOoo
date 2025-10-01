@@ -7,7 +7,7 @@
 import { W, H } from '../core/config.js';
 import { spawnSocialNPC } from '../../social/migrationAdapter.js';
 import { generateCleanShoppingDistrict } from './candyShoppingDistrictClean.js';
-import { mapToTileIds } from './tileUtils.js';
+import { createTileGrid, setTile, createGlyphAwareMap, assertNoLegacyTileIds } from './tileUtils.js';
 
 const CHUNK_WIDTH = W;  // 48
 const CHUNK_HEIGHT = H; // 22
@@ -33,17 +33,25 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   // Shopping district is directly east of entrance at (1, 0)
   if (cx !== 1 || cy !== 0) return null;
   
-  const map = [];
-  
+  const { map: baseMap, tileIds } = createTileGrid(CHUNK_WIDTH, CHUNK_HEIGHT, 'floor.default');
+  const map = createGlyphAwareMap(baseMap, tileIds);
+  const place = (x, y, tileId) => {
+    map[y][x] = tileId;
+  };
+  const isPedestrianSurface = (x, y) => {
+    const tileId = tileIds[y]?.[x];
+    return tileId === 'road.paved.main'
+      || tileId === 'floor.default'
+      || tileId === 'floor.candy.walkway'
+      || tileId === 'floor.market.promenade'
+      || tileId === 'floor.crosswalk.striped';
+  };
+
   // Initialize with peanut brittle streets (.) and chocolate dirt (·)
   for (let y = 0; y < CHUNK_HEIGHT; y++) {
-    map[y] = [];
     for (let x = 0; x < CHUNK_WIDTH; x++) {
-      if (Math.random() < 0.7) {
-        map[y][x] = '.'; // Peanut brittle main streets
-      } else {
-        map[y][x] = '·'; // Chocolate dirt paths
-      }
+      if (Math.random() >= 0.7) continue;
+      map[y][x] = '·'; // Chocolate dirt paths
     }
   }
   
@@ -103,7 +111,7 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   
   // Large central fountain (3x3)
   map[10][23] = '○'; map[10][24] = '○'; map[10][25] = '○';
-  map[11][23] = '○'; map[11][24] = '💧'; map[11][25] = '○'; // Center water
+  map[11][23] = '○'; place(24, 11, 'terrain.water.shallow'); map[11][25] = '○';
   map[12][23] = '○'; map[12][24] = '○'; map[12][25] = '○';
   
   // Benches around plaza
@@ -113,14 +121,14 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   map[13][19] = '║'; map[13][29] = '║';
   
   // Decorative planters with candy flowers
-  map[7][22] = '❀'; map[7][26] = '❀';
-  map[15][22] = '❀'; map[15][26] = '❀';
-  map[9][18] = '❀'; map[9][30] = '❀';
-  map[13][18] = '❀'; map[13][30] = '❀';
+  place(22, 7, 'decoration.flower.planter'); place(26, 7, 'decoration.flower.planter');
+  place(22, 15, 'decoration.flower.planter'); place(26, 15, 'decoration.flower.planter');
+  place(18, 9, 'decoration.flower.planter'); place(30, 9, 'decoration.flower.planter');
+  place(18, 13, 'decoration.flower.planter'); place(30, 13, 'decoration.flower.planter');
   
   // Candy-cane arches at plaza entrances
-  map[10][17] = '♦'; map[12][17] = '♦'; // West arch
-  map[10][31] = '♦'; map[12][31] = '♦'; // East arch
+  place(17, 10, 'structure.arch.candy'); place(17, 12, 'structure.arch.candy'); // West arch
+  place(31, 10, 'structure.arch.candy'); place(31, 12, 'structure.arch.candy'); // East arch
   
   // ========================================
   // MAJOR SHOPS & BUILDINGS
@@ -138,9 +146,11 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   }
   map[5][6] = '+'; // Main door
   map[5][7] = '+'; // Double doors
-  map[3][6] = '⚕'; // Pharmacy sign
-  map[3][5] = 'C'; map[3][7] = 'A'; // CANDY
-  map[3][8] = 'R'; map[3][9] = 'X'; // RX
+  place(6, 3, 'decoration.sign.pharmacy');
+  place(5, 3, 'decoration.sign.letter.c');
+  place(7, 3, 'decoration.sign.letter.a');
+  place(8, 3, 'decoration.sign.letter.r');
+  place(9, 3, 'decoration.sign.letter.x');
   // Interior details
   map[4][4] = '□'; // Shelf
   map[4][5] = '□'; // Shelf
@@ -158,11 +168,11 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
     }
   }
   map[6][15] = '+'; // Door
-  map[3][14] = 'P'; // PIZZA
-  map[3][15] = 'I';
-  map[3][16] = 'Z';
-  map[3][17] = 'Z';
-  map[3][18] = 'A';
+  place(14, 3, 'decoration.sign.letter.p');
+  place(15, 3, 'decoration.sign.letter.i');
+  place(16, 3, 'decoration.sign.letter.z');
+  place(17, 3, 'decoration.sign.letter.z');
+  place(18, 3, 'decoration.sign.letter.a');
   // Pizza ovens and tables
   map[4][13] = '☐'; // Oven
   map[4][14] = '☐'; // Oven
@@ -174,7 +184,7 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
     map[y][19] = '·'; // Alley
     map[y][20] = '·'; // Alley space
   }
-  map[4][19] = 'b'; // Delivery barrels
+  place(19, 4, 'container.barrel.candy');
   map[5][20] = '¤'; // Delivery cart
   
   // === COOLEST HOTEL (art deco style, multi-floor) ===
@@ -189,11 +199,11 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   }
   map[7][36] = '+'; // Main entrance
   map[7][37] = '+'; // Double doors
-  map[3][35] = 'H'; // HOTEL sign
-  map[3][36] = 'O';
-  map[3][37] = 'T';
-  map[3][38] = 'E';
-  map[3][39] = 'L';
+  place(35, 3, 'decoration.sign.letter.h');
+  place(36, 3, 'decoration.sign.letter.o');
+  place(37, 3, 'decoration.sign.letter.t');
+  place(38, 3, 'decoration.sign.letter.e');
+  place(39, 3, 'decoration.sign.letter.l');
   // Hotel lobby features
   map[6][34] = '□'; // Reception desk
   map[6][35] = '□'; // Reception desk
@@ -211,12 +221,12 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
     }
   }
   map[19][5] = '+'; // Door
-  map[17][5] = 'B'; // Broom sign
-  map[17][6] = '🧹'; // Broom symbol (or use '/')
-  map[18][4] = '/'; // Brooms on display
-  map[18][5] = '/';
-  map[18][6] = '/';
-  map[18][7] = '/';
+  place(5, 17, 'decoration.sign.letter.b');
+  place(6, 17, 'decoration.shop.broom');
+  place(4, 18, 'decoration.shop.broom');
+  place(5, 18, 'decoration.shop.broom');
+  place(6, 18, 'decoration.shop.broom');
+  place(7, 18, 'decoration.shop.broom');
   
   // === LOLLIPOP STORE (candy specialty) ===
   for (let y = 16; y <= 19; y++) {
@@ -247,14 +257,14 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   }
   map[19][39] = '+'; // Main entrance
   map[19][40] = '+'; // Double doors
-  map[15][37] = 'C'; // CALL CENTER sign
-  map[15][38] = 'A';
-  map[15][39] = 'L';
-  map[15][40] = 'L';
+  place(37, 15, 'decoration.sign.letter.c');
+  place(38, 15, 'decoration.sign.letter.a');
+  place(39, 15, 'decoration.sign.letter.l');
+  place(40, 15, 'decoration.sign.letter.l');
   // Office interior
   for (let x = 36; x <= 43; x += 2) {
     map[17][x] = '□'; // Desk
-    map[18][x] = '☎'; // Phone
+    place(x, 18, 'decoration.office.phone');
   }
   
   // === CHOOSE GOOSE'S BOOTH (special merchant stall) ===
@@ -263,7 +273,7 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
       map[y][x] = '╬'; // Fancy booth
     }
   }
-  map[9][15] = 'G'; // Goose sign
+  place(15, 9, 'decoration.sign.letter.g');
   
   // === TARTORIUM OUTLET (royal tart shop) ===
   for (let y = 16; y <= 19; y++) {
@@ -277,7 +287,7 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   }
   map[19][24] = '+'; // Door
   map[19][25] = '+';
-  map[17][24] = 'T'; // TART sign
+  place(24, 17, 'decoration.sign.letter.t');
   map[18][23] = '☐'; // Display case
   map[18][26] = '☐'; // Display case
   
@@ -308,11 +318,11 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   
   // Lamp posts along main street
   for (let x = 5; x < CHUNK_WIDTH - 5; x += 6) {
-    if (map[9][x] === '=' || map[9][x] === '.' || map[9][x] === '◯') {
-      map[9][x] = '†'; // Lamp post
+    if (isPedestrianSurface(x, 9)) {
+      place(x, 9, 'decoration.streetlamp');
     }
-    if (map[13][x] === '=' || map[13][x] === '.' || map[13][x] === '◯') {
-      map[13][x] = '†'; // Lamp post
+    if (isPedestrianSurface(x, 13)) {
+      place(x, 13, 'decoration.streetlamp');
     }
   }
   
@@ -324,31 +334,29 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
   
   // Crosswalks on main street
   for (let y = 10; y <= 12; y++) {
-    map[y][8] = '≈'; // Crosswalk
-    map[y][16] = '≈'; // Crosswalk
-    map[y][24] = '≈'; // Crosswalk at plaza
-    map[y][32] = '≈'; // Crosswalk
-    map[y][40] = '≈'; // Crosswalk
+    place(8, y, 'floor.crosswalk.striped');
+    place(16, y, 'floor.crosswalk.striped');
+    place(24, y, 'floor.crosswalk.striped');
+    place(32, y, 'floor.crosswalk.striped');
+    place(40, y, 'floor.crosswalk.striped');
   }
   
   // Barrels and crates for atmosphere
-  map[15][2] = 'b'; // Barrel
+  place(2, 15, 'container.barrel.candy');
   map[14][32] = '☐'; // Crate
-  map[17][12] = 'b'; // Barrel
-  map[3][21] = 'b'; // Barrel
+  place(12, 17, 'container.barrel.candy');
+  place(21, 3, 'container.barrel.candy');
   map[18][33] = '☐'; // Crate
   
   // Small park area with candy trees
   for (let y = 8; y <= 9; y++) {
     for (let x = 42; x <= 45; x++) {
-      map[y][x] = '♠'; // Cotton candy trees
+      place(x, y, 'decoration.tree.cotton_candy');
     }
   }
   
-  const tileIds = mapToTileIds(map, 'floor.default');
-
   const chunk = {
-    map,
+    map: baseMap,
     tileIds,
     monsters: [],
     items: [],
@@ -363,6 +371,8 @@ export function generateLegacyShoppingDistrictChunk(worldSeed, cx, cy) {
     npcData: getShoppingDistrictNPCData(cx, cy)
   };
   
+  assertNoLegacyTileIds(tileIds, 'generateLegacyShoppingDistrictChunk');
+
   // Add items throughout the district
   chunk.items = [
     // Fountain coins

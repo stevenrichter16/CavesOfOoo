@@ -86,6 +86,8 @@ export class MovementPipeline {
     context.result.metrics = context.metrics;
     
     // Emit final result event with full context for NPC processing
+    context.result.cancelled = context.cancelled;
+
     this.eventBus.emit('MovementComplete', {
       result: context.result,
       state: context.state,
@@ -143,6 +145,8 @@ export class MovementPipeline {
     context.result.metrics = context.metrics;
     
     // Emit final result event synchronously
+    context.result.cancelled = context.cancelled;
+
     this.eventBus.emit('MovementComplete', {
       result: context.result,
       state: context.state,
@@ -199,7 +203,8 @@ export class MovementPipeline {
         combat: false,  // Add combat flag
         pickedUpItems: [],
         changedChunk: false,
-        metrics: {}
+        metrics: {},
+        consumed: false
       },
       
       // Metrics for performance tracking
@@ -258,6 +263,7 @@ export class MovementPipeline {
     if (preEvent.cancelled) {
       context.cancelled = true;
       context.result.reason = 'Movement cancelled by WillMove event';
+      context.result.consumed = true;
       return;
     }
 
@@ -274,6 +280,7 @@ export class MovementPipeline {
     if (legacyEvent.cancel) {
       context.cancelled = true;
       context.result.reason = 'Movement cancelled by legacy event';
+      context.result.consumed = true;
       return;
     }
   }
@@ -517,6 +524,7 @@ export class MovementPipeline {
     if (tile && !this.terrainSystem.isPassable(tile)) {
       context.cancelled = true;
       context.result.reason = 'Terrain not passable';
+      context.result.consumed = true;
       
       const terrainInfo = this.terrainSystem.getTerrainInfo(tile) || {};
       const blockedName = terrainInfo.name && terrainInfo.name !== 'unknown'
@@ -633,6 +641,7 @@ export class MovementPipeline {
     } else {
       context.cancelled = true;
       context.result.reason = 'Edge transition failed';
+      context.result.consumed = true;
       
       if (state.log) {
         state.log("You can't go that way.", "note");

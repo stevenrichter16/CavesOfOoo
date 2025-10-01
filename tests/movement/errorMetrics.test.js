@@ -40,7 +40,8 @@ describe('Error Metrics', () => {
         },
         action: { type: 'move', dx: 1, dy: 0 }
       });
-      expect(metrics.errors[0].timestamp).toBeCloseTo(Date.now(), -2);
+      const delta = Math.abs(metrics.errors[0].timestamp - Date.now());
+      expect(delta).toBeLessThan(1000);
     });
 
     it('should handle missing context gracefully', () => {

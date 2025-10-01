@@ -1,27 +1,96 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MovementCostCalculator } from '../../src/js/pathfinding/MovementCostCalculator.js';
+import { getTerrainSystem, resetTerrainSystem } from '../../src/js/systems/TerrainSystem.js';
+import { getTileByGlyph } from '../../src/js/world/TileRegistry.js';
+
+function createTestChunk(glyphGrid, glyphOverrides = {}) {
+  const height = glyphGrid.length;
+  const width = glyphGrid[0].length;
+
+  const map = glyphGrid.map(row => [...row]);
+  const tileIds = glyphGrid.map(row => row.map(glyph => {
+    const override = glyphOverrides[glyph];
+    if (override) {
+      return override;
+    }
+    return getTileByGlyph(glyph) || `legacy.glyph.${glyph}`;
+  }));
+
+  return {
+    width,
+    height,
+    map,
+    tileIds,
+    getTile(x, y) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return null;
+      }
+      return map[y][x];
+    },
+    getTileId(x, y) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return null;
+      }
+      return tileIds[y][x];
+    },
+    isPassable(x, y) {
+      const terrainSystem = getTerrainSystem();
+      const tile = this.getTileId(x, y) || this.getTile(x, y);
+      return terrainSystem.isPassable(tile);
+    },
+    setGlyph(x, y, glyph) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return;
+      }
+      map[y][x] = glyph;
+      const override = glyphOverrides[glyph];
+      tileIds[y][x] = override || getTileByGlyph(glyph) || `legacy.glyph.${glyph}`;
+    }
+  };
+}
 
 describe('MovementCostCalculator', () => {
   let calculator;
   let mockState;
 
   beforeEach(() => {
+    resetTerrainSystem();
     calculator = new MovementCostCalculator();
-    
+
+    const terrainSystem = getTerrainSystem();
+    terrainSystem.registerTerrain('m', {
+      passable: true,
+      moveCost: 3,
+      blocksVision: false,
+      name: 'mud'
+    });
+    terrainSystem.registerTerrain('i', {
+      passable: true,
+      moveCost: 1.5,
+      blocksVision: false,
+      name: 'ice'
+    });
+    terrainSystem.registerTerrain('l', {
+      passable: true,
+      moveCost: 5,
+      blocksVision: false,
+      name: 'lava'
+    });
+
+    const glyphGrid = [
+      ['.', '.', '.', '.', '.'],
+      ['.', 'i', '.', '.', '.'],
+      ['.', '.', '~', '.', '.'],
+      ['.', '.', '.', 'm', '.'],
+      ['.', '.', '.', '.', 'l']
+    ];
+
     mockState = {
-      chunk: {
-        width: 5,
-        height: 5,
-        getTile: vi.fn((x, y) => {
-          // Return different terrain types for testing
-          if (x === 2 && y === 2) return 'water';
-          if (x === 3 && y === 3) return 'mud';
-          if (x === 1 && y === 1) return 'ice';
-          if (x === 4 && y === 4) return 'lava';
-          return 'ground';
-        }),
-        isPassable: vi.fn(() => true)
-      },
+      chunk: createTestChunk(glyphGrid, {
+        i: 'legacy.glyph.i',
+        m: 'legacy.glyph.m',
+        l: 'legacy.glyph.l'
+      }),
       player: {
         statuses: new Set(),
         equipment: {
@@ -30,6 +99,10 @@ describe('MovementCostCalculator', () => {
       },
       entities: new Map()
     };
+  });
+
+  afterEach(() => {
+    resetTerrainSystem();
   });
 
   describe('constructor', () => {
@@ -48,7 +121,7 @@ describe('MovementCostCalculator', () => {
           mud: 10
         }
       });
-      
+
       expect(customCalculator.terrainCosts.water).toBe(5);
       expect(customCalculator.terrainCosts.mud).toBe(10);
     });
@@ -61,7 +134,7 @@ describe('MovementCostCalculator', () => {
         { x: 1, y: 0 },
         mockState
       );
-      
+
       expect(cost).toBe(1);
     });
 
@@ -71,7 +144,7 @@ describe('MovementCostCalculator', () => {
         { x: 2, y: 2 },
         mockState
       );
-      
+
       expect(cost).toBe(2);
     });
 
@@ -81,28 +154,27 @@ describe('MovementCostCalculator', () => {
         { x: 3, y: 3 },
         mockState
       );
-      
+
       expect(cost).toBe(3);
     });
 
     it('should apply diagonal movement multiplier', () => {
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
-        { x: 1, y: 1 }, // Ice tile (1.5 cost)
+        { x: 1, y: 1 },
         mockState
       );
-      
-      // Ice (1.5) * diagonal (1.414) = 2.121
+
       expect(cost).toBeCloseTo(2.121, 2);
     });
 
     it('should combine terrain and diagonal costs', () => {
       const cost = calculator.calculateMoveCost(
         { x: 1, y: 1 },
-        { x: 2, y: 2 }, // Moving diagonally to water
+        { x: 2, y: 2 },
         mockState
       );
-      
+
       expect(cost).toBeCloseTo(2 * 1.414, 2);
     });
   });
@@ -110,39 +182,38 @@ describe('MovementCostCalculator', () => {
   describe('status effects', () => {
     it('should reduce cost with speed boost', () => {
       mockState.player.statuses.add('speed');
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
+
       expect(cost).toBe(0.5);
     });
 
     it('should increase cost with slow effect', () => {
       mockState.player.statuses.add('slow');
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
+
       expect(cost).toBe(2);
     });
 
     it('should handle multiple status effects', () => {
       mockState.player.statuses.add('slow');
       mockState.player.statuses.add('wet');
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
-      // Slow (2x) + Wet (1.5x) = 3x total
+
       expect(cost).toBe(3);
     });
   });
@@ -150,39 +221,38 @@ describe('MovementCostCalculator', () => {
   describe('equipment modifiers', () => {
     it('should reduce water cost with water walking boots', () => {
       mockState.player.equipment.boots = { type: 'water_walking' };
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 1, y: 2 },
-        { x: 2, y: 2 }, // Water tile
+        { x: 2, y: 2 },
         mockState
       );
-      
-      expect(cost).toBe(1); // Water walking makes water cost like ground
+
+      expect(cost).toBe(1);
     });
 
     it('should reduce ice cost with ice cleats', () => {
       mockState.player.equipment.boots = { type: 'ice_cleats' };
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 1 },
-        { x: 1, y: 1 }, // Ice tile
+        { x: 1, y: 1 },
         mockState
       );
-      
-      // Ice (1.5) * ice_cleats (0.67) = 1.005
+
       expect(cost).toBeCloseTo(1, 1);
     });
 
     it('should reduce lava damage with fire boots', () => {
       mockState.player.equipment.boots = { type: 'fire_boots' };
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 3, y: 4 },
-        { x: 4, y: 4 }, // Lava tile
+        { x: 4, y: 4 },
         mockState
       );
-      
-      expect(cost).toBe(2); // Fire boots reduce lava cost
+
+      expect(cost).toBe(2);
     });
   });
 
@@ -190,40 +260,40 @@ describe('MovementCostCalculator', () => {
     it('should increase cost when moving through ally', () => {
       const ally = { type: 'ally', x: 1, y: 0 };
       mockState.entities.set('1,0', ally);
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
-      expect(cost).toBe(2); // Moving through ally costs extra
+
+      expect(cost).toBe(2);
     });
 
     it('should return infinity for enemy blocking', () => {
       const enemy = { type: 'enemy', x: 1, y: 0 };
       mockState.entities.set('1,0', enemy);
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
-      expect(cost).toBe(Infinity); // Cannot move through enemies
+
+      expect(cost).toBe(Infinity);
     });
 
     it('should handle neutral entities', () => {
       const neutral = { type: 'neutral', x: 1, y: 0 };
       mockState.entities.set('1,0', neutral);
-      
+
       const cost = calculator.calculateMoveCost(
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         mockState
       );
-      
-      expect(cost).toBe(3); // Neutral entities are harder to pass
+
+      expect(cost).toBe(3);
     });
   });
 
@@ -239,6 +309,18 @@ describe('MovementCostCalculator', () => {
       expect(calculator.getTerrainCost(null)).toBe(1);
       expect(calculator.getTerrainCost(undefined)).toBe(1);
     });
+
+    it('should resolve tile identifiers', () => {
+      const terrainSystem = getTerrainSystem();
+      terrainSystem.registerTerrain('z', {
+        passable: true,
+        moveCost: 2.7,
+        blocksVision: false,
+        name: 'bog muck'
+      });
+
+      expect(calculator.getTerrainCost('legacy.glyph.z')).toBe(2.7);
+    });
   });
 
   describe('applyStatusModifiers', () => {
@@ -249,10 +331,10 @@ describe('MovementCostCalculator', () => {
     });
 
     it('should stack modifiers multiplicatively', () => {
-      mockState.player.statuses.add('speed'); // 0.5x
-      mockState.player.statuses.add('haste'); // 0.75x
+      mockState.player.statuses.add('speed');
+      mockState.player.statuses.add('haste');
       const modified = calculator.applyStatusModifiers(10, mockState);
-      expect(modified).toBe(3.75); // 10 * 0.5 * 0.75
+      expect(modified).toBe(3.75);
     });
 
     it('should return original cost with no statuses', () => {
@@ -265,7 +347,7 @@ describe('MovementCostCalculator', () => {
     it('should apply boot modifiers for matching terrain', () => {
       mockState.player.equipment.boots = { type: 'water_walking' };
       const modified = calculator.applyEquipmentModifiers(5, 'water', mockState);
-      expect(modified).toBe(2.5); // Water walking halves water cost
+      expect(modified).toBe(2.5);
     });
 
     it('should not apply modifiers for non-matching terrain', () => {
@@ -284,26 +366,23 @@ describe('MovementCostCalculator', () => {
   describe('caching', () => {
     it('should cache calculated costs', () => {
       const spy = vi.spyOn(calculator, 'getTerrainCost');
-      
-      // First call
+
       calculator.calculateMoveCost({ x: 0, y: 0 }, { x: 1, y: 0 }, mockState);
       expect(spy).toHaveBeenCalledTimes(1);
-      
-      // Second call with same positions should use cache
+
       calculator.calculateMoveCost({ x: 0, y: 0 }, { x: 1, y: 0 }, mockState);
       expect(spy).toHaveBeenCalledTimes(1);
     });
 
     it('should invalidate cache when state changes', () => {
       calculator.calculateMoveCost({ x: 0, y: 0 }, { x: 1, y: 0 }, mockState);
-      
-      // Change player status
+
       mockState.player.statuses.add('slow');
       calculator.invalidateCache();
-      
+
       const spy = vi.spyOn(calculator, 'getTerrainCost');
       calculator.calculateMoveCost({ x: 0, y: 0 }, { x: 1, y: 0 }, mockState);
-      
+
       expect(spy).toHaveBeenCalled();
     });
   });
@@ -321,8 +400,7 @@ describe('MovementCostCalculator', () => {
         { x: 0, y: 0 },
         mockState
       );
-      
-      // Diagonal movement with ground terrain (default)
+
       expect(cost).toBeCloseTo(1.414, 2);
     });
 
@@ -332,7 +410,7 @@ describe('MovementCostCalculator', () => {
         { x: 0, y: 0 },
         mockState
       );
-      
+
       expect(cost).toBe(0);
     });
   });

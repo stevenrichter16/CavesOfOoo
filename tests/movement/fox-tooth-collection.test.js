@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { runPlayerMove } from '../../src/js/movement/movePipeline.js';
 import { QUEST_ITEMS } from '../../src/js/items/questItems.js';
 import { entityAt } from '../../src/js/utils/queries.js';
+import { createTestChunk } from '../helpers/testUtils.js';
 
 describe('Fox Tooth Collection on Bump', () => {
   let state;
@@ -45,15 +46,15 @@ describe('Fox Tooth Collection on Bump', () => {
       alive: true
     };
 
+    const chunk = createTestChunk(48, 22);
+    chunk.monsters.push(fox);
+    chunk.biome = 'forest';
+
     state = {
       player,
       cx: 0,
       cy: -2, // Forest location
-      chunk: {
-        monsters: [fox],
-        map: Array(22).fill(null).map(() => Array(48).fill('.')),
-        biome: 'forest'
-      },
+      chunk,
       npcs: [],
       log: vi.fn()
     };
@@ -82,12 +83,12 @@ describe('Fox Tooth Collection on Bump', () => {
       const tooth = player.inventory[0];
       
       expect(tooth).toHaveProperty('item');
-      expect(tooth).toHaveProperty('quantity');
+      expect(tooth).toHaveProperty('count');
       expect(tooth.item).toHaveProperty('id');
       expect(tooth.item).toHaveProperty('name');
       expect(tooth.item).toHaveProperty('description');
       expect(tooth.item).toHaveProperty('value');
-      expect(tooth.quantity).toBe(1);
+      expect(tooth.count).toBe(1);
     });
 
     it('should properly stack teeth in inventory', async () => {
@@ -96,7 +97,7 @@ describe('Fox Tooth Collection on Bump', () => {
       await runPlayerMove(state, moveAction);
       
       expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].quantity).toBe(1);
+      expect(player.inventory[0].count).toBe(1);
       
       // Add second fox
       const fox2 = {
@@ -115,7 +116,7 @@ describe('Fox Tooth Collection on Bump', () => {
       
       // Should stack, not create new entry
       expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].quantity).toBe(2);
+      expect(player.inventory[0].count).toBe(2);
     });
   });
 
@@ -171,7 +172,7 @@ describe('Fox Tooth Collection on Bump', () => {
           id: 'fox_sweet_tooth',
           ...QUEST_ITEMS.fox_sweet_tooth
         },
-        quantity: 1
+        count: 1
       };
       
       player.inventory.push(toothItem);
@@ -183,18 +184,18 @@ describe('Fox Tooth Collection on Bump', () => {
 
     it('should handle manual tooth grant', () => {
       // Function to manually grant tooth
-      const grantTooth = (player, quantity = 1) => {
+      const grantTooth = (player, count = 1) => {
         const existing = player.inventory.find(i => i.item?.id === 'fox_sweet_tooth');
         
         if (existing) {
-          existing.quantity += quantity;
+          existing.count += count;
         } else {
           const toothItem = {
             item: {
               id: 'fox_sweet_tooth',
               ...QUEST_ITEMS.fox_sweet_tooth
             },
-            quantity
+            count
           };
           player.inventory.push(toothItem);
         }
@@ -204,14 +205,14 @@ describe('Fox Tooth Collection on Bump', () => {
           if (!player.quests.progress['sweet_tooth_foxes']) {
             player.quests.progress['sweet_tooth_foxes'] = { teeth: 0 };
           }
-          player.quests.progress['sweet_tooth_foxes'].teeth += quantity;
+          player.quests.progress['sweet_tooth_foxes'].teeth += count;
         }
       };
       
       grantTooth(player, 3);
       
       expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].quantity).toBe(3);
+      expect(player.inventory[0].count).toBe(3);
       expect(player.quests.progress.sweet_tooth_foxes.teeth).toBe(3);
     });
   });

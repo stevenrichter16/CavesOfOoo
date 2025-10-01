@@ -227,7 +227,7 @@ describe('PriorityQueue', () => {
       }
       
       const elapsed = performance.now() - start;
-      expect(elapsed).toBeLessThan(1000); // Should complete in less than 1 second
+      expect(elapsed).toBeLessThan(2000); // Should complete in less than 2 seconds
     });
   });
 

@@ -386,7 +386,7 @@ export class StructureStep extends PipelineStep {
             const y = point.y + dy;
             
             if (x >= 0 && x < 24 && y >= 0 && y < 22) {
-              chunk.setTile(x, y, '.');
+              chunk.setTile(x, y, 'floor.default');
             }
           }
         }
@@ -414,9 +414,10 @@ export class StructureStep extends PipelineStep {
             
             if (px >= 0 && px < 24 && py >= 0 && py < 22) {
               // Only place water on floor tiles
-              if (chunk.getTile(px, py) === '.') {
+              const currentId = typeof chunk.getTileId === 'function' ? chunk.getTileId(px, py) : null;
+              if (currentId === 'floor.default' || currentId === 'floor.candy.polished') {
                 if (Math.abs(dx) + Math.abs(dy) <= size) {
-                  chunk.setTile(px, py, '~');
+                  chunk.setTile(px, py, 'terrain.water.shallow');
                 }
               }
             }
@@ -429,8 +430,9 @@ export class StructureStep extends PipelineStep {
     if (params.openness > 0.5) {
       for (let y = 0; y < 22; y++) {
         for (let x = 0; x < 24; x++) {
-          if (chunk.getTile(x, y) === '.' && rng.next() < 0.2) {
-            chunk.setTile(x, y, '·');
+          const currentId = typeof chunk.getTileId === 'function' ? chunk.getTileId(x, y) : null;
+          if ((currentId === 'floor.default' || currentId === 'floor.candy.polished') && rng.next() < 0.2) {
+            chunk.setTile(x, y, 'floor.candy.polished');
           }
         }
       }
@@ -453,60 +455,64 @@ export class StructureStep extends PipelineStep {
     // North edge
     let hasNorth = false;
     for (let x = 2; x < 22; x++) {
-      if (chunk.getTile(x, 0) === '.') {
+      const tileId = typeof chunk.getTileId === 'function' ? chunk.getTileId(x, 0) : null;
+      if (tileId === 'floor.default' || tileId === 'floor.candy.polished') {
         connections.north.push(x);
         hasNorth = true;
       }
     }
     if (!hasNorth) {
       const x = 5 + Math.floor(rng.next() * 14);
-      chunk.setTile(x, 0, '.');
-      chunk.setTile(x, 1, '.');
+      chunk.setTile(x, 0, 'floor.default');
+      chunk.setTile(x, 1, 'floor.default');
       connections.north.push(x);
     }
     
     // South edge
     let hasSouth = false;
     for (let x = 2; x < 22; x++) {
-      if (chunk.getTile(x, 21) === '.') {
+      const tileId = typeof chunk.getTileId === 'function' ? chunk.getTileId(x, 21) : null;
+      if (tileId === 'floor.default' || tileId === 'floor.candy.polished') {
         connections.south.push(x);
         hasSouth = true;
       }
     }
     if (!hasSouth) {
       const x = 5 + Math.floor(rng.next() * 14);
-      chunk.setTile(x, 21, '.');
-      chunk.setTile(x, 20, '.');
+      chunk.setTile(x, 21, 'floor.default');
+      chunk.setTile(x, 20, 'floor.default');
       connections.south.push(x);
     }
     
     // East edge
     let hasEast = false;
     for (let y = 2; y < 20; y++) {
-      if (chunk.getTile(23, y) === '.') {
+      const tileId = typeof chunk.getTileId === 'function' ? chunk.getTileId(23, y) : null;
+      if (tileId === 'floor.default' || tileId === 'floor.candy.polished') {
         connections.east.push(y);
         hasEast = true;
       }
     }
     if (!hasEast) {
       const y = 5 + Math.floor(rng.next() * 12);
-      chunk.setTile(23, y, '.');
-      chunk.setTile(22, y, '.');
+      chunk.setTile(23, y, 'floor.default');
+      chunk.setTile(22, y, 'floor.default');
       connections.east.push(y);
     }
     
     // West edge
     let hasWest = false;
     for (let y = 2; y < 20; y++) {
-      if (chunk.getTile(0, y) === '.') {
+      const tileId = typeof chunk.getTileId === 'function' ? chunk.getTileId(0, y) : null;
+      if (tileId === 'floor.default' || tileId === 'floor.candy.polished') {
         connections.west.push(y);
         hasWest = true;
       }
     }
     if (!hasWest) {
       const y = 5 + Math.floor(rng.next() * 12);
-      chunk.setTile(0, y, '.');
-      chunk.setTile(1, y, '.');
+      chunk.setTile(0, y, 'floor.default');
+      chunk.setTile(1, y, 'floor.default');
       connections.west.push(y);
     }
     

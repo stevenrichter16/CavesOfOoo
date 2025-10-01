@@ -195,6 +195,7 @@ describe('Simulation Engine', () => {
     it('should define correct phase order', () => {
       expect(PHASE_ORDER).toEqual([
         'preturn',
+        'movement',
         'apply',
         'predamage',
         'damage',

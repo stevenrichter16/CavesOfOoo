@@ -1,5 +1,36 @@
 import { expect } from 'vitest';
 import { Status, getEntityId } from '../../src/js/combat/statusSystem.js';
+import { createTileGrid, createGlyphAwareMap } from '../../src/js/world/tileUtils.js';
+
+function buildChunkFromGlyphMap(glyphMap) {
+  const height = glyphMap?.length ?? 0;
+  const width = height > 0 ? glyphMap[0]?.length ?? 0 : 0;
+  const { map: baseMap, tileIds } = createTileGrid(width || 1, height || 1, 'floor.default');
+  const mapProxy = createGlyphAwareMap(baseMap, tileIds);
+
+  if (glyphMap) {
+    for (let y = 0; y < glyphMap.length; y++) {
+      const row = glyphMap[y];
+      if (!Array.isArray(row)) continue;
+      for (let x = 0; x < row.length; x++) {
+        mapProxy[y][x] = row[x];
+      }
+    }
+  }
+
+  return { map: mapProxy, tileIds };
+}
+
+export function createTestChunk(width, height, fillGlyph = '.') {
+  const glyphMap = Array.from({ length: height }, () => Array(width).fill(fillGlyph));
+  const { map, tileIds } = buildChunkFromGlyphMap(glyphMap);
+  return {
+    map,
+    tileIds,
+    monsters: [],
+    items: [],
+  };
+}
 
 /**
  * Create a mock entity for testing
@@ -24,11 +55,28 @@ export function createMockEntity(overrides = {}) {
  * Create a mock game state
  */
 export function createMockState(overrides = {}) {
-  return {
+  const chunkOverrides = overrides.chunk;
+  let chunk;
+
+  if (chunkOverrides) {
+    const sourceMap = chunkOverrides.map;
+    const height = sourceMap?.length ?? 20;
+    const width = height > 0 ? sourceMap[0]?.length ?? 20 : 20;
+    const built = buildChunkFromGlyphMap(sourceMap ?? Array.from({ length: height }, () => Array(width).fill('.')));
+    chunk = {
+      monsters: [],
+      items: [],
+      ...chunkOverrides,
+      map: built.map,
+      tileIds: built.tileIds
+    };
+  } else {
+    chunk = createTestChunk(20, 20);
+  }
+
+  const state = {
     player: createMockEntity({ id: 'player' }),
-    chunk: {
-      map: Array(20).fill(null).map(() => Array(20).fill('.'))
-    },
+    chunk,
     time: 'day',
     weather: 'clear',
     log: () => {},
@@ -55,8 +103,18 @@ export function createMockState(overrides = {}) {
         };
       }
     },
-    ...overrides
+    ...overrides,
+    chunk
   };
+
+  if (!Array.isArray(state.chunk.monsters)) {
+    state.chunk.monsters = [];
+  }
+  if (!Array.isArray(state.chunk.items)) {
+    state.chunk.items = [];
+  }
+
+  return state;
 }
 
 /**
